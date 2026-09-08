@@ -1,0 +1,362 @@
+package com.giga.tech1000.heartbeatz;
+
+import android.content.Intent;
+import android.os.Bundle;
+import android.widget.Toast;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.OptIn;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
+import androidx.lifecycle.Lifecycle;
+import androidx.navigation.NavController;
+import androidx.navigation.fragment.NavHostFragment;
+import androidx.navigation.ui.NavigationUI;
+
+import com.realgear.multislidinguppanel.MultiSlidingUpPanelLayout;
+
+import com.giga.tech1000.heartbeatz.observers.LibraryObservers;
+import com.giga.tech1000.heartbeatz.ui.UIThread;
+import com.giga.tech1000.heartbeatz.view_models.extended_models.PartyViewModel;
+import com.giga.tech1000.heartbeatz.view_models.extended_models.SettingViewModel;
+import com.giga.tech1000.media_player.scanners.LocalMediaScannerManager;
+import com.giga.tech1000.utils.PermissionManager;
+import com.giga.tech1000.heartbeatz.view_models.AlbumsViewModel;
+import com.giga.tech1000.heartbeatz.view_models.ArtistsViewModel;
+import com.giga.tech1000.heartbeatz.view_models.FoldersViewModel;
+import com.giga.tech1000.heartbeatz.view_models.GenresViewModel;
+import com.giga.tech1000.heartbeatz.view_models.LibrarySetViewModel;
+import com.giga.tech1000.heartbeatz.view_models.PlaylistsViewModel;
+import com.giga.tech1000.heartbeatz.view_models.SongsViewModel;
+import com.giga.tech1000.party_mode.core.PartyState;
+import com.giga.tech1000.media_player.models.Song;
+import com.giga.tech1000.party_mode.model.SyncPacket;
+import com.google.android.material.snackbar.Snackbar;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+
+import java.util.TreeMap;
+
+/**
+ * Main Activity implementing MultiSlidingUpPanelLayout for a multi-pane slide-up interface.
+ * Individual fragments (Home, Party) contain their own toolbars.
+ */
+
+@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)
+public class MainActivity extends AppCompatActivity {
+
+    private PermissionManager permissionManager;
+    private UIThread uiThread;
+
+    // Using a volatile boolean is safer for checks across different threads/callbacks.
+    private volatile boolean isAppReady = false;
+    private volatile boolean isDataReady = false;
+
+    private LibraryObservers libraryObservers;
+    private LocalMediaScannerManager scannerManager;
+    private LibrarySetViewModel librarySetViewModel;
+
+    private SettingViewModel settingViewModel;
+
+    // Firebase Auth
+    private FirebaseAuth mAuth;
+    private FirebaseAuth.AuthStateListener mAuthListener;
+
+    // UI Components
+    private MultiSlidingUpPanelLayout multiSlidingUpPanelLayout;
+    private NavController navController;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        // --- STEP 1: INSTALL SPLASH SCREEN ---
+        androidx.core.splashscreen.SplashScreen splashScreen = androidx.core.splashscreen.SplashScreen.installSplashScreen(this);
+
+        uiThread = new UIThread(this);
+        libraryObservers = new LibraryObservers();
+
+        androidx.activity.EdgeToEdge.enable(this);
+        super.onCreate(savedInstanceState);
+
+        // Initialize Firebase Auth
+        mAuth = FirebaseAuth.getInstance();
+
+        initCoreComponents();
+
+        // --- STEP 3: KEEP SPLASH VISIBLE UNTIL DATA IS READY ---
+        splashScreen.setKeepOnScreenCondition(() -> !isDataReady);
+
+        setContentView(R.layout.activity_main);
+
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(findViewById(android.R.id.content), (v, insets) -> {
+            Insets systemBars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars());
+            v.setPadding(systemBars.left, 0, systemBars.right, systemBars.bottom);
+
+            return insets;
+        });
+
+
+        // --- STEP 2: SETUP PERMISSIONS ---
+        // Initialize the manager with a callback that handles all outcomes.
+        setupPermissions();
+
+        // --- STEP 4: CHECK PERMISSIONS ---
+        // This kicks off the entire process.
+        checkAndRequestPermissions();
+
+
+
+        // Observe Party state to update UI
+        PartyViewModel partyViewModel = new androidx.lifecycle.ViewModelProvider(this).get(PartyViewModel.class);
+        partyViewModel.getUiState().observe(this, state -> {
+            boolean isClient = (state == PartyState.JOINED);
+            if (uiThread != null && uiThread.getMediaPlayerPanel() != null) {
+                uiThread.getMediaPlayerPanel().setPartyClientMode(isClient);
+            }
+        });
+
+        // Update UI with metadata from Party Mode when in client mode
+        partyViewModel.getCurrentSync().observe(this, sync -> {
+            if (sync != null && partyViewModel.getUiState().getValue() == PartyState.JOINED) {
+                Song song = convertSyncToSong(sync);
+                if (uiThread != null && uiThread.getMediaPlayerPanel() != null) {
+                    uiThread.getMediaPlayerPanel().onSongChanged(song);
+                }
+            }
+        });
+
+        // Set up Firebase Auth listener to check if user is signed in
+        setupFirebaseAuthListener();
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(android.view.Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        // Note: Toolbar menus are now handled in individual fragments
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull android.view.MenuItem item) {
+        // Handle action bar item clicks here. The action bar will
+        // automatically handle clicks on the Home/Up button, so long
+        // as you specify a parent activity in AndroidManifest.xml.
+        // Note: Toolbar item clicks are now handled in individual fragments
+        return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        // Check if user is signed in (non-null) and update UI accordingly.
+        mAuth.addAuthStateListener(mAuthListener);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (mAuthListener != null) {
+            mAuth.removeAuthStateListener(mAuthListener);
+        }
+    }
+
+    private Song convertSyncToSong(SyncPacket sync) {
+        // Find the actual song in repository by mediaId if possible, or create a stub
+        Song song = new Song();
+        try {
+            int id = Integer.parseInt(sync.mediaId);
+            java.util.TreeMap<Integer, Song> cached = com.giga.tech1000.media_player.repository.SongRepository.getInstance().getCachedSongs();
+            if (cached != null && cached.containsKey(id)) {
+                return cached.get(id);
+            }
+            song.id = id;
+        } catch (Exception e) {
+            song.id = -1;
+        }
+        song.title = (sync.title != null) ? sync.title : "Streaming Audio";
+        song.artist = (sync.artist != null) ? sync.artist : "Party Mode";
+        return song;
+    }
+
+    /*
+    private void initUIComponents() {
+        // Initialize MultiSlidingUpPanelLayout
+        multiSlidingUpPanelLayout = findViewById(R.id.multiSlidingUpPanel);
+
+        // Get NavController from the NavHostFragment (first child of MultiSlidingUpPanelLayout)
+        FragmentManager fm = getSupportFragmentManager();
+        Fragment fragment = fm.findFragmentById(R.id.nav_host_fragment);
+        if (fragment instanceof NavHostFragment) {
+            navController = ((NavHostFragment) fragment).getNavController();
+        }
+
+        // Optional: Set up panel slide listeners if needed
+        // multiSlidingUpPanelLayout.addPanelSlideListener(new PanelSlideListener() { ... });
+    }
+    */
+
+    private void initCoreComponents() {
+        isAppReady = true;
+
+        SongsViewModel songsVm =
+                new androidx.lifecycle.ViewModelProvider(this).get(SongsViewModel.class);
+        AlbumsViewModel albumsVm =
+                new androidx.lifecycle.ViewModelProvider(this).get(AlbumsViewModel.class);
+        ArtistsViewModel artistsVm =
+                new androidx.lifecycle.ViewModelProvider(this).get(ArtistsViewModel.class);
+        GenresViewModel genresVm =
+                new androidx.lifecycle.ViewModelProvider(this).get(GenresViewModel.class);
+        FoldersViewModel foldersVm =
+                new androidx.lifecycle.ViewModelProvider(this).get(FoldersViewModel.class);
+        PlaylistsViewModel playlistsVm =
+                new androidx.lifecycle.ViewModelProvider(this).get(PlaylistsViewModel.class);
+
+        librarySetViewModel = new androidx.lifecycle.ViewModelProvider(this).get(LibrarySetViewModel.class);
+        settingViewModel = new androidx.lifecycle.ViewModelProvider(this).get(SettingViewModel.class);
+
+
+        libraryObservers.bind(songsVm, albumsVm, artistsVm, genresVm, foldersVm, playlistsVm);
+
+        // 🔥 This activates everything
+        libraryObservers.getState().observe(this, state -> {
+            if (libraryObservers.isReady()) {
+                setDataReady(); // splash disappears here
+            }
+        });
+    }
+
+    /**
+     * Configures the PermissionManager and defines what happens on each permission result.
+     */
+    private void setupPermissions() {
+        permissionManager = new PermissionManager(this, new PermissionManager.PermissionCallback() {
+            @Override
+            public void onPermissionsGranted() {
+                Toast.makeText(MainActivity.this, "Permissions Granted! Loading music...", Toast.LENGTH_SHORT).show();
+                // Permissions are granted, now we can load the data.
+                loadAudioFiles();
+            }
+
+            @Override
+            public void onPermissionsDenied() {
+                com.google.android.material.snackbar.Snackbar.make(findViewById(android.R.id.content),
+                                "Storage permission is required to play music.",
+                                com.google.android.material.snackbar.Snackbar.LENGTH_INDEFINITE)
+                        .setAction("RETRY", v -> checkAndRequestPermissions())
+                        .show();
+                // The app is "ready" to show the UI (even if it's just a Snackbar).
+                setDataReady();
+            }
+
+            @Override
+            public void onPermissionsDeniedPermanently() {
+                com.google.android.material.snackbar.Snackbar.make(findViewById(android.R.id.content),
+                                "Permission permanently denied. Go to settings to enable it.",
+                                com.google.android.material.snackbar.Snackbar.LENGTH_INDEFINITE)
+                        .setAction("SETTINGS", v ->
+                                startActivity(PermissionManager.getAppSettingsIntent(MainActivity.this)))
+                        .show();
+                // The app is "ready" to show the UI.
+                setDataReady();
+            }
+        });
+    }
+
+    /**
+     * Checks if permissions are granted. If so, proceeds. If not, requests them.
+     */
+    private void checkAndRequestPermissions() {
+        if (permissionManager.hasRequiredPermissions()) {
+            // If we already have permission, go straight to loading audio.
+            loadAudioFiles();
+        } else {
+            // Otherwise, request the permissions. The result will be handled by the callback.
+            permissionManager.requestRequiredPermissions();
+        }
+    }
+
+    /**
+     * The single entry point for loading music and preparing the main UI.
+     * This is where you would call your ViewModel or background scanner.
+     */
+    private void loadAudioFiles() {
+        scannerManager = new LocalMediaScannerManager(this);
+        scannerManager.init();
+
+        uiThread.init();
+    }
+
+
+    @Override
+    protected void onNewIntent(@NonNull Intent intent) {
+        super.onNewIntent(intent);
+        handleIntent(intent);
+    }
+
+
+    @Override
+    protected void onDestroy() {
+        if (uiThread != null) {
+            uiThread.onDestroy();
+        }
+        if (scannerManager != null) {
+            scannerManager.release();
+        }
+        super.onDestroy();
+    }
+
+    private void handleIntent(Intent intent) {
+        if ("com.heartbeatz.party.SHOW_PARTY".equals(intent.getAction())) {
+            // Navigate to Party fragment when intent is received
+            if (navController != null) {
+                navController.navigate(R.id.nav_party);
+            }
+            Toast.makeText(this, "Party Intent Received", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    public SettingViewModel getSettingViewModel() {
+        return settingViewModel;
+    }
+
+    public LibraryObservers getLibraryObservers() {
+        return libraryObservers;
+    }
+
+    public LocalMediaScannerManager getScannerManager() {
+        return scannerManager;
+    }
+
+    public LibrarySetViewModel getLibrarySetViewModel() {
+        return librarySetViewModel;
+    }
+
+    public PermissionManager getPermissionManager() {
+        return permissionManager;
+    }
+
+    public void setDataReady() {
+        isDataReady = true;
+    }
+
+    // Firebase Auth listener setup
+    private void setupFirebaseAuthListener() {
+        mAuthListener = firebaseAuth -> {
+            FirebaseUser user = firebaseAuth.getCurrentUser();
+            if (user != null) {
+                // User is signed in, proceed with app initialization
+                // The app initialization is already happening in onCreate
+            }
+            /*
+            else {
+                // User is signed out, send to log in screen
+                Intent intent = new Intent(MainActivity.this, LoginActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+                finish();
+            }
+            */
+        };
+    }
+}

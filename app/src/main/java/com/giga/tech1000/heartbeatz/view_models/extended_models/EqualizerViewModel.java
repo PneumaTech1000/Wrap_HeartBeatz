@@ -1,0 +1,887 @@
+package com.giga.tech1000.heartbeatz.view_models.extended_models;
+
+import android.app.Application;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.OptIn;
+import androidx.lifecycle.AndroidViewModel;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
+import androidx.media3.common.util.UnstableApi;
+
+import com.giga.tech1000.heartbeatz.architecture.PlaybackStateManager;
+import com.giga.tech1000.heartbeatz.architecture.repositories.PlaybackStateRepository;
+import com.giga.tech1000.heartbeatz.ui.MediaPlayerThread;
+import com.giga.tech1000.media_player.AudioEngine;
+import com.giga.tech1000.media_player.utils.enums.EqPreset;
+import com.giga.tech1000.heartbeatz.utils.Preset;
+import com.giga.tech1000.heartbeatz.utils.PresetManager;
+import com.giga.tech1000.heartbeatz.utils.audio.ParametricEQBand;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+
+/**
+ * ViewModel for EqualizerViewPanel
+ *
+ * Replaces direct UIThread.getInstance() calls with injected repository access.
+ * Manages playback controls (speed, pitch) and equalizer settings.
+ *
+ * This ViewModel encapsulates all equalizer panel functionality
+ * and exposes it through clean LiveData interfaces.
+ */
+@OptIn(markerClass = UnstableApi.class)
+public class EqualizerViewModel extends AndroidViewModel {
+
+    private static final String TAG = "EqualizerViewModel";
+
+// For configuration persistence
+private static final String PREFS_NAME_LAST_STATE = "heartbeatz_last_state";
+private static final String KEY_LAST_STATE_JSON = "last_state_json";
+
+    private final PlaybackStateRepository playbackState;
+    private AudioEngine audioEngine;
+    private final PresetManager presetManager;
+
+    // Equalizer state - Enhanced for parametric EQ
+    private final MutableLiveData<Boolean> equalizerEnabled = new MutableLiveData<>(false);
+    private final MutableLiveData<Preset> currentPreset = new MutableLiveData<>(new Preset());
+    private final MutableLiveData<List<ParametricEQBand>> eqBands = new MutableLiveData<>(new ArrayList<>());
+
+    // Effects state
+    private final MutableLiveData<Boolean> bassEnabled = new MutableLiveData<>(false);
+    private final MutableLiveData<Boolean> virtualizerEnabled = new MutableLiveData<>(false);
+    private final MutableLiveData<Boolean> loudnessEnabled = new MutableLiveData<>(false);
+    private final MutableLiveData<Boolean> reverbEnabled = new MutableLiveData<>(false);
+    private final MutableLiveData<Integer> reverbRoomLevel = new MutableLiveData<>(0);
+    private final MutableLiveData<Integer> reverbDecayTime = new MutableLiveData<>(1000);
+    private final MutableLiveData<Boolean> stereoWideningEnabled = new MutableLiveData<>(false);
+    private final MutableLiveData<Float> stereoWideningWidth = new MutableLiveData<>(0.5f);
+    private final MutableLiveData<Boolean> exciterEnabled = new MutableLiveData<>(false);
+    private final MutableLiveData<Float> exciterAmount = new MutableLiveData<>(0.0f);
+    private final MutableLiveData<Float> exciterFrequency = new MutableLiveData<>(2000.0f);
+    private final MutableLiveData<Boolean> compressorEnabled = new MutableLiveData<>(false);
+    private final MutableLiveData<Float> compressorThreshold = new MutableLiveData<>(-20.0f);
+    private final MutableLiveData<Float> compressorRatio = new MutableLiveData<>(4.0f);
+    private final MutableLiveData<Float> compressorAttack = new MutableLiveData<>(10.0f);
+    private final MutableLiveData<Float> compressorRelease = new MutableLiveData<>(100.0f);
+    private final MutableLiveData<Boolean> limiterEnabled = new MutableLiveData<>(false);
+    private final MutableLiveData<Float> limiterThreshold = new MutableLiveData<>(-3.0f);
+    private final MutableLiveData<Boolean> noiseGateEnabled = new MutableLiveData<>(false);
+    private final MutableLiveData<Float> noiseGateThreshold = new MutableLiveData<>(-60.0f);
+    private final MutableLiveData<Boolean> deEsserEnabled = new MutableLiveData<>(false);
+    private final MutableLiveData<Float> deEsserThreshold = new MutableLiveData<>(-20.0f);
+    private final MutableLiveData<Float> deEsserFrequency = new MutableLiveData<>(5000.0f);
+
+    // Playback control state
+    private final MutableLiveData<Float> currentTempo = new MutableLiveData<>(1.0f);
+    private final MutableLiveData<Float> currentPitch = new MutableLiveData<>(0.0f);
+
+    // A/B comparison state
+    private final MutableLiveData<Preset> presetPresetA = new MutableLiveData<>(new Preset());
+    private final MutableLiveData<Preset> presetPresetB = new MutableLiveData<>(new Preset());
+    private final MutableLiveData<Boolean> abComparisonEnabled = new MutableLiveData<>(false);
+
+    public EqualizerViewModel(@NonNull Application application) {
+        super(application);
+        MediaPlayerThread playerThread = com.giga.tech1000.heartbeatz.ui.UIThread.getInstance().getMediaPlayerThread();
+        this.playbackState = new PlaybackStateManager(playerThread);
+        this.presetManager = new PresetManager(application);
+        // Initialize with default parametric bands
+        initializeParametricBands();
+        // Load the default preset (flat) as current
+        loadDefaultPreset();
+        // Try to load last state from SharedPreferences
+        loadStateFromSharedPreferences();
+    }
+
+    /**
+     * Constructor with dependency injection (for testing)
+     */
+    public EqualizerViewModel(@NonNull Application application,
+                              @NonNull PlaybackStateRepository playbackStateRepo,
+                              @NonNull AudioEngine audioEngineInstance) {
+        super(application);
+        this.playbackState = playbackStateRepo;
+        this.audioEngine = audioEngineInstance;
+        this.presetManager = new PresetManager(application);
+        // Initialize with default parametric bands
+        initializeParametricBands();
+        // Load the default preset (flat) as current
+        loadDefaultPreset();
+        // Try to load last state from SharedPreferences
+        loadStateFromSharedPreferences();
+    }
+
+    public void setAudioEngine(AudioEngine audioEngine) {
+        this.audioEngine = audioEngine;
+        // Initialize preset manager if not already set
+        if (this.presetManager == null) {
+            // Note: We can't initialize PresetManager without a Context here
+            // This would need to be handled differently in a real implementation
+            // For now, we'll leave it as is and rely on the constructors
+        }
+    }
+
+    // ============ PARAMETRIC EQ STATE ============
+
+    /**
+     * Get equalizer enabled state
+     */
+    @NonNull
+    public LiveData<Boolean> isEqualizerEnabled() {
+        return equalizerEnabled;
+    }
+
+    /**
+     * Set equalizer enabled state
+     */
+    public void setEqualizerEnabled(boolean enabled) {
+        equalizerEnabled.setValue(enabled);
+        if (audioEngine != null) {
+            audioEngine.enableEqualizer(enabled);
+        }
+    }
+
+    /**
+     * Get current EQ preset
+     */
+    @NonNull
+    public LiveData<Preset> getCurrentPreset() {
+        return currentPreset;
+    }
+
+    /**
+     * Set EQ preset from a Preset object
+     */
+    public void setPreset(@NonNull Preset preset) {
+        currentPreset.setValue(preset);
+        // Update EQ bands to match the preset
+        eqBands.setValue(preset.getEqBands());
+
+        // Update basic effects states
+        bassEnabled.setValue(preset.isBassEnabled());
+        virtualizerEnabled.setValue(preset.isVirtualizerEnabled());
+        loudnessEnabled.setValue(preset.isLoudnessEnabled());
+        currentTempo.setValue(preset.getTempo());
+        currentPitch.setValue(preset.getPitch());
+
+        // Update advanced effects states
+        reverbEnabled.setValue(preset.isReverbEnabled());
+        reverbRoomLevel.setValue(preset.getReverbRoomLevel());
+        reverbDecayTime.setValue(preset.getReverbDecayTime());
+        stereoWideningEnabled.setValue(preset.isStereoWideningEnabled());
+        stereoWideningWidth.setValue(preset.getStereoWideningWidth());
+        exciterEnabled.setValue(preset.isExciterEnabled());
+        exciterAmount.setValue(preset.getExciterAmount());
+        exciterFrequency.setValue(preset.getExciterFrequency());
+        compressorEnabled.setValue(preset.isCompressorEnabled());
+        compressorThreshold.setValue(preset.getCompressorThreshold());
+        compressorRatio.setValue(preset.getCompressorRatio());
+        compressorAttack.setValue(preset.getCompressorAttack());
+        compressorRelease.setValue(preset.getCompressorRelease());
+        limiterEnabled.setValue(preset.isLimiterEnabled());
+        limiterThreshold.setValue(preset.getLimiterThreshold());
+        noiseGateEnabled.setValue(preset.isNoiseGateEnabled());
+        noiseGateThreshold.setValue(preset.getNoiseGateThreshold());
+        deEsserEnabled.setValue(preset.isDeEsserEnabled());
+        deEsserThreshold.setValue(preset.getDeEsserThreshold());
+        deEsserFrequency.setValue(preset.getDeEsserFrequency());
+
+        if (audioEngine != null) {
+            // Apply EQ bands to hardware
+            applyParametricBandsToHardwareFromList(preset.getEqBands());
+
+            // Apply basic effects
+            audioEngine.enableBass(preset.isBassEnabled());
+            audioEngine.setBassBoost(preset.isBassEnabled() ? (short) preset.getBassStrength() : (short) 0);
+
+            audioEngine.enableVirtualizer(preset.isVirtualizerEnabled());
+            audioEngine.setVirtualizer(preset.isVirtualizerEnabled() ? (short) preset.getVirtualizerStrength() : (short) 0);
+
+            audioEngine.enableLoudness(preset.isLoudnessEnabled());
+            audioEngine.setLoudnessGain(preset.isLoudnessEnabled() ? preset.getLoudnessGain() : 0);
+
+            // Apply advanced effects
+            audioEngine.setReverbEnabled(preset.isReverbEnabled());
+            if (preset.isReverbEnabled()) {
+                audioEngine.setReverbProperties(preset.getReverbRoomLevel(), preset.getReverbDecayTime());
+            }
+
+            audioEngine.setStereoWideningEnabled(preset.isStereoWideningEnabled());
+            audioEngine.setStereoWideningWidth(preset.getStereoWideningWidth());
+
+            audioEngine.setExciterEnabled(preset.isExciterEnabled());
+            audioEngine.setExciterAmount(preset.getExciterAmount());
+            audioEngine.setExciterFrequency(preset.getExciterFrequency());
+
+            audioEngine.setCompressorEnabled(preset.isCompressorEnabled());
+            audioEngine.setCompressorThreshold(preset.getCompressorThreshold());
+            audioEngine.setCompressorRatio(preset.getCompressorRatio());
+            audioEngine.setCompressorAttack(preset.getCompressorAttack());
+            audioEngine.setCompressorRelease(preset.getCompressorRelease());
+
+            audioEngine.setLimiterEnabled(preset.isLimiterEnabled());
+            audioEngine.setLimiterThreshold(preset.getLimiterThreshold());
+
+            audioEngine.setNoiseGateEnabled(preset.isNoiseGateEnabled());
+            audioEngine.setNoiseGateThreshold(preset.getNoiseGateThreshold());
+
+            audioEngine.setDeEsserEnabled(preset.isDeEsserEnabled());
+            audioEngine.setDeEsserThreshold(preset.getDeEsserThreshold());
+            audioEngine.setDeEsserFrequency(preset.getDeEsserFrequency());
+        }
+    }
+
+    /**
+     * Get current parametric EQ bands
+     */
+    @NonNull
+    public LiveData<List<ParametricEQBand>> getEqBands() {
+        return eqBands;
+    }
+
+    /**
+     * Set parametric EQ band parameters
+     */
+    public void setEqBand(int bandIndex, float frequencyHz, float gainDb, float qFactor) {
+        List<ParametricEQBand> bands = eqBands.getValue();
+        if (bands != null && bandIndex >= 0 && bandIndex < bands.size()) {
+            ParametricEQBand band = bands.get(bandIndex);
+            band.setFrequencyHz(frequencyHz);
+            band.setGainDb(gainDb);
+            band.setQFactor(qFactor);
+
+            // Notify observers of change
+            eqBands.setValue(new ArrayList<>(bands));
+
+            // Apply to audio engine if available and equalizer is enabled
+            if (audioEngine != null && equalizerEnabled.getValue()) {
+                applyBandToHardware(bandIndex, band);
+            }
+
+            // Save state to SharedPreferences
+            saveStateToSharedPreferences();
+        }
+    }
+
+    /**
+     * Apply all parametric bands to hardware
+     */
+    private void applyParametricBandsToHardware(EqPreset preset) {
+        if (audioEngine == null) return;
+
+        // For preset application, we still need to map to the fixed-band equalizer
+        // since Android's Equalizer FX doesn't support true parametric EQ
+        applyPresetToFixedBands(preset);
+    }
+
+    /**
+     * Apply a single band to hardware (approximation for fixed-band equalizer)
+     */
+    private void applyBandToHardware(int bandIndex, ParametricEQBand band) {
+        if (audioEngine == null) return;
+
+        // Convert parametric band to fixed-band equalizer settings
+        // This is an approximation since Android Equalizer is fixed-band
+        short[] fixedBandGains = convertParametricToFixedBands(Collections.singletonList(band));
+        if (fixedBandGains != null && fixedBandGains.length > bandIndex) {
+            audioEngine.setEqualizerBandLevel((short) bandIndex, fixedBandGains[bandIndex]);
+        }
+    }
+
+    /**
+     * Convert parametric bands to fixed-band equalizer gains
+     */
+    private short[] convertParametricToFixedBands(List<ParametricEQBand> parametricBands) {
+        if (audioEngine == null) return new short[0];
+
+        short bandCount = audioEngine.getNumberOfBands();
+        short minLevel = audioEngine.getMinBandLevelRange();
+        short maxLevel = audioEngine.getMaxBandLevelRange();
+        short[] fixedGains = new short[bandCount];
+
+        // Initialize all bands to 0dB (center position)
+        int center = (maxLevel - minLevel) / 2;
+        for (int i = 0; i < bandCount; i++) {
+            fixedGains[i] = (short) center;
+        }
+
+        // Apply each parametric band's influence to the fixed bands
+        for (ParametricEQBand paramBand : parametricBands) {
+            float freq = paramBand.getFrequencyHz();
+            float gain = paramBand.getGainDb();
+            float q = paramBand.getQFactor();
+
+            // Calculate influence of this parametric band on each fixed band
+            for (int i = 0; i < bandCount; i++) {
+                float fixedFreq = audioEngine.getEqualizerCenterFreq((short) i);
+                float influence = calculateBandInfluence(freq, fixedFreq, q);
+                int currentGain = fixedGains[i] - minLevel; // Convert to 0-based
+
+                // Apply gain proportional to influence
+                int newGain = Math.max(0, Math.min(maxLevel - minLevel,
+                    currentGain + Math.round(influence * (gain / 15.0f) * (maxLevel - minLevel) / 2)));
+                fixedGains[i] = (short) (minLevel + newGain);
+            }
+        }
+
+        return fixedGains;
+    }
+
+    /**
+     * Calculate the influence of a parametric band on a fixed frequency band
+     * based on distance and Q-factor (bandwidth)
+     */
+    private float calculateBandInfluence(float paramFreq, float fixedFreq, float qFactor) {
+        // Avoid division by zero
+        if (fixedFreq <= 0) return 0f;
+
+        // Calculate octave distance
+        float octaves = (float) Math.log(fixedFreq / paramFreq) / (float) Math.log(2);
+
+        // Calculate bandwidth in octaves based on Q-factor
+        // Bandwidth in octaves = 1 / (Q * sqrt(2))
+        float bandwidthOctaves = 1.0f / (qFactor * (float) Math.sqrt(2.0));
+
+        // Calculate influence using Gaussian curve
+        float influence = (float) Math.exp(-0.5f * Math.pow(octaves / bandwidthOctaves, 2));
+
+        return influence;
+    }
+
+    /**
+     * Apply preset to fixed-band equalizer (for compatibility with Android Equalizer FX)
+     */
+    private void applyPresetToFixedBands(EqPreset preset) {
+        if (audioEngine == null) return;
+
+        short bandCount = audioEngine.getNumberOfBands();
+        short minLevel = audioEngine.getMinBandLevelRange();
+        short maxLevel = audioEngine.getMaxBandLevelRange();
+
+        int[] dbLevels = preset.getDbLevels();
+
+        for (int i = 0; i < Math.min(bandCount, dbLevels.length); i++) {
+            int levelMb = dbLevels[i] * 100;
+            levelMb = Math.max(minLevel, Math.min(maxLevel, levelMb));
+
+            int progress = levelMb - minLevel;
+            audioEngine.setEqualizerBandLevel((short) i, (short) progress);
+        }
+    }
+
+    /**
+     * Initialize default parametric bands (20Hz - 20kHz, logarithmic spacing)
+     */
+    private void initializeParametricBands() {
+        List<ParametricEQBand> bands = new ArrayList<>();
+
+        // Standard frequencies for parametric EQ (can be adjusted by user)
+        float[] frequencies = {
+            20, 25, 31.5f, 40, 50, 63, 80, 100, 125, 160,
+            200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600,
+            2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000
+        };
+
+        for (int i = 0; i < frequencies.length; i++) {
+            bands.add(new ParametricEQBand(i, frequencies[i], 0f, 1.0f)); // 0dB gain, Q=1.0
+        }
+
+        eqBands.setValue(bands);
+
+        // Initialize A/B presets as copies
+        Preset presetA = new Preset();
+        presetA.setName("Preset A");
+        presetA.setCategory("Temporary");
+        presetA.setEqBands(new ArrayList<>(bands));
+        presetPresetA.setValue(presetA);
+
+        Preset presetB = new Preset();
+        presetB.setName("Preset B");
+        presetB.setCategory("Temporary");
+        presetB.setEqBands(new ArrayList<>(bands));
+        presetPresetB.setValue(presetB);
+    }
+
+    /**
+     * Load the default preset (flat) as the current preset
+     */
+    private void loadDefaultPreset() {
+        Preset defaultPreset = new Preset();
+        defaultPreset.setName("Flat");
+        defaultPreset.setCategory("Reference");
+        currentPreset.setValue(defaultPreset);
+
+        // Also update the EQ bands to match the preset
+        eqBands.setValue(new ArrayList<>(defaultPreset.getEqBands()));
+    }
+
+    /**
+     * Deep copy of parametric EQ bands
+     */
+    private List<ParametricEQBand> deepCopyBands(List<ParametricEQBand> original) {
+        if (original == null) return new ArrayList<>();
+        List<ParametricEQBand> copy = new ArrayList<>();
+        for (ParametricEQBand band : original) {
+            copy.add(new ParametricEQBand(
+                band.getBandId(),
+                band.getFrequencyHz(),
+                band.getGainDb(),
+                band.getQFactor()
+            ));
+        }
+        return copy;
+    }
+
+    // ============ A/B COMPARISON ============
+
+    // A/B comparison methods
+    /**
+     * Save current state to preset A
+     */
+    public void saveToPresetA() {
+        Preset current = new Preset();
+        current.setName("Preset A");
+        current.setCategory("Temporary");
+
+        // Copy EQ bands
+        List<ParametricEQBand> currentBands = eqBands.getValue();
+        if (currentBands != null) {
+            current.setEqBands(new ArrayList<>(currentBands));
+        }
+
+        // Copy basic effects states
+        current.setBassEnabled(bassEnabled.getValue());
+        current.setVirtualizerEnabled(virtualizerEnabled.getValue());
+        current.setLoudnessEnabled(loudnessEnabled.getValue());
+        current.setTempo(currentTempo.getValue());
+        current.setPitch(currentPitch.getValue());
+
+        // Copy advanced effects states
+        current.setReverbEnabled(reverbEnabled.getValue());
+        current.setReverbRoomLevel(reverbRoomLevel.getValue());
+        current.setReverbDecayTime(reverbDecayTime.getValue());
+        current.setStereoWideningEnabled(stereoWideningEnabled.getValue());
+        current.setStereoWideningWidth(stereoWideningWidth.getValue());
+        current.setExciterEnabled(exciterEnabled.getValue());
+        current.setExciterAmount(exciterAmount.getValue());
+        current.setExciterFrequency(exciterFrequency.getValue());
+        current.setCompressorEnabled(compressorEnabled.getValue());
+        current.setCompressorThreshold(compressorThreshold.getValue());
+        current.setCompressorRatio(compressorRatio.getValue());
+        current.setCompressorAttack(compressorAttack.getValue());
+        current.setCompressorRelease(compressorRelease.getValue());
+        current.setLimiterEnabled(limiterEnabled.getValue());
+        current.setLimiterThreshold(limiterThreshold.getValue());
+        current.setNoiseGateEnabled(noiseGateEnabled.getValue());
+        current.setNoiseGateThreshold(noiseGateThreshold.getValue());
+        current.setDeEsserEnabled(deEsserEnabled.getValue());
+        current.setDeEsserThreshold(deEsserThreshold.getValue());
+        current.setDeEsserFrequency(deEsserFrequency.getValue());
+
+        presetPresetA.setValue(current);
+    }
+
+    /**
+     * Save current state to preset B
+     */
+    public void saveToPresetB() {
+        Preset current = new Preset();
+        current.setName("Preset B");
+        current.setCategory("Temporary");
+
+        // Copy EQ bands
+        List<ParametricEQBand> currentBands = eqBands.getValue();
+        if (currentBands != null) {
+            current.setEqBands(new ArrayList<>(currentBands));
+        }
+
+        // Copy basic effects states
+        current.setBassEnabled(bassEnabled.getValue());
+        current.setVirtualizerEnabled(virtualizerEnabled.getValue());
+        current.setLoudnessEnabled(loudnessEnabled.getValue());
+        current.setTempo(currentTempo.getValue());
+        current.setPitch(currentPitch.getValue());
+
+        // Copy advanced effects states
+        current.setReverbEnabled(reverbEnabled.getValue());
+        current.setReverbRoomLevel(reverbRoomLevel.getValue());
+        current.setReverbDecayTime(reverbDecayTime.getValue());
+        current.setStereoWideningEnabled(stereoWideningEnabled.getValue());
+        current.setStereoWideningWidth(stereoWideningWidth.getValue());
+        current.setExciterEnabled(exciterEnabled.getValue());
+        current.setExciterAmount(exciterAmount.getValue());
+        current.setExciterFrequency(exciterFrequency.getValue());
+        current.setCompressorEnabled(compressorEnabled.getValue());
+        current.setCompressorThreshold(compressorThreshold.getValue());
+        current.setCompressorRatio(compressorRatio.getValue());
+        current.setCompressorAttack(compressorAttack.getValue());
+        current.setCompressorRelease(compressorRelease.getValue());
+        current.setLimiterEnabled(limiterEnabled.getValue());
+        current.setLimiterThreshold(limiterThreshold.getValue());
+        current.setNoiseGateEnabled(noiseGateEnabled.getValue());
+        current.setNoiseGateThreshold(noiseGateThreshold.getValue());
+        current.setDeEsserEnabled(deEsserEnabled.getValue());
+        current.setDeEsserThreshold(deEsserThreshold.getValue());
+        current.setDeEsserFrequency(deEsserFrequency.getValue());
+
+        presetPresetB.setValue(current);
+    }
+
+    /**
+     * Load state from preset A
+     */
+    public void loadFromPresetA() {
+        Preset preset = presetPresetA.getValue();
+        if (preset != null) {
+            setPreset(preset);
+        }
+    }
+
+    /**
+     * Load state from preset B
+     */
+    public void loadFromPresetB() {
+        Preset preset = presetPresetB.getValue();
+        if (preset != null) {
+            setPreset(preset);
+        }
+    }
+
+    /**
+     * Get preset A
+     */
+    @NonNull
+    public LiveData<Preset> getPresetA() {
+        return presetPresetA;
+    }
+
+    /**
+     * Get preset B
+     */
+    @NonNull
+    public LiveData<Preset> getPresetB() {
+        return presetPresetB;
+    }
+
+    /**
+     * Get A/B comparison enabled state
+     */
+    @NonNull
+    public LiveData<Boolean> isAbComparisonEnabled() {
+        return abComparisonEnabled;
+    }
+
+    /**
+     * Set A/B comparison enabled state
+     */
+    public void setAbComparisonEnabled(boolean enabled) {
+        abComparisonEnabled.setValue(enabled);
+        if (enabled) {
+            // When enabling A/B, show preset B
+            loadFromPresetB();
+        } else {
+            // When disabling, return to current (preset A) state
+            loadFromPresetA();
+        }
+    }
+
+    // ============ PRESET MANAGEMENT ============
+
+    /**
+     * Save the current state as a named preset
+     */
+    public void saveCurrentAsPreset(@NonNull String name, @NonNull String category, @NonNull String tags) {
+        Preset preset = new Preset();
+        preset.setName(name);
+        preset.setCategory(category);
+        preset.setTags(tags);
+        preset.setDescription("Saved from current equalizer state");
+
+        // Copy EQ bands
+        List<ParametricEQBand> currentBands = eqBands.getValue();
+        if (currentBands != null) {
+            preset.setEqBands(new ArrayList<>(currentBands));
+        }
+
+        // Copy basic effects states
+        preset.setBassEnabled(bassEnabled.getValue());
+        preset.setBassStrength((int) (bassEnabled.getValue() ? 500 : 0)); // Default strength if enabled
+        preset.setVirtualizerEnabled(virtualizerEnabled.getValue());
+        preset.setVirtualizerStrength((int) (virtualizerEnabled.getValue() ? 500 : 0));
+        preset.setLoudnessEnabled(loudnessEnabled.getValue());
+        preset.setLoudnessGain((int) (loudnessEnabled.getValue() ? 0 : 0)); // Default gain
+        preset.setTempo(currentTempo.getValue());
+        preset.setPitch(currentPitch.getValue());
+
+        // Copy advanced effects states
+        preset.setReverbEnabled(reverbEnabled.getValue());
+        preset.setReverbRoomLevel(reverbRoomLevel.getValue());
+        preset.setReverbDecayTime(reverbDecayTime.getValue());
+        preset.setStereoWideningEnabled(stereoWideningEnabled.getValue());
+        preset.setStereoWideningWidth(stereoWideningWidth.getValue());
+        preset.setExciterEnabled(exciterEnabled.getValue());
+        preset.setExciterAmount(exciterAmount.getValue());
+        preset.setExciterFrequency(exciterFrequency.getValue());
+        preset.setCompressorEnabled(compressorEnabled.getValue());
+        preset.setCompressorThreshold(compressorThreshold.getValue());
+        preset.setCompressorRatio(compressorRatio.getValue());
+        preset.setCompressorAttack(compressorAttack.getValue());
+        preset.setCompressorRelease(compressorRelease.getValue());
+        preset.setLimiterEnabled(limiterEnabled.getValue());
+        preset.setLimiterThreshold(limiterThreshold.getValue());
+        preset.setNoiseGateEnabled(noiseGateEnabled.getValue());
+        preset.setNoiseGateThreshold(noiseGateThreshold.getValue());
+        preset.setDeEsserEnabled(deEsserEnabled.getValue());
+        preset.setDeEsserThreshold(deEsserThreshold.getValue());
+        preset.setDeEsserFrequency(deEsserFrequency.getValue());
+
+        // Save to preset manager
+        presetManager.savePreset(preset);
+    }
+
+    /**
+     * Load a preset by ID and apply it
+     */
+    public void loadPresetById(String presetId) {
+        Preset preset = presetManager.loadPreset(presetId);
+        if (preset != null) {
+            setPreset(preset);
+        }
+    }
+
+    /**
+     * Get all saved presets
+     */
+    @NonNull
+    public LiveData<List<Preset>> getAllPresetsLiveData() {
+        // Note: For a complete implementation, we'd use LiveData or Flow to observe changes
+        // For now, we'll return a wrapper that gets the current list
+        // In a real app, you'd want to use MediatorLiveData or similar to update when presets change
+        return new MutableLiveData<>(presetManager.getAllPresets());
+    }
+
+    /**
+     * Get suggested presets based on audio analysis
+     * This is a placeholder - in a real implementation, this would use actual audio analysis
+     */
+    @NonNull
+    public List<Preset> getSuggestedPresets() {
+        // For now, return presets sorted by usage count
+        // In a real implementation, this would analyze the current audio and suggest presets
+        List<Preset> allPresets = presetManager.getAllPresets();
+        // Sort by usage count (most used first)
+        Collections.sort(allPresets, Comparator.comparingInt(Preset::getUsageCount).reversed());
+        // Return top 5
+        int count = Math.min(5, allPresets.size());
+        return allPresets.subList(0, count);
+    }
+
+    /**
+     * Delete a preset by ID
+     */
+    public boolean deletePreset(String presetId) {
+        return presetManager.deletePreset(presetId);
+    }
+
+    /**
+     * Export a preset to a file
+     */
+    public boolean exportPreset(String presetId, String fileName) {
+        Preset preset = presetManager.loadPreset(presetId);
+        if (preset != null) {
+            return presetManager.exportPreset(preset, fileName);
+        }
+        return false;
+    }
+
+    /**
+     * Import a preset from a file
+     */
+    public Preset importPreset(String filePath) {
+        return presetManager.importPreset(filePath);
+    }
+
+    // ============ AUDIO EFFECTS ============
+
+    /**
+     * Get bass boost enabled state
+     */
+    @NonNull
+    public LiveData<Boolean> isBassBoosted() {
+        return bassEnabled;
+    }
+
+    /**
+     * Set bass boost
+     */
+    public void setBassBoosted(boolean enabled, short strength) {
+        bassEnabled.setValue(enabled);
+        if (audioEngine != null) {
+            audioEngine.enableBass(enabled);
+            if (enabled) {
+                audioEngine.setBassBoost(strength);
+            }
+        }
+    }
+
+    /**
+     * Get virtualizer enabled state
+     */
+    @NonNull
+    public LiveData<Boolean> isVirtualizerEnabled() {
+        return virtualizerEnabled;
+    }
+
+    /**
+     * Set virtualizer
+     */
+    public void setVirtualizer(boolean enabled, short strength) {
+        virtualizerEnabled.setValue(enabled);
+        if (audioEngine != null) {
+            audioEngine.enableVirtualizer(enabled);
+            if (enabled) {
+                audioEngine.setVirtualizer(strength);
+            }
+        }
+    }
+
+    /**
+     * Get loudness enabled state
+     */
+    @NonNull
+    public LiveData<Boolean> isLoudnessEnabled() {
+        return loudnessEnabled;
+    }
+
+    /**
+     * Set loudness
+     */
+    public void setLoudness(boolean enabled, int gain) {
+        loudnessEnabled.setValue(enabled);
+        if (audioEngine != null) {
+            audioEngine.enableLoudness(enabled);
+            if (enabled) {
+                audioEngine.setLoudnessGain(gain);
+            }
+        }
+    }
+
+    // ============ PLAYBACK CONTROL ============
+
+    /**
+     * Get current playback speed (tempo)
+     */
+    @NonNull
+    public LiveData<Float> getCurrentTempo() {
+        return currentTempo;
+    }
+
+    /**
+     * Set playback speed
+     */
+    public void setTempo(float tempo) {
+        currentTempo.setValue(tempo);
+        if (playbackState != null) {
+            playbackState.setPlaybackSpeed(tempo);
+        }
+    }
+
+    /**
+     * Get current pitch
+     */
+    @NonNull
+    public LiveData<Float> getCurrentPitch() {
+        return currentPitch;
+    }
+
+    /**
+     * Set audio pitch
+     */
+    public void setPitch(float pitch) {
+        currentPitch.setValue(pitch);
+        if (playbackState != null) {
+            playbackState.setPlaybackPitch(pitch);
+        }
+    }
+
+    /**
+     * Get playback state (from playback state repository)
+     */
+    @NonNull
+    public PlaybackStateRepository getPlaybackState() {
+        return playbackState;
+    }
+
+    // ============ RESET / DEFAULTS ============
+
+    /**
+     * Reset all effects to neutral/default
+     */
+    public void resetAllEffects() {
+        setEqualizerEnabled(false);
+        setBassBoosted(false, (short) 0);
+        setVirtualizer(false, (short) 0);
+        setLoudness(false, 0);
+        setTempo(1.0f);
+        setPitch(0.0f);
+        resetAllBands();
+
+        // Also reset to default preset
+        loadDefaultPreset();
+    }
+
+    /**
+     * Reset all EQ bands to flat (0dB gain) with default frequency and Q factor
+     */
+    public void resetAllBands() {
+        List<ParametricEQBand> bands = eqBands.getValue();
+        if (bands != null) {
+            for (ParametricEQBand band : bands) {
+                band.setGainDb(0f);
+                band.setQFactor(1.0f);
+                // Keep frequency as-is for reset (could also reset to default frequencies if desired)
+            }
+            eqBands.setValue(new ArrayList<>(bands)); // Notify observers
+
+            // Apply to hardware if equalizer is enabled
+            if (audioEngine != null && equalizerEnabled.getValue()) {
+                applyParametricBandsToHardwareFromList(bands);
+            }
+        }
+    }
+
+    /**
+     * Apply a list of parametric bands to hardware
+     */
+    private void applyParametricBandsToHardwareFromList(List<ParametricEQBand> bands) {
+        if (audioEngine == null || bands == null) return;
+
+        // Convert parametric bands to fixed-band equalizer gains and apply
+        short[] fixedBandGains = convertParametricToFixedBands(bands);
+        if (fixedBandGains != null) {
+            short bandCount = audioEngine.getNumberOfBands();
+            int bandsToApply = Math.min(bandCount, fixedBandGains.length);
+            for (int i = 0; i < bandsToApply; i++) {
+                audioEngine.setEqualizerBandLevel((short) i, fixedBandGains[i]);
+            }
+        }
+    }
+
+    /**
+     * Cleanup resources
+     */
+    @Override
+    protected void onCleared() {
+        super.onCleared();
+        // Save state before clearing
+        saveStateToSharedPreferences();
+        if (playbackState instanceof PlaybackStateManager) {
+            ((PlaybackStateManager) playbackState).release();
+        }
+    }
+
+}

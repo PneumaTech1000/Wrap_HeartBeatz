@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:orientation="vertical"
+    android:padding="6dp">
+
+    <TextView
+        android:id="@+id/eqTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="125Hz"
+        android:textAppearance="?attr/textAppearanceLabelSmall"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="2dp" />
+
+    <TextView
+        android:id="@+id/eqFreqValue"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android.text="125.0 Hz"
+        android:textAppearance="?attr/textAppearanceLabelSmall"
+        android:textColor="?attr/colorOnSurface"
+        android:textStyle="bold"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="2dp" />
+
+    <com.giga.tech1000.extensions.VerticalSeekBar
+        android:id="@+id/eqFreqSeekBar"
+        android:layout_width="24dp"
+        android:layout_height="120dp"
+        android:layout_gravity="center_horizontal"
+        app:vs_progress="50"
+        app:vs_max="100"
+        app:vs_thumb="@drawable/bg_icon_circle"
+        app:vs_thumb_tint="?attr/colorPrimary"
+        app:vs_track_width="3dp"
+        app:vs_track_color="?attr/colorSurfaceVariant"
+        app:vs_progress_color="?attr/colorPrimary"
+        android:layout_marginBottom="4dp"/>
+
+    <TextView
+        android:id="@+id/eqDbLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Gain"
+        android:textAppearance="?attr/textAppearanceLabelSmall"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="2dp" />
+
+    <TextView
+        android:id="@+id/eqDbValue"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="0.0 dB"
+        android:textAppearance="?attr/textAppearanceLabelSmall"
+        android:textColor="?attr/colorOnSurface"
+        android:textStyle="bold"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="2dp" />
+
+    <TextView
+        android:id="@+id/eqQValue"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Q: 1.0"
+        android:textAppearance="?attr/textAppearanceLabelSmall"
+        android:textColor="?attr/colorOnSurface"
+        android:textStyle="bold"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="2dp" />
+
+</LinearLayout>

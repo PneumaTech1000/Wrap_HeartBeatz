@@ -1,0 +1,1421 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fillViewport="true">
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/parent_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/colorSurfaceContainer"
+            android:padding="10dp">
+
+            <!-- ==== Header part ==== -->
+            <LinearLayout
+                android:id="@+id/equalizer_header_wrapper"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="5dp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent">
+
+                <ImageButton
+                    android:id="@+id/equalizer_view_close"
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:background="?android:selectableItemBackgroundBorderless"
+                    android:src="@drawable/arrow_back_ios_new_24px"
+                    app:tint="?attr/colorOnSurface" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:paddingStart="20dp"
+                    android:paddingEnd="10dp"
+                    android:text="Equalizer"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textSize="20sp" />
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/eq_enable_disable"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checkMarkTint="?attr/colorPrimary"
+                    android:checked="false"
+                    android:text="Enable"
+                    android:textColor="?attr/colorOnSurface" />
+
+            </LinearLayout>
+
+            <!-- ======== Equalizer vertical seekbar with header intro ===== -->
+            <LinearLayout
+                android:id="@+id/equalizer_view_chips"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/equalizer_header_wrapper">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Sound profiles"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textSize="25sp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Select a frequency responsive curve"
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:textSize="14sp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/eq_undo_button"
+                            style="@style/Widget.MaterialComponents.Button.TextButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Undo"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="12sp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/eq_redo_button"
+                            style="@style/Widget.MaterialComponents.Button.TextButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Redo"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/eq_reset"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Reset"
+                            android:textColor="?attr/colorPrimary"
+                            android:textSize="14sp"
+                            app:drawableEndCompat="@drawable/restart_alt_24px"
+                            app:drawableTint="?attr/colorPrimary" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:scrollbars="none">
+
+                    <com.google.android.material.chip.ChipGroup
+                        android:id="@+id/sound_profile_group"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingHorizontal="16dp"
+                        android:paddingVertical="6dp"
+                        app:chipSpacingHorizontal="12dp"
+                        app:chipSpacingVertical="5dp"
+                        app:selectionRequired="true"
+                        app:singleSelection="true">
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_custom"
+                            style="@style/EqProfileChip"
+                            android:text="Custom" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_normal"
+                            style="@style/EqProfileChip"
+                            android:checked="true"
+                            android:text="Normal" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_rock"
+                            style="@style/EqProfileChip"
+                            android:text="Rock" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_dance"
+                            style="@style/EqProfileChip"
+                            android:text="Dance" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_pop"
+                            style="@style/EqProfileChip"
+                            android:text="Pop" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_hip_hop"
+                            style="@style/EqProfileChip"
+                            android:text="Hip hop" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_acoustic"
+                            style="@style/EqProfileChip"
+                            android:text="Acoustic" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_heavy_metal"
+                            style="@style/EqProfileChip"
+                            android:text="Heavy metal" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_folk"
+                            style="@style/EqProfileChip"
+                            android:text="Folk" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_head_phones"
+                            style="@style/EqProfileChip"
+                            android:text="Head phones" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_loud"
+                            style="@style/EqProfileChip"
+                            android:text="Loud" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_piano"
+                            style="@style/EqProfileChip"
+                            android:text="Piano" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_r_and_b"
+                            style="@style/EqProfileChip"
+                            android:text="R&amp;B" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_lounge"
+                            style="@style/EqProfileChip"
+                            android:text="Lounge" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_deep"
+                            style="@style/EqProfileChip"
+                            android:text="Deep" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_latin"
+                            style="@style/EqProfileChip"
+                            android:text="Latin" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_vocal_boost"
+                            style="@style/EqProfileChip"
+                            android:text="Vocal boost" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_treble_boost"
+                            style="@style/EqProfileChip"
+                            android:text="Treble boost" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_jazz"
+                            style="@style/EqProfileChip"
+                            android:text="Jazz" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_straightness"
+                            style="@style/EqProfileChip"
+                            android:text="Straightness" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_classical"
+                            style="@style/EqProfileChip"
+                            android:text="Classical" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_flat"
+                            style="@style/EqProfileChip"
+                            android:text="Flat" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_electronic"
+                            style="@style/EqProfileChip"
+                            android:text="Electronic" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_bazz_boost"
+                            style="@style/EqProfileChip"
+                            android:text="Bazz boost" />
+
+                    </com.google.android.material.chip.ChipGroup>
+
+
+                </HorizontalScrollView>
+
+
+            </LinearLayout>
+
+            <!-- Spectrum Analyzer View -->
+            <com.giga.tech1000.heartbeatz.views.SpectrumView
+                android:id="@+id/spectrum_view"
+                android:layout_width="match_parent"
+                android:layout_height="200dp"
+                android:layout_margin="10dp"
+                app:layout_constraintTop_toBottomOf="@+id/equalizer_view_chips"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/equalizer_view_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="10dp"
+                app:cardBackgroundColor="?attr/colorSurface"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="4dp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/spectrum_view">
+
+
+                <androidx.constraintlayout.widget.ConstraintLayout
+                    android:id="@+id/equalizer_view_card_child"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/colorSurface"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        app:layout_constraintBottom_toTopOf="@+id/equalizer_view_seek_bars_wrapper"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Parametric EQ"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="10 bands control"
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:textSize="14sp" />
+
+                    </LinearLayout>
+
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:id="@+id/equalizer_view_seek_bars_wrapper"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintHorizontal_chainStyle="spread"
+                        app:layout_constraintStart_toStartOf="parent">
+
+                        <include
+                            android:id="@+id/first"
+                            layout="@layout/equalizer_item_vertical_seekbar"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintEnd_toStartOf="@+id/second"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <include
+                            android:id="@+id/second"
+                            layout="@layout/equalizer_item_vertical_seekbar"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintEnd_toStartOf="@+id/third"
+                            app:layout_constraintStart_toEndOf="@+id/first"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <include
+                            android:id="@+id/third"
+                            layout="@layout/equalizer_item_vertical_seekbar"
+                            android:layout_width="0dp"
+                            android:layout_height="0dp"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintEnd_toStartOf="@+id/fourth"
+                            app:layout_constraintStart_toEndOf="@+id/second"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <include
+                            android:id="@+id/fourth"
+                            layout="@layout/equalizer_item_vertical_seekbar"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintEnd_toStartOf="@+id/fifth"
+                            app:layout_constraintStart_toEndOf="@+id/third"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <include
+                            android:id="@+id/fifth"
+                            layout="@layout/equalizer_item_vertical_seekbar"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintEnd_toStartOf="@+id/sixth"
+                            app:layout_constraintStart_toEndOf="@+id/fourth"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <include
+                            android:id="@+id/sixth"
+                            layout="@layout/equalizer_item_vertical_seekbar"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintEnd_toStartOf="@+id/seventh"
+                            app:layout_constraintStart_toEndOf="@+id/fifth"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <include
+                            android:id="@+id/seventh"
+                            layout="@layout/equalizer_item_vertical_seekbar"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintEnd_toStartOf="@+id/eighth"
+                            app:layout_constraintStart_toEndOf="@+id/sixth"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <include
+                            android:id="@+id/eighth"
+                            layout="@layout/equalizer_item_vertical_seekbar"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintEnd_toStartOf="@+id/ninth"
+                            app:layout_constraintStart_toEndOf="@+id/seventh"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <include
+                            android:id="@+id/ninth"
+                            layout="@layout/equalizer_item_vertical_seekbar"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintEnd_toStartOf="@+id/tenth"
+                            app:layout_constraintStart_toEndOf="@+id/eighth"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <include
+                            android:id="@+id/tenth"
+                            layout="@layout/equalizer_item_vertical_seekbar"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toEndOf="@+id/ninth"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+
+                </androidx.constraintlayout.widget.ConstraintLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+
+            <!-- Audio enhancements -->
+
+            <TextView
+                android:id="@+id/equalizer_view_audio_enhancements_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="10dp"
+                android:padding="10dp"
+                android:text="Audio enhancements"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                app:layout_constraintBottom_toTopOf="@+id/equalizer_view_audio_enhancements"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/equalizer_view_card" />
+
+            <LinearLayout
+                android:id="@+id/equalizer_view_audio_enhancements"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/equalizer_view_audio_enhancements_title">
+
+                <!-- First row: Bass, Virtualizer -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:weightSum="2">
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/bass_view_card"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="6dp"
+                        android:layout_weight="1"
+                        app:cardBackgroundColor="?attr/colorSurface"
+                        app:cardCornerRadius="20dp"
+                        app:cardElevation="4dp">
+
+                        <androidx.constraintlayout.widget.ConstraintLayout
+                            android:id="@+id/bass_view_card_child"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="?attr/colorSurface"
+                            android:gravity="center_horizontal"
+                            android:orientation="vertical"
+                            android:padding="8dp">
+
+                            <com.giga.tech1000.heartbeatz.views.knobs.extended.BassKnob
+                                android:id="@+id/base_knob"
+                                android:layout_width="match_parent"
+                                android:layout_height="0dp"
+                                app:kv_max="100"
+                                app:kv_min="0"
+                                app:kv_progressColor="?attr/colorPrimary"
+                                app:kv_trackColor="?attr/colorSurfaceVariant"
+                                app:kv_value="0"
+                                app:kv_source="BASS"
+                                app:layout_constraintBottom_toTopOf="@+id/bass_enable_disable"
+                                app:layout_constraintDimensionRatio="H,1:1"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toTopOf="parent" />
+
+                            <com.google.android.material.materialswitch.MaterialSwitch
+                                android:id="@+id/bass_enable_disable"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:checkMarkTint="?attr/colorPrimary"
+                                android:checked="false"
+                                android:textColor="?attr/colorOnSurface"
+                                app:layout_constraintBottom_toTopOf="@+id/bass_title"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <TextView
+                                android:id="@+id/bass_title"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingTop="4dp"
+                                android:text="Bass Boost"
+                                android:textStyle="bold"
+                                android:textColor="?attr/colorOnSurface"
+                                android:textSize="18sp"
+                                app:layout_constraintBottom_toTopOf="@+id/bass_subtitle"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <TextView
+                                android:id="@+id/bass_subtitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingBottom="12dp"
+                                android:text="DEEP RESONANCE"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:textSize="12sp"
+                                app:layout_constraintBottom_toBottomOf="parent"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                        </androidx.constraintlayout.widget.ConstraintLayout>
+
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/virtualizer_view_card"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="6dp"
+                        android:layout_weight="1"
+                        app:cardBackgroundColor="?attr/colorSurface"
+                        app:cardCornerRadius="20dp"
+                        app:cardElevation="4dp">
+
+                        <androidx.constraintlayout.widget.ConstraintLayout
+                            android:id="@+id/virtualizer_view_card_child"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="?attr/colorSurface"
+                            android:gravity="center_horizontal"
+                            android:orientation="vertical"
+                            android:padding="8dp">
+
+                            <com.giga.tech1000.heartbeatz.views.knobs.extended.VisualizerKnob
+                                android:id="@+id/virtualizer_knob"
+                                android:layout_width="match_parent"
+                                android:layout_height="0dp"
+                                app:kv_max="100"
+                                app:kv_min="0"
+                                app:kv_progressColor="?attr/colorPrimary"
+                                app:kv_trackColor="?attr/colorSurfaceVariant"
+                                app:kv_value="0"
+                                app:kv_source="VIRTUALIZER"
+                                app:layout_constraintBottom_toTopOf="@+id/virtualizer_enable_disable"
+                                app:layout_constraintDimensionRatio="H,1:1"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toTopOf="parent" />
+
+                            <com.google.android.material.materialswitch.MaterialSwitch
+                                android:id="@+id/virtualizer_enable_disable"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:checkMarkTint="?attr/colorPrimary"
+                                android:checked="false"
+                                android:textColor="?attr/colorOnSurface"
+                                app:layout_constraintBottom_toTopOf="@+id/virtualizer_title"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <TextView
+                                android:id="@+id/virtualizer_title"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingTop="4dp"
+                                android:text="Virtualizer"
+                                android:textColor="?attr/colorOnSurface"
+                                android:textSize="18sp"
+                                android:textStyle="bold"
+                                app:layout_constraintBottom_toTopOf="@+id/virtualizer_subtitle"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <TextView
+                                android:id="@+id/virtualizer_subtitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingBottom="12dp"
+                                android:text="3D STAGING"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:textSize="12sp"
+                                app:layout_constraintBottom_toBottomOf="parent"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                        </androidx.constraintlayout.widget.ConstraintLayout>
+
+                    </com.google.android.material.card.MaterialCardView>
+
+                </LinearLayout>
+
+                <!-- Second row: Reverb, Stereo Widening -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:weightSum="2"
+                    android:layout_marginTop="8dp">
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/reverb_view_card"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="6dp"
+                        android:layout_weight="1"
+                        app:cardBackgroundColor="?attr/colorSurface"
+                        app:cardCornerRadius="20dp"
+                        app:cardElevation="4dp">
+
+                        <androidx.constraintlayout.widget.ConstraintLayout
+                            android:id="@+id/reverb_view_card_child"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="?attr/colorSurface"
+                            android:gravity="center_horizontal"
+                            android:orientation="vertical"
+                            android:padding="8dp">
+
+                            <!-- Simple knob for reverb parameters -->
+                            <LinearLayout
+                                android:id="@+id/reverb_knob_container"
+                                android:layout_width="match_parent"
+                                android:layout_height="0dp"
+                                app:layout_constraintBottom_toTopOf="@+id/reverb_enable_disable"
+                                app:layout_constraintDimensionRatio="H,1:1"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toTopOf="parent" />
+
+                            <com.google.android.material.materialswitch.MaterialSwitch
+                                android:id="@+id/reverb_enable_disable"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:checkMarkTint="?attr/colorPrimary"
+                                android:checked="false"
+                                android:textColor="?attr/colorOnSurface"
+                                app:layout_constraintBottom_toTopOf="@+id/reverb_title"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <TextView
+                                android:id="@+id/reverb_title"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingTop="4dp"
+                                android:text="Reverb"
+                                android:textStyle="bold"
+                                android:textColor="?attr/colorOnSurface"
+                                android:textSize="18sp"
+                                app:layout_constraintBottom_toTopOf="@+id/reverb_subtitle"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <TextView
+                                android:id="@+id/reverb_subtitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingBottom="12dp"
+                                android:text="SPACE SIMULATOR"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:textSize="12sp"
+                                app:layout_constraintBottom_toBottomOf="parent"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                        </androidx.constraintlayout.widget.ConstraintLayout>
+
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/stereo_widening_view_card"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="6dp"
+                        android:layout_weight="1"
+                        app:cardBackgroundColor="?attr/colorSurface"
+                        app:cardCornerRadius="20dp"
+                        app:cardElevation="4dp">
+
+                        <androidx.constraintlayout.widget.ConstraintLayout
+                            android:id="@+id/stereo_widening_view_card_child"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="?attr/colorSurface"
+                            android:gravity="center_horizontal"
+                            android:orientation="vertical"
+                            android:padding="8dp">
+
+                            <!-- Simple knob for stereo width -->
+                            <LinearLayout
+                                android:id="@+id/stereo_widening_knob_container"
+                                android:layout_width="match_parent"
+                                android:layout_height="0dp"
+                                app:layout_constraintBottom_toTopOf="@+id/stereo_widening_enable_disable"
+                                app:layout_constraintDimensionRatio="H,1:1"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toTopOf="parent" />
+
+                            <com.google.android.material.materialswitch.MaterialSwitch
+                                android:id="@+id/stereo_widening_enable_disable"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:checkMarkTint="?attr/colorPrimary"
+                                android:checked="false"
+                                android:textColor="?attr/colorOnSurface"
+                                app:layout_constraintBottom_toTopOf="@+id/stereo_widening_title"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <TextView
+                                android:id="@+id/stereo_widening_title"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingTop="4dp"
+                                android:text="Stereo Widening"
+                                android:textStyle="bold"
+                                android:textColor="?attr/colorOnSurface"
+                                android:textSize="18sp"
+                                app:layout_constraintBottom_toTopOf="@+id/stereo_widening_subtitle"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <TextView
+                                android:id="@+id/stereo_widening_subtitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingBottom="12dp"
+                                android:text="WIDE SOUNDSTAGE"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:textSize="12sp"
+                                app:layout_constraintBottom_toBottomOf="parent"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                        </androidx.constraintlayout.widget.ConstraintLayout>
+
+                    </com.google.android.material.card.MaterialCardView>
+
+                </LinearLayout>
+
+                <!-- Third row: Exciter, Compressor -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:weightSum="2"
+                    android:layout_marginTop="8dp">
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/exciter_view_card"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="6dp"
+                        android:layout_weight="1"
+                        app:cardBackgroundColor="?attr/colorSurface"
+                        app:cardCornerRadius="20dp"
+                        app:cardElevation="4dp">
+
+                        <androidx.constraintlayout.widget.ConstraintLayout
+                            android:id="@+id/exciter_view_card_child"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="?attr/colorSurface"
+                            android:gravity="center_horizontal"
+                            android:orientation="vertical"
+                            android:padding="8dp">
+
+                            <!-- Simple knob for exciter amount -->
+                            <LinearLayout
+                                android:id="@+id/exciter_knob_container"
+                                android:layout_width="match_parent"
+                                android:layout_height="0dp"
+                                app:layout_constraintBottom_toTopOf="@+id/exciter_enable_disable"
+                                app:layout_constraintDimensionRatio="H,1:1"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toTopOf="parent" />
+
+                            <com.google.android.material.materialswitch.MaterialSwitch
+                                android:id="@+id/exciter_enable_disable"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:checkMarkTint="?attr/colorPrimary"
+                                android:checked="false"
+                                android:textColor="?attr/colorOnSurface"
+                                app:layout_constraintBottom_toTopOf="@+id/exciter_title"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <TextView
+                                android:id="@+id/exciter_title"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingTop="4dp"
+                                android:text="Exciter"
+                                android:textStyle="bold"
+                                android:textColor="?attr/colorOnSurface"
+                                android:textSize="18sp"
+                                app:layout_constraintBottom_toTopOf="@+id/exciter_subtitle"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <TextView
+                                android:id="@+id/exciter_subtitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingBottom="12dp"
+                                android:text="HARMONIC ENRICHMENT"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:textSize="12sp"
+                                app:layout_constraintBottom_toBottomOf="parent"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                        </androidx.constraintlayout.widget.ConstraintLayout>
+
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/compressor_view_card"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="6dp"
+                        android:layout_weight="1"
+                        app:cardBackgroundColor="?attr/colorSurface"
+                        app:cardCornerRadius="20dp"
+                        app:cardElevation="4dp">
+
+                        <androidx.constraintlayout.widget.ConstraintLayout
+                            android:id="@+id/compressor_view_card_child"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="?attr/colorSurface"
+                            android:gravity="center_horizontal"
+                            android:orientation="vertical"
+                            android:padding="8dp">
+
+                            <!-- Simple knob for compressor threshold -->
+                            <LinearLayout
+                                android:id="@+id/compressor_knob_container"
+                                android:layout_width="match_parent"
+                                android:layout_height="0dp"
+                                app:layout_constraintBottom_toTopOf="@+id/compressor_enable_disable"
+                                app:layout_constraintDimensionRatio="H,1:1"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toTopOf="parent" />
+
+                            <com.google.android.material.materialswitch.MaterialSwitch
+                                android:id="@+id/compressor_enable_disable"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:checkMarkTint="?attr/colorPrimary"
+                                android:checked="false"
+                                android:textColor="?attr/colorOnSurface"
+                                app:layout_constraintBottom_toTopOf="@+id/compressor_title"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <TextView
+                                android:id="@+id/compressor_title"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingTop="4dp"
+                                android:text="Compressor"
+                                android:textStyle="bold"
+                                android:textColor="?attr/colorOnSurface"
+                                android:textSize="18sp"
+                                app:layout_constraintBottom_toTopOf="@+id/compressor_subtitle"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <TextView
+                                android:id="@+id/compressor_subtitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingBottom="12dp"
+                                android:text="DYNAMIC CONTROL"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:textSize="12sp"
+                                app:layout_constraintBottom_toBottomOf="parent"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                        </androidx.constraintlayout.widget.ConstraintLayout>
+
+                    </com.google.android.material.card.MaterialCardView>
+
+                </LinearLayout>
+
+                <!-- Fourth row: Limiter, Noise Gate -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:weightSum="2"
+                    android:layout_marginTop="8dp">
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/limiter_view_card"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="6dp"
+                        android:layout_weight="1"
+                        app:cardBackgroundColor="?attr/colorSurface"
+                        app:cardCornerRadius="20dp"
+                        app:cardElevation="4dp">
+
+                        <androidx.constraintlayout.widget.ConstraintLayout
+                            android:id="@+id/limiter_view_card_child"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="?attr/colorSurface"
+                            android:gravity="center_horizontal"
+                            android:orientation="vertical"
+                            android:padding="8dp">
+
+                            <!-- Simple knob for limiter threshold -->
+                            <LinearLayout
+                                android:id="@+id/limiter_knob_container"
+                                android:layout_width="match_parent"
+                                android:layout_height="0dp"
+                                app:layout_constraintBottom_toTopOf="@+id/limiter_enable_disable"
+                                app:layout_constraintDimensionRatio="H,1:1"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toTopOf="parent" />
+
+                            <com.google.android.material.materialswitch.MaterialSwitch
+                                android:id="@+id/limiter_enable_disable"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:checkMarkTint="?attr/colorPrimary"
+                                android:checked="false"
+                                android:textColor="?attr/colorOnSurface"
+                                app:layout_constraintBottom_toTopOf="@+id/limiter_title"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <TextView
+                                android:id="@+id/limiter_title"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingTop="4dp"
+                                android:text="Limiter"
+                                android:textStyle="bold"
+                                android:textColor="?attr/colorOnSurface"
+                                android:textSize="18sp"
+                                app:layout_constraintBottom_toTopOf="@+id/limiter_subtitle"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <TextView
+                                android:id="@+id/limiter_subtitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingBottom="12dp"
+                                android:text="PEAK LIMITER"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:textSize="12sp"
+                                app:layout_constraintBottom_toBottomOf="parent"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                        </androidx.constraintlayout.widget.ConstraintLayout>
+
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/noise_gate_view_card"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="6dp"
+                        android:layout_weight="1"
+                        app:cardBackgroundColor="?attr/colorSurface"
+                        app:cardCornerRadius="20dp"
+                        app:cardElevation="4dp">
+
+                        <androidx.constraintlayout.widget.ConstraintLayout
+                            android:id="@+id/noise_gate_view_card_child"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="?attr/colorSurface"
+                            android:gravity="center_horizontal"
+                            android:orientation="vertical"
+                            android:padding="8dp">
+
+                            <!-- Simple knob for noise gate threshold -->
+                            <LinearLayout
+                                android:id="@+id/noise_gate_knob_container"
+                                android:layout_width="match_parent"
+                                android:layout_height="0dp"
+                                app:layout_constraintBottom_toTopOf="@+id/noise_gate_enable_disable"
+                                app:layout_constraintDimensionRatio="H,1:1"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toTopOf="parent" />
+
+                            <com.google.android.material.materialswitch.MaterialSwitch
+                                android:id="@+id/noise_gate_enable_disable"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:checkMarkTint="?attr/colorPrimary"
+                                android:checked="false"
+                                android:textColor="?attr/colorOnSurface"
+                                app:layout_constraintBottom_toTopOf="@+id/noise_gate_title"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <TextView
+                                android:id="@+id/noise_gate_title"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingTop="4dp"
+                                android:text="Noise Gate"
+                                android:textStyle="bold"
+                                android:textColor="?attr/colorOnSurface"
+                                android:textSize="18sp"
+                                app:layout_constraintBottom_toTopOf="@+id/noise_gate_subtitle"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <TextView
+                                android:id="@+id/noise_gate_subtitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingBottom="12dp"
+                                android:text="SILENCE SUPPRESSOR"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:textSize="12sp"
+                                app:layout_constraintBottom_toBottomOf="parent"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                        </androidx.constraintlayout.widget.ConstraintLayout>
+
+                    </com.google.android.material.card.MaterialCardView>
+
+                </LinearLayout>
+
+                <!-- Fifth row: De-esser -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:weightSum="2"
+                    android:layout_marginTop="8dp">
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/de_esser_view_card"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="6dp"
+                        android:layout_weight="1"
+                        app:cardBackgroundColor="?attr/colorSurface"
+                        app:cardCornerRadius="20dp"
+                        app:cardElevation="4dp">
+
+                        <androidx.constraintlayout.widget.ConstraintLayout
+                            android:id="@+id/de_esser_view_card_child"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="?attr/colorSurface"
+                            android:gravity="center_horizontal"
+                            android:orientation="vertical"
+                            android:padding="8dp">
+
+                            <!-- Simple knob for de-esser threshold -->
+                            <LinearLayout
+                                android:id="@+id/de_esser_knob_container"
+                                android:layout_width="match_parent"
+                                android:layout_height="0dp"
+                                app:layout_constraintBottom_toTopOf="@+id/de_esser_enable_disable"
+                                app:layout_constraintDimensionRatio="H,1:1"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toTopOf="parent" />
+
+                            <com.google.android.material.materialswitch.MaterialSwitch
+                                android:id="@+id/de_esser_enable_disable"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:checkMarkTint="?attr/colorPrimary"
+                                android:checked="false"
+                                android:textColor="?attr/colorOnSurface"
+                                app:layout_constraintBottom_toTopOf="@+id/de_esser_title"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <TextView
+                                android:id="@+id/de_esser_title"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingTop="4dp"
+                                android:text="De-Esser"
+                                android:textStyle="bold"
+                                android:textColor="?attr/colorOnSurface"
+                                android:textSize="18sp"
+                                app:layout_constraintBottom_toTopOf="@+id/de_esser_subtitle"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <TextView
+                                android:id="@+id/de_esser_subtitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingBottom="12dp"
+                                android:text="SIBILANCE SUPPRESSOR"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:textSize="12sp"
+                                app:layout_constraintBottom_toBottomOf="parent"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+            <!-- === Loudness normalizer === -->
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/eq_loudness_normalizer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="10dp"
+                android:layout_marginBottom="100dp"
+                app:cardBackgroundColor="?attr/colorSurface"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="4dp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/equalizer_view_audio_enhancements">
+
+
+                <LinearLayout
+                    android:id="@+id/loudness_view_card_child"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="center_vertical"
+                    android:background="?attr/colorSurface"
+                    android:orientation="horizontal"
+                    android:padding="15dp">
+
+                    <androidx.appcompat.widget.AppCompatImageButton
+                        android:id="@+id/loudness_icon"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="?attr/colorSurfaceContainer"
+                        android:scaleType="centerCrop"
+                        android:src="@drawable/volume_up_24px"
+                        app:tint="?attr/colorPrimary" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:paddingHorizontal="6dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Loudness normalizer"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Auto-adjusts peaks for consistency"
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:textSize="13sp"
+                            android:textStyle="normal" />
+
+
+                    </LinearLayout>
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/loudness_enable_disable"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checkMarkTint="?attr/colorPrimary"
+                        android:checked="false" />
+
+                </LinearLayout>
+
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Audio enhancements -->
+
+            <TextView
+                android:id="@+id/equalizer_view_tone_enhancements_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="10dp"
+                android:padding="10dp"
+                android:text="Tone enhancements"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/eq_loudness_normalizer" />
+
+
+            <LinearLayout
+                android:id="@+id/equalizer_view_tone_enhancements"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="12dp"
+                android:weightSum="2"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/equalizer_view_tone_enhancements_title">
+
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/tempo_view_card"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="6dp"
+                    android:layout_weight="1"
+                    app:cardBackgroundColor="?attr/colorSurface"
+                    app:cardCornerRadius="20dp"
+                    app:cardElevation="4dp">
+
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:id="@+id/tempo_view_card_child"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="?attr/colorSurface"
+                        android:gravity="center_horizontal"
+                        android:orientation="vertical"
+                        android:padding="8dp">
+
+                        <com.giga.tech1000.heartbeatz.views.knobs.extended.TempoKnob
+                            android:id="@+id/tempo_knob"
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            app:kv_max="2.0"
+                            app:kv_min="0.5"
+                            app:kv_progressColor="?attr/colorPrimary"
+                            app:kv_trackColor="?attr/colorSurfaceVariant"
+                            app:kv_value="1"
+                            app:kv_source="TEMPO"
+                            app:layout_constraintBottom_toTopOf="@+id/tempo_enable_disable"
+                            app:layout_constraintDimensionRatio="H,1:1"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <com.google.android.material.materialswitch.MaterialSwitch
+                            android:id="@+id/tempo_enable_disable"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checkMarkTint="?attr/colorPrimary"
+                            android:checked="false"
+                            android:textColor="?attr/colorOnSurface"
+                            app:layout_constraintBottom_toTopOf="@+id/tempo_title"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent" />
+
+                        <TextView
+                            android:id="@+id/tempo_title"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:paddingTop="4dp"
+                            android:text="Tempo"
+                            android:textStyle="bold"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="18sp"
+                            app:layout_constraintBottom_toTopOf="@+id/tempo_subtitle"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent" />
+
+                        <TextView
+                            android:id="@+id/tempo_subtitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:paddingBottom="12dp"
+                            android:text="RHYTHMIC CONTROL"
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:textSize="12sp"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent" />
+
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+
+                </com.google.android.material.card.MaterialCardView>
+
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/pitch_view_card"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="6dp"
+                    android:layout_weight="1"
+                    app:cardBackgroundColor="?attr/colorSurface"
+                    app:cardCornerRadius="20dp"
+                    app:cardElevation="4dp">
+
+                    <androidx.constraintlayout.widget.ConstraintLayout
+                        android:id="@+id/pitch_view_card_child"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="?attr/colorSurface"
+                        android:gravity="center_horizontal"
+                        android:orientation="vertical"
+                        android:padding="8dp">
+
+                        <com.giga.tech1000.heartbeatz.views.knobs.extended.PitchKnob
+                            android:id="@+id/pitch_knob"
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            app:kv_max="12"
+                            app:kv_min="-12"
+                            app:kv_progressColor="?attr/colorPrimary"
+                            app:kv_trackColor="?attr/colorSurfaceVariant"
+                            app:kv_value="0"
+                            app:kv_source="PITCH"
+                            app:layout_constraintBottom_toTopOf="@+id/pitch_enable_disable"
+                            app:layout_constraintDimensionRatio="H,1:1"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent"
+                            app:layout_constraintTop_toTopOf="parent" />
+
+                        <com.google.android.material.materialswitch.MaterialSwitch
+                            android:id="@+id/pitch_enable_disable"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checkMarkTint="?attr/colorPrimary"
+                            android:checked="false"
+                            android:textColor="?attr/colorOnSurface"
+                            app:layout_constraintBottom_toTopOf="@+id/pitch_title"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent" />
+
+                        <TextView
+                            android:id="@+id/pitch_title"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:paddingTop="4dp"
+                            android:text="Pitch "
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            app:layout_constraintBottom_toTopOf="@+id/pitch_subtitle"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent" />
+
+                        <TextView
+                            android:id="@+id/pitch_subtitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:paddingBottom="12dp"
+                            android:text="TONE SHAPING"
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:textSize="12sp"
+                            app:layout_constraintBottom_toBottomOf="parent"
+                            app:layout_constraintEnd_toEndOf="parent"
+                            app:layout_constraintStart_toStartOf="parent" />
+
+                    </androidx.constraintlayout.widget.ConstraintLayout>
+
+                </com.google.android.material.card.MaterialCardView>
+
+
+            </LinearLayout>
+
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/bar_and_navigation_height"
+                app:layout_constraintTop_toBottomOf="@+id/equalizer_view_tone_enhancements"
+                app:layout_constraintBottom_toBottomOf="parent"/>
+
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+
+    </ScrollView>
+
+</LinearLayout>

@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "212899330502",
+    "project_id": "heartbeatz-sample",
+    "storage_bucket": "heartbeatz-sample.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:212899330502:android:b8110c858d8cd7ca88dac7",
+        "android_client_info": {
+          "package_name": "com.giga.tech1000.heartbeatz"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "212899330502-fu1no4ui3k5a0hahs6j6qpplruhpuba3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBsvbVp_fXKC7ZQ2c4Fadxt158-p8Rzyzg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "212899330502-fu1no4ui3k5a0hahs6j6qpplruhpuba3.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Primary -->
+    <color name="hb_primary">#7F13EC</color>
+    <color name="hb_on_primary">#FFFFFF</color>
+    <color name="hb_primary_container">#2A145F</color>
+    <color name="hb_on_primary_container">#EADDFF</color>
+
+    <!-- colors.xml -->
+    <color name="favorite_red">#E53935</color>
+
+    <!-- colors.xml -->
+    <color name="bg_start">#0A0A1F</color>
+    <color name="bg_end">#1E1B4B</color>
+
+    <!-- Background & Surface -->
+    <color name="hb_background">#140C1C</color>
+    <color name="hb_on_background">#E6E1E5</color>
+
+    <color name="hb_surface">#191022</color>
+    <color name="hb_on_surface">#E6E1E5</color>
+
+    <color name="hb_surface_variant">#24182F</color>
+    <color name="hb_on_surface_variant">#CFC4D8</color>
+
+    <!-- Outline / Dividers -->
+    <color name="hb_outline">#32263D</color>
+
+    <!-- Icons / Ripple -->
+    <color name="hb_control_highlight">#33FFFFFF</color>
+
+    <color name="default_vibrant_color">#3D1F57</color>
+    <color name="default_vibrant_dark_color">@color/hb_background</color>
+    <color name="default_vibrant_light_color">#512783</color>
+
+    <color name="default_muted_color">#4A3B5E</color>
+    <color name="default_muted_dark_color">#23192F</color>
+    <color name="default_muted_light_color">#6D5C86</color>
+
+    <color name="default_dominant_color">#3D1F57</color>
+
+    <color name="hb_icon_container">#338B5CF6</color> <!-- brighter for dark bg -->
+    <color name="hb_icon_container_strong">#4D8B5CF6</color>
+
+
+
+    <color name="tab_text_color_selector">
+        <selector xmlns:android="http://schemas.android.com/apk/res/android">
+            <item android:color="@android:color/white" android:state_selected="true" />
+            <item android:color="@color/tab_unselected_text" />
+        </selector>
+    </color>
+
+</resources>

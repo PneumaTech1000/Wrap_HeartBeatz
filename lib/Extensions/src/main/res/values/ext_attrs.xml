@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="CustomBottomSheetBehavior">
+        <attr name="behavior_anchorOffset" format="dimension" />
+        <attr name="behavior_defaultState" format="enum">
+            <enum name="expanded" value="3" />
+            <enum name="collapsed" value="4" />
+            <enum name="hidden" value="5" />
+            <enum name="anchored" value="6" />
+        </attr>
+        <attr name="behavior_skipAnchored" format="boolean" />
+    </declare-styleable>
+
+    <declare-styleable name="VerticalSeekBar">
+        <attr name="vs_trackColor" format="color" />
+        <attr name="vs_progressColor" format="color" />
+        <attr name="vs_thumbColor" format="color" />
+        <attr name="vs_thumb" format="reference" />
+        <attr name="vs_trackWidth" format="dimension" />
+        <attr name="vs_thumbRadius" format="dimension" />
+        <attr name="vs_progress" format="integer" />
+        <attr name="vs_max" format="integer" />
+
+        <!-- Compatibility aliases for legacy naming -->
+        <attr name="vs_track_color" format="color" />
+        <attr name="vs_progress_color" format="color" />
+        <attr name="vs_thumb_tint" format="color" />
+        <attr name="vs_track_width" format="dimension" />
+    </declare-styleable>
+</resources>

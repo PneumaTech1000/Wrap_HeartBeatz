@@ -1,0 +1,51 @@
+plugins {
+    alias(libs.plugins.android.library)
+}
+
+android {
+    namespace 'com.giga.tech1000.party_mode'
+    compileSdk 36
+
+    defaultConfig {
+        minSdk 28
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles "consumer-rules.pro"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+    packagingOptions {
+        jniLibs {
+            pickFirsts += ['**/libjingle_peerconnection_so.so']
+        }
+    }
+}
+
+dependencies {
+    implementation libs.appcompat
+    implementation libs.material
+    testImplementation libs.junit
+    androidTestImplementation libs.ext.junit
+    androidTestImplementation libs.espresso.core
+
+    implementation libs.media
+    implementation libs.gson
+    implementation libs.nanohttpd
+    implementation libs.webRTCAndroid
+
+    implementation libs.firebase.database
+    implementation libs.firebase.auth
+
+    // Core ExoPlayer
+    implementation libs.media3.exoplayer
+    implementation libs.media3.common
+}

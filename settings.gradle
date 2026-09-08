@@ -1,0 +1,35 @@
+pluginManagement {
+    repositories {
+        google {
+            content {
+                includeGroupByRegex("com\\.android.*")
+                includeGroupByRegex("com\\.google.*")
+                includeGroupByRegex("androidx.*")
+            }
+        }
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        maven { url 'https://jitpack.io' }
+    }
+}
+
+rootProject.name = "HeartBeatz"
+include ':app'
+include ':lib:Media_Player'
+include ':lib:Extensions'
+include ':lib:Icons_Pack'
+include ':lib:Party_Mode'
+include ':lib:Utils'
+include ':lib:Visualizer_Android'
+include ':lib:multiSlidingUpPanel'
+project(':lib:multiSlidingUpPanel').projectDir = new File(settingsDir, 'lib/multiSlidingUpPanel/multi-sliding-up-panel')
+include ':lib:readableBottomBar'
+project(':lib:readableBottomBar').projectDir = new File(settingsDir, 'lib/readableBottomBar/readable-bottom-bar')
+include ':lib:Sound_Engine'

@@ -1,0 +1,12 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_home"
+        android:icon="@drawable/home_24px"
+        android:title="Home" />
+
+    <item
+        android:id="@+id/nav_party"
+        android:icon="@drawable/celebration_24px"
+        android:title="Party" />
+
+</menu>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="ShapeAppearance.HeartBeatz.DrawerItem" parent="ShapeAppearance.Material3.SmallComponent">
+        <item name="cornerSize">50%</item>
+    </style>
+
+    <style name="Widget.HeartBeatz.NavigationView" parent="Widget.Material3.NavigationView">
+        <item name="itemShapeAppearanceOverlay">@style/ShapeAppearance.HeartBeatz.DrawerItem</item>
+        <item name="itemHorizontalPadding">16dp</item>
+        <item name="itemIconPadding">12dp</item>
+        <item name="itemShapeInsetStart">12dp</item>
+        <item name="itemShapeInsetEnd">12dp</item>
+        <item name="itemBackground">@drawable/drawer_item_background</item>
+    </style>
+</resources>

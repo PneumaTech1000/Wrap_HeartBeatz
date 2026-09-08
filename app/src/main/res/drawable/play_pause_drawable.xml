@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?><!-- This drawable combines a background shape and a tintable foreground icon -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Layer 1: The background circle. This will NOT be tinted. -->
+    <item android:drawable="@drawable/shape_circle_primary" />
+
+    <!-- Layer 2: The foreground icon. THIS is the layer we will tint. -->
+    <!-- We add padding so the icon is smaller than the background circle. -->
+    <item
+        android:bottom="16dp"
+        android:drawable="@drawable/play_arrow_fill"
+        android:gravity="center"
+        android:left="16dp"
+        android:right="16dp"
+        android:top="16dp" />
+
+</layer-list>

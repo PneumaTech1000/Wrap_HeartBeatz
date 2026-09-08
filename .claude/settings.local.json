@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew clean *)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\")",
+      "Bash(JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew clean *)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew :app:assembleDebug *)",
+      "Bash(rtk ls *)",
+      "Bash(rtk find *)",
+      "Bash(xargs grep -l \"BassBoost\\\\|Virtualizer\\\\|LoudnessEnhancer\\\\|Equalizer\")",
+      "Bash(xargs grep -l \"preset\\\\|Preset\")",
+      "Bash(dir C:UsersPneumaTechDesktopHeartBeatz *)"
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/media_player_root_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <include
+        layout="@layout/media_player_bar_bottom_sheet" />
+
+    <include
+        layout="@layout/media_player_full_sheet" />
+
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

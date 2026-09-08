@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <group android:checkableBehavior="single">
+        <item
+            android:id="@+id/nav_library"
+            android:icon="@drawable/music_note_2_24px"
+            android:title="@string/library" />
+        <item
+            android:id="@+id/nav_playlists"
+            android:icon="@drawable/playlist_play_24px"
+            android:title="@string/playlists" />
+        <item
+            android:id="@+id/nav_equalizer"
+            android:icon="@drawable/equalizer_24px"
+            android:title="@string/equalizer" />
+        <item
+            android:id="@+id/nav_party"
+            android:icon="@drawable/celebration_24px"
+            android:title="@string/party_mode" />
+    </group>
+
+    <item android:title="@string/application">
+        <menu>
+            <item
+                android:id="@+id/nav_settings"
+                android:icon="@drawable/settings_24px"
+                android:title="@string/settings" />
+            <item
+                android:id="@+id/nav_about"
+                android:icon="@drawable/info_24px"
+                android:title="@string/about" />
+        </menu>
+    </item>
+
+</menu>

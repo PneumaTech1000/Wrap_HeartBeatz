@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Widget.App.CircleCheckBox" parent="Widget.Material3.CompoundButton.CheckBox">
+        <item name="shapeAppearance">@style/ShapeAppearance.App.Circle</item>
+        <item name="shapeAppearanceOverlay">@null</item>
+
+        <!-- Color customization -->
+        <item name="buttonTint">@color/checkbox_tint_selector</item>
+        <item name="useMaterialThemeColors">false</item>
+
+        <!-- Use primary color for the stroke as requested -->
+        <item name="strokeColor">?attr/colorPrimary</item>
+        <item name="strokeWidth">2dp</item>
+
+        <!-- Ensure the checkmark is visible against primary background -->
+        <item name="checkedIconTint">?attr/colorOnPrimary</item>
+    </style>
+
+    <style name="TabTextStyle" parent="TextAppearance.Design.Tab">
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">@color/tab_text_color_selector</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <style name="EqProfileChip" parent="Widget.Material3.Chip.Filter">
+
+        <item name="chipMinHeight">36dp</item>
+        <item name="chipCornerRadius">18dp</item>
+
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+
+        <!-- ✅ State-aware colors -->
+        <item name="chipBackgroundColor">@color/eq_chip_background</item>
+        <item name="android:textColor">@color/eq_chip_text</item>
+
+        <item name="chipStrokeColor">?attr/colorOutline</item>
+        <item name="chipStrokeWidth">1dp</item>
+
+        <item name="android:textSize">14sp</item>
+        <item name="android:textStyle">normal</item>
+
+        <item name="checkedIconVisible">false</item>
+        <item name="android:elevation">0dp</item>
+    </style>
+
+
+    <!-- Define the base style to fix the "not found" error -->
+    <style name="ShapeAppearance.App" parent="ShapeAppearance.Material3.SmallComponent" />
+
+    <style name="ShapeAppearance.App.Circle" parent="ShapeAppearance.App">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">50%</item>
+    </style>
+
+    <!--
+    <style name="Widget.HeartBeatz.NavigationView" parent="Widget.Material3.NavigationView">
+        <item name="itemShapeAppearance">@style/ShapeAppearance.HeartBeatz.DrawerItem</item>
+        <item name="itemShapeInsetStart">12dp</item>
+        <item name="itemShapeInsetEnd">12dp</item>
+        <item name="itemMinHeight">56dp</item>
+    </style>
+
+    <style name="ShapeAppearance.HeartBeatz.DrawerItem" parent="ShapeAppearance.Material3.MediumComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">28dp</item>
+    </style>
+    -->
+
+</resources>

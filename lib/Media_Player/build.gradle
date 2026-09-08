@@ -1,0 +1,54 @@
+plugins {
+    alias(libs.plugins.android.library)
+}
+
+android {
+    namespace 'com.giga.tech1000.media_player'
+    compileSdk 36
+
+    defaultConfig {
+        minSdk 28
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles "consumer-rules.pro"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+}
+
+dependencies {
+    implementation libs.appcompat
+    implementation libs.material
+    testImplementation libs.junit
+    implementation libs.core.ktx
+    androidTestImplementation libs.ext.junit
+    androidTestImplementation libs.espresso.core
+
+    implementation libs.room.runtime
+    implementation libs.paging.runtime
+    implementation libs.media
+
+    // Core ExoPlayer
+    implementation libs.media3.session
+    implementation libs.media3.exoplayer
+    implementation libs.media3.common
+
+    implementation libs.gson
+
+    annotationProcessor libs.room.compiler
+
+    implementation project(':lib:Icons_Pack')
+    implementation project(':lib:Visualizer_Android')
+    implementation project(':lib:Party_Mode')
+    implementation project(':lib:Utils')
+    implementation project(':lib:Sound_Engine')
+}

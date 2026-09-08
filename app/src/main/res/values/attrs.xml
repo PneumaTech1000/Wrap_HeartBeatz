@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <declare-styleable name="KnobView">
+
+        <!-- range -->
+        <attr name="kv_min" format="float" />
+        <attr name="kv_max" format="float" />
+        <attr name="kv_value" format="float" />
+
+        <!-- colors -->
+        <attr name="kv_progressColor" format="color|reference" />
+        <attr name="kv_trackColor" format="color|reference" />
+        <attr name="kv_primaryColor" format="color|reference" />
+        <attr name="kv_colorSurface" format="color|reference" />
+        <attr name="kv_source" format="string" />
+
+    </declare-styleable>
+
+</resources>
+

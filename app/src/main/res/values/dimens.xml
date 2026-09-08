@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="media_player_bar_height">64dp</dimen>
+    <dimen name="navigation_bar_height">64dp</dimen>
+    <dimen name="media_details_height">0dp</dimen>
+
+    <dimen name="pager_bottom_height">32dp</dimen>
+
+    <dimen name="bar_and_navigation_height">138dp</dimen>
+</resources>

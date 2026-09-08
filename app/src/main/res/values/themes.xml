@@ -1,0 +1,78 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Base.Theme.HeartBeatz" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Customize your light theme here. -->
+        <!-- Tell the app to use your custom style for ALL popups -->
+        <item name="popupMenuStyle">@style/HeartBeatz.PopupMenu</item>
+        <item name="actionOverflowMenuStyle">@style/HeartBeatz.PopupMenu</item>
+
+        <!-- Primary -->
+        <item name="colorPrimary">@color/hb_primary</item>
+        <item name="colorOnPrimary">@color/hb_on_primary</item>
+        <item name="colorPrimaryContainer">@color/hb_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/hb_on_primary_container</item>
+
+        <!-- Background & Surface -->
+        <item name="android:colorBackground">@color/hb_background</item>
+        <item name="colorOnBackground">@color/hb_on_background</item>
+
+        <!-- Bg_gradient_color_themes -->
+        <item name="android:startColor">@color/bg_start</item>
+        <item name="android:endColor">@color/bg_end</item>
+
+        <item name="colorSurface">@color/hb_surface</item>
+        <item name="colorOnSurface">@color/hb_on_surface</item>
+
+        <item name="colorSurfaceVariant">@color/hb_surface_variant</item>
+        <item name="colorOnSurfaceVariant">@color/hb_on_surface_variant</item>
+
+        <!-- Outline -->
+        <item name="colorOutline">@color/hb_outline</item>
+
+        <!-- Icons / Ripple -->
+        <item name="colorControlHighlight">@color/hb_control_highlight</item>
+        <item name="colorControlNormal">@color/hb_on_surface_variant</item>
+
+        <item name="colorSecondaryContainer">@color/hb_icon_container</item>
+        <item name="colorOnSecondaryContainer">@color/hb_primary</item>
+        <item name="colorSurfaceContainerHigh">@color/hb_surface_variant</item>
+    </style>
+
+    <style name="Theme.App.Starting" parent="Theme.SplashScreen">
+        <!-- Set the splash screen background, animated icon, and animation duration. -->
+        <item name="windowSplashScreenBackground">@color/hb_primary</item>
+
+        <!-- Use windowSplashScreenAnimatedIcon to add a drawable or an animated
+             drawable. One of these is required. -->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/album_launcher</item>
+
+        <!-- Optional: set a longer duration for the animation. -->
+        <item name="windowSplashScreenAnimationDuration">1000</item>
+
+        <!-- Set the theme of the Activity that follows your splash screen. -->
+        <!-- This is CRITICAL. It should be your main app theme. -->
+        <item name="postSplashScreenTheme">@style/Theme.HeartBeatz</item>
+    </style>
+
+    <style name="Theme.HeartBeatz" parent="Base.Theme.HeartBeatz" />
+
+    <!-- 1. The Main Popup Style -->
+    <style name="HeartBeatz.PopupMenu" parent="Widget.Material3.PopupMenu">
+        <!-- Modern Rounded Corners (M3 Standard) -->
+        <item name="android:popupBackground">@drawable/menu_bg_rounded</item>
+        <!-- Text appearance for items -->
+        <item name="android:textAppearanceLarge">@style/HeartBeatz.PopupMenu.TextAppearance</item>
+        <item name="android:textAppearanceSmall">@style/HeartBeatz.PopupMenu.TextAppearance</item>
+        <!-- Distance from the anchor view -->
+        <item name="android:dropDownVerticalOffset">4dp</item>
+        <item name="android:dropDownHorizontalOffset">0dp</item>
+    </style>
+
+    <!-- 2. The Text Style for Menu Items -->
+    <style name="HeartBeatz.PopupMenu.TextAppearance" parent="TextAppearance.Material3.LabelLarge">
+        <item name="android:textColor">@color/white</item>
+        <item name="android:textSize">16sp</item>
+    </style>
+
+
+</resources>

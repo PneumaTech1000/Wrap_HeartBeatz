@@ -1,0 +1,40 @@
+{
+  "rules": {
+    ".read": "false",
+    ".write": "false",
+    "parties": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$partyId": {
+        ".read": "auth != null",
+        ".write": "auth != null && (data.child('ownerId').val() == auth.uid || !data.exists())",
+        "members": {
+          ".read": "auth != null",
+          ".write": "auth != null && (data.parent().child('ownerId').val() == auth.uid || $uid == auth.uid)"
+        },
+        "sync": {
+          ".read": "auth != null",
+          ".write": "auth != null && data.parent().child('ownerId').val() == auth.uid"
+        },
+        "authenticatedUsers": {
+          ".read": "auth != null",
+          ".write": "auth != null && data.parent().child('ownerId').val() == auth.uid"
+        },
+        "webrtc_signaling": {
+          ".read": "auth != null",
+          ".write": "auth != null",
+          "$messageId": {
+            ".validate": "newData.hasChildren(['type', 'payload', 'senderId']) && newData.child('senderId').val() == auth.uid",
+            ".indexOn": ["timestamp"]
+          }
+        }
+      }
+    },
+    "users": {
+      "$userId": {
+        ".read": "auth != null && auth.uid == $userId",
+        ".write": "auth != null && auth.uid == $userId"
+      }
+    }
+  }
+}

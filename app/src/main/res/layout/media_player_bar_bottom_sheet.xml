@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/mini_player_view"
+    android:layout_width="match_parent"
+    android:layout_height="@dimen/media_player_bar_height"
+    android:background="?attr/android:colorBackground"
+    android:padding="8dp">
+
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0.95"
+        app:cardCornerRadius="12dp"
+        app:cardElevation="0dp">
+
+        <LinearLayout
+            android:id="@+id/background_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical">
+
+            <!-- Progress -->
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/progress_bar_indicator"
+                android:layout_width="match_parent"
+                android:layout_height="6dp"
+                android:max="100"
+                android:progress="35"
+                app:indicatorColor="?attr/colorPrimary"
+                app:trackColor="?attr/colorSurfaceVariant"
+                app:trackCornerRadius="6dp"
+                app:trackThickness="2dp" />
+
+            <!-- Controls -->
+            <LinearLayout
+                android:id="@+id/mini_player_controls_wrapper"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_vibrant_gradient_2"
+                android:orientation="horizontal"
+                android:paddingHorizontal="8dp">
+
+                <!-- Album Art -->
+                <com.giga.tech1000.heartbeatz.theme.GradientImageView
+                    android:id="@+id/bar_album_art"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/album_24px"
+                    app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.MediumComponent" />
+
+                <!-- Song Info -->
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/bar_song_title"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:maxLines="1"
+                        android:ellipsize="marquee"
+                        android:singleLine="true"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true"
+                        android:marqueeRepeatLimit="marquee_forever"
+                        android:text="Song Title"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="?attr/colorOnSurface" />
+
+                    <TextView
+                        android:id="@+id/bar_song_artist"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:text="Artist"
+                        android:textSize="12sp"
+                        android:textColor="?attr/colorPrimary" />
+                </LinearLayout>
+
+                <!-- Visualizer -->
+                <com.giga.tech1000.visualizer_android.visualizer.BarVisualizer
+                    android:id="@+id/audio_visualizer_bar"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginHorizontal="8dp"
+                    android:background="@android:color/transparent" />
+
+                <!-- Play / Pause -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/bar_play_pause_card"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:backgroundTint="?attr/colorPrimary"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="0dp">
+
+                    <com.google.android.material.progressindicator.CircularProgressIndicator
+                        android:id="@+id/bar_play_pause_progress_indicator"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:visibility="gone"
+                        android:progressTint="@color/white"
+                        android:layout_gravity="center"
+                        android:indeterminateTint="@color/white" />
+
+
+                    <androidx.appcompat.widget.AppCompatImageButton
+                        android:id="@+id/bar_play_pause_btn"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:scaleType="centerInside"
+                        android:src="@drawable/play_arrow_fill"
+                        app:tint="?attr/colorOnPrimary" />
+                </com.google.android.material.card.MaterialCardView>
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
+</FrameLayout>

@@ -1,0 +1,87 @@
+plugins {
+    alias(libs.plugins.android.application)
+}
+
+android {
+    namespace 'com.giga.tech1000.heartbeatz'
+    compileSdk {
+        version = release(36)
+    }
+
+    defaultConfig {
+        applicationId "com.giga.tech1000.heartbeatz"
+        minSdk 28
+        targetSdk 36
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    configurations.configureEach {
+        exclude group: "com.intellij", module: "annotations"
+    }
+
+
+    implementation libs.appcompat
+    implementation libs.material
+    implementation libs.activity
+    implementation libs.constraintlayout
+    implementation libs.navigation.fragment
+    implementation libs.navigation.ui
+    testImplementation libs.junit
+    androidTestImplementation libs.ext.junit
+    androidTestImplementation libs.espresso.core
+
+    implementation libs.credentials
+    implementation libs.credentials.play.services.auth
+    implementation libs.play.services.auth
+    implementation libs.googleid
+
+    implementation libs.lifecycle.viewmodel.ktx
+    implementation libs.lifecycle.livedata.ktx
+    implementation libs.lifecycle.common.java8
+    implementation libs.glide
+    implementation libs.core.splashscreen
+    implementation libs.palette
+    implementation libs.media
+    implementation libs.work.runtime
+    implementation libs.work.runtime.ktx
+    implementation libs.guava
+
+    implementation libs.media3.common
+    implementation libs.media3.exoplayer
+    implementation libs.media3.session
+
+    implementation libs.zxing.android.embedded
+    implementation libs.zxing.core
+
+    implementation libs.okhttp
+
+    implementation libs.marquee.text.view
+
+    annotationProcessor libs.compiler
+
+
+    implementation project(':lib:Icons_Pack')
+    implementation project(':lib:Extensions')
+    implementation project(':lib:Media_Player')
+    implementation project(':lib:Visualizer_Android')
+    implementation project(':lib:Utils')
+    implementation project(':lib:Party_Mode')
+    implementation project(':lib:multiSlidingUpPanel')
+    implementation project(':lib:readableBottomBar')
+}
