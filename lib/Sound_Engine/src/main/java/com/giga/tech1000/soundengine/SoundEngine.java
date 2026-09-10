@@ -19,6 +19,14 @@ public class SoundEngine {
     }
 
     /**
+     * Initializes the sound engine with default parameters (44.1kHz, 1024 block size, stereo).
+     * @return true if initialization successful
+     */
+    public boolean initialize() {
+        return initialize(44100.0f, 1024, 2);
+    }
+
+    /**
      * Initializes the sound engine and underlying DSPark components.
      * @param sampleRate Audio sample rate in Hz
      * @param maxBlockSize Maximum block size for processing
@@ -460,5 +468,4 @@ public class SoundEngine {
      * @param peakHoldArray Array to fill with peak hold data (in dB)
      */
     public native void getSpectrumPeakHold(float[] peakHoldArray);
-}
 }

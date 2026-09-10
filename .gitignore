@@ -12,6 +12,7 @@
 /captures
 .externalNativeBuild
 .cxx
+.kotlin/
 local.properties
 *.hprof
 *.tar.gz
@@ -19,3 +20,4 @@ local.properties
 .idea/
 **/build/
 **/.cxx/
+.claude/settings.local.json

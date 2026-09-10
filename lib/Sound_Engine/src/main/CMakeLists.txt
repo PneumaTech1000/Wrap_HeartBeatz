@@ -1,39 +1,32 @@
-cmake_minimum_required(VERSION 3.10.2)
+cmake_minimum_required(VERSION 3.22.1)
 
-# DSPark is header-only, so we just need to include its directory
-# You may need to adjust this path based on how you integrate DSPark
-set(DSPARK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dspark")
+project(SoundEngine LANGUAGES CXX)
 
-# Create a shared library
-add_library( # Sets the name of the library.
-            soundengine
+# Set C++ standard to 20 as required by DSPark
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-            # Sets the library as a shared library.
-            SHARED
+# Include DSPark as a sub-directory.
+# It's header-only but provides a nice interface target.
+add_subdirectory(cpp/dspark)
 
-            # Provides a relative path to your source file(s).
-            native-lib.cpp )
+# Create the soundengine shared library
+add_library(soundengine SHARED
+            cpp/native-lib.cpp)
 
-# Include directories for headers
+# Find NDK log library
+find_library(log-lib log)
+
+# Link dependencies
+# We link dspark::dspark to get the C++20 requirement and include paths
+target_link_libraries(soundengine
+                      PRIVATE
+                      dspark::dspark
+                      ${log-lib})
+
+# Also include the 'cpp' directory so that #include "dspark/DSPark.h"
+# in native-lib.cpp continues to work as expected.
 target_include_directories(soundengine
         PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${DSPARK_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/cpp
         )
-
-# Find and link the log library
-find_library( # Sets the name of the path variable.
-              log-lib
-
-              # Specifies the name of the NDK library that
-              # you want CMake to locate.
-              log )
-
-# Links the target library to the log library
-# included in the NDK.
-target_link_libraries( # Specifies the target library.
-                       soundengine
-
-                       # Links the target library to the log library
-                       # included in the NDK.
-                       ${log-lib} )

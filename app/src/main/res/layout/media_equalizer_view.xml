@@ -43,7 +43,7 @@
                     android:layout_weight="1"
                     android:paddingStart="20dp"
                     android:paddingEnd="10dp"
-                    android:text="Equalizer"
+                    android:text="@string/equalizer"
                     android:textColor="?attr/colorOnSurface"
                     android:textSize="20sp" />
 
@@ -276,9 +276,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="200dp"
                 android:layout_margin="10dp"
-                app:layout_constraintTop_toBottomOf="@+id/equalizer_view_chips"
+                app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintEnd_toEndOf="parent" />
+                app:layout_constraintTop_toBottomOf="@+id/equalizer_view_chips" />
 
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/equalizer_view_card"
@@ -479,7 +479,7 @@
 
                     <com.google.android.material.card.MaterialCardView
                         android:id="@+id/bass_view_card"
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_margin="6dp"
                         android:layout_weight="1"
@@ -503,9 +503,9 @@
                                 app:kv_max="100"
                                 app:kv_min="0"
                                 app:kv_progressColor="?attr/colorPrimary"
+                                app:kv_source="BASS"
                                 app:kv_trackColor="?attr/colorSurfaceVariant"
                                 app:kv_value="0"
-                                app:kv_source="BASS"
                                 app:layout_constraintBottom_toTopOf="@+id/bass_enable_disable"
                                 app:layout_constraintDimensionRatio="H,1:1"
                                 app:layout_constraintEnd_toEndOf="parent"
@@ -529,9 +529,9 @@
                                 android:layout_height="wrap_content"
                                 android:paddingTop="4dp"
                                 android:text="Bass Boost"
-                                android:textStyle="bold"
                                 android:textColor="?attr/colorOnSurface"
                                 android:textSize="18sp"
+                                android:textStyle="bold"
                                 app:layout_constraintBottom_toTopOf="@+id/bass_subtitle"
                                 app:layout_constraintEnd_toEndOf="parent"
                                 app:layout_constraintStart_toStartOf="parent" />
@@ -554,7 +554,7 @@
 
                     <com.google.android.material.card.MaterialCardView
                         android:id="@+id/virtualizer_view_card"
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_margin="6dp"
                         android:layout_weight="1"
@@ -578,9 +578,9 @@
                                 app:kv_max="100"
                                 app:kv_min="0"
                                 app:kv_progressColor="?attr/colorPrimary"
+                                app:kv_source="VIRTUALIZER"
                                 app:kv_trackColor="?attr/colorSurfaceVariant"
                                 app:kv_value="0"
-                                app:kv_source="VIRTUALIZER"
                                 app:layout_constraintBottom_toTopOf="@+id/virtualizer_enable_disable"
                                 app:layout_constraintDimensionRatio="H,1:1"
                                 app:layout_constraintEnd_toEndOf="parent"
@@ -634,12 +634,11 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:weightSum="2"
-                    android:layout_marginTop="8dp">
+                    android:weightSum="2">
 
                     <com.google.android.material.card.MaterialCardView
                         android:id="@+id/reverb_view_card"
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_margin="6dp"
                         android:layout_weight="1"
@@ -656,11 +655,16 @@
                             android:orientation="vertical"
                             android:padding="8dp">
 
-                            <!-- Simple knob for reverb parameters -->
-                            <LinearLayout
-                                android:id="@+id/reverb_knob_container"
+                            <com.giga.tech1000.heartbeatz.views.knobs.extended.BassKnob
+                                android:id="@+id/reverb_knob"
                                 android:layout_width="match_parent"
                                 android:layout_height="0dp"
+                                app:kv_max="100"
+                                app:kv_min="0"
+                                app:kv_progressColor="?attr/colorPrimary"
+                                app:kv_source="BASS"
+                                app:kv_trackColor="?attr/colorSurfaceVariant"
+                                app:kv_value="0"
                                 app:layout_constraintBottom_toTopOf="@+id/reverb_enable_disable"
                                 app:layout_constraintDimensionRatio="H,1:1"
                                 app:layout_constraintEnd_toEndOf="parent"
@@ -683,10 +687,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:paddingTop="4dp"
-                                android:text="Reverb"
-                                android:textStyle="bold"
+                                android:text="Bass Boost"
                                 android:textColor="?attr/colorOnSurface"
                                 android:textSize="18sp"
+                                android:textStyle="bold"
                                 app:layout_constraintBottom_toTopOf="@+id/reverb_subtitle"
                                 app:layout_constraintEnd_toEndOf="parent"
                                 app:layout_constraintStart_toStartOf="parent" />
@@ -696,7 +700,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:paddingBottom="12dp"
-                                android:text="SPACE SIMULATOR"
+                                android:text="DEEP RESONANCE"
                                 android:textColor="?attr/colorOnSurfaceVariant"
                                 android:textSize="12sp"
                                 app:layout_constraintBottom_toBottomOf="parent"
@@ -709,7 +713,7 @@
 
                     <com.google.android.material.card.MaterialCardView
                         android:id="@+id/stereo_widening_view_card"
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_margin="6dp"
                         android:layout_weight="1"
@@ -726,11 +730,16 @@
                             android:orientation="vertical"
                             android:padding="8dp">
 
-                            <!-- Simple knob for stereo width -->
-                            <LinearLayout
-                                android:id="@+id/stereo_widening_knob_container"
+                            <com.giga.tech1000.heartbeatz.views.knobs.extended.VisualizerKnob
+                                android:id="@+id/stereo_widening_knob"
                                 android:layout_width="match_parent"
                                 android:layout_height="0dp"
+                                app:kv_max="100"
+                                app:kv_min="0"
+                                app:kv_progressColor="?attr/colorPrimary"
+                                app:kv_source="VIRTUALIZER"
+                                app:kv_trackColor="?attr/colorSurfaceVariant"
+                                app:kv_value="0"
                                 app:layout_constraintBottom_toTopOf="@+id/stereo_widening_enable_disable"
                                 app:layout_constraintDimensionRatio="H,1:1"
                                 app:layout_constraintEnd_toEndOf="parent"
@@ -753,10 +762,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:paddingTop="4dp"
-                                android:text="Stereo Widening"
-                                android:textStyle="bold"
+                                android:text="Virtualizer"
                                 android:textColor="?attr/colorOnSurface"
                                 android:textSize="18sp"
+                                android:textStyle="bold"
                                 app:layout_constraintBottom_toTopOf="@+id/stereo_widening_subtitle"
                                 app:layout_constraintEnd_toEndOf="parent"
                                 app:layout_constraintStart_toStartOf="parent" />
@@ -766,7 +775,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:paddingBottom="12dp"
-                                android:text="WIDE SOUNDSTAGE"
+                                android:text="3D STAGING"
                                 android:textColor="?attr/colorOnSurfaceVariant"
                                 android:textSize="12sp"
                                 app:layout_constraintBottom_toBottomOf="parent"
@@ -779,17 +788,17 @@
 
                 </LinearLayout>
 
+
                 <!-- Third row: Exciter, Compressor -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:weightSum="2"
-                    android:layout_marginTop="8dp">
+                    android:weightSum="2">
 
                     <com.google.android.material.card.MaterialCardView
                         android:id="@+id/exciter_view_card"
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_margin="6dp"
                         android:layout_weight="1"
@@ -806,11 +815,16 @@
                             android:orientation="vertical"
                             android:padding="8dp">
 
-                            <!-- Simple knob for exciter amount -->
-                            <LinearLayout
-                                android:id="@+id/exciter_knob_container"
+                            <com.giga.tech1000.heartbeatz.views.knobs.extended.BassKnob
+                                android:id="@+id/exciter_knob"
                                 android:layout_width="match_parent"
                                 android:layout_height="0dp"
+                                app:kv_max="100"
+                                app:kv_min="0"
+                                app:kv_progressColor="?attr/colorPrimary"
+                                app:kv_source="BASS"
+                                app:kv_trackColor="?attr/colorSurfaceVariant"
+                                app:kv_value="0"
                                 app:layout_constraintBottom_toTopOf="@+id/exciter_enable_disable"
                                 app:layout_constraintDimensionRatio="H,1:1"
                                 app:layout_constraintEnd_toEndOf="parent"
@@ -833,10 +847,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:paddingTop="4dp"
-                                android:text="Exciter"
-                                android:textStyle="bold"
+                                android:text="Bass Boost"
                                 android:textColor="?attr/colorOnSurface"
                                 android:textSize="18sp"
+                                android:textStyle="bold"
                                 app:layout_constraintBottom_toTopOf="@+id/exciter_subtitle"
                                 app:layout_constraintEnd_toEndOf="parent"
                                 app:layout_constraintStart_toStartOf="parent" />
@@ -846,7 +860,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:paddingBottom="12dp"
-                                android:text="HARMONIC ENRICHMENT"
+                                android:text="DEEP RESONANCE"
                                 android:textColor="?attr/colorOnSurfaceVariant"
                                 android:textSize="12sp"
                                 app:layout_constraintBottom_toBottomOf="parent"
@@ -859,7 +873,7 @@
 
                     <com.google.android.material.card.MaterialCardView
                         android:id="@+id/compressor_view_card"
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_margin="6dp"
                         android:layout_weight="1"
@@ -876,11 +890,16 @@
                             android:orientation="vertical"
                             android:padding="8dp">
 
-                            <!-- Simple knob for compressor threshold -->
-                            <LinearLayout
-                                android:id="@+id/compressor_knob_container"
+                            <com.giga.tech1000.heartbeatz.views.knobs.extended.VisualizerKnob
+                                android:id="@+id/compressor_knob"
                                 android:layout_width="match_parent"
                                 android:layout_height="0dp"
+                                app:kv_max="100"
+                                app:kv_min="0"
+                                app:kv_progressColor="?attr/colorPrimary"
+                                app:kv_source="VIRTUALIZER"
+                                app:kv_trackColor="?attr/colorSurfaceVariant"
+                                app:kv_value="0"
                                 app:layout_constraintBottom_toTopOf="@+id/compressor_enable_disable"
                                 app:layout_constraintDimensionRatio="H,1:1"
                                 app:layout_constraintEnd_toEndOf="parent"
@@ -903,10 +922,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:paddingTop="4dp"
-                                android:text="Compressor"
-                                android:textStyle="bold"
+                                android:text="Virtualizer"
                                 android:textColor="?attr/colorOnSurface"
                                 android:textSize="18sp"
+                                android:textStyle="bold"
                                 app:layout_constraintBottom_toTopOf="@+id/compressor_subtitle"
                                 app:layout_constraintEnd_toEndOf="parent"
                                 app:layout_constraintStart_toStartOf="parent" />
@@ -916,7 +935,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:paddingBottom="12dp"
-                                android:text="DYNAMIC CONTROL"
+                                android:text="3D STAGING"
                                 android:textColor="?attr/colorOnSurfaceVariant"
                                 android:textSize="12sp"
                                 app:layout_constraintBottom_toBottomOf="parent"
@@ -934,12 +953,11 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:weightSum="2"
-                    android:layout_marginTop="8dp">
+                    android:weightSum="2">
 
                     <com.google.android.material.card.MaterialCardView
                         android:id="@+id/limiter_view_card"
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_margin="6dp"
                         android:layout_weight="1"
@@ -956,11 +974,16 @@
                             android:orientation="vertical"
                             android:padding="8dp">
 
-                            <!-- Simple knob for limiter threshold -->
-                            <LinearLayout
-                                android:id="@+id/limiter_knob_container"
+                            <com.giga.tech1000.heartbeatz.views.knobs.extended.BassKnob
+                                android:id="@+id/limiter_knob"
                                 android:layout_width="match_parent"
                                 android:layout_height="0dp"
+                                app:kv_max="100"
+                                app:kv_min="0"
+                                app:kv_progressColor="?attr/colorPrimary"
+                                app:kv_source="BASS"
+                                app:kv_trackColor="?attr/colorSurfaceVariant"
+                                app:kv_value="0"
                                 app:layout_constraintBottom_toTopOf="@+id/limiter_enable_disable"
                                 app:layout_constraintDimensionRatio="H,1:1"
                                 app:layout_constraintEnd_toEndOf="parent"
@@ -983,10 +1006,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:paddingTop="4dp"
-                                android:text="Limiter"
-                                android:textStyle="bold"
+                                android:text="Bass Boost"
                                 android:textColor="?attr/colorOnSurface"
                                 android:textSize="18sp"
+                                android:textStyle="bold"
                                 app:layout_constraintBottom_toTopOf="@+id/limiter_subtitle"
                                 app:layout_constraintEnd_toEndOf="parent"
                                 app:layout_constraintStart_toStartOf="parent" />
@@ -996,7 +1019,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:paddingBottom="12dp"
-                                android:text="PEAK LIMITER"
+                                android:text="DEEP RESONANCE"
                                 android:textColor="?attr/colorOnSurfaceVariant"
                                 android:textSize="12sp"
                                 app:layout_constraintBottom_toBottomOf="parent"
@@ -1009,7 +1032,7 @@
 
                     <com.google.android.material.card.MaterialCardView
                         android:id="@+id/noise_gate_view_card"
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_margin="6dp"
                         android:layout_weight="1"
@@ -1026,11 +1049,16 @@
                             android:orientation="vertical"
                             android:padding="8dp">
 
-                            <!-- Simple knob for noise gate threshold -->
-                            <LinearLayout
-                                android:id="@+id/noise_gate_knob_container"
+                            <com.giga.tech1000.heartbeatz.views.knobs.extended.VisualizerKnob
+                                android:id="@+id/noise_gate_knob"
                                 android:layout_width="match_parent"
                                 android:layout_height="0dp"
+                                app:kv_max="100"
+                                app:kv_min="0"
+                                app:kv_progressColor="?attr/colorPrimary"
+                                app:kv_source="VIRTUALIZER"
+                                app:kv_trackColor="?attr/colorSurfaceVariant"
+                                app:kv_value="0"
                                 app:layout_constraintBottom_toTopOf="@+id/noise_gate_enable_disable"
                                 app:layout_constraintDimensionRatio="H,1:1"
                                 app:layout_constraintEnd_toEndOf="parent"
@@ -1053,10 +1081,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:paddingTop="4dp"
-                                android:text="Noise Gate"
-                                android:textStyle="bold"
+                                android:text="Virtualizer"
                                 android:textColor="?attr/colorOnSurface"
                                 android:textSize="18sp"
+                                android:textStyle="bold"
                                 app:layout_constraintBottom_toTopOf="@+id/noise_gate_subtitle"
                                 app:layout_constraintEnd_toEndOf="parent"
                                 app:layout_constraintStart_toStartOf="parent" />
@@ -1066,7 +1094,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:paddingBottom="12dp"
-                                android:text="SILENCE SUPPRESSOR"
+                                android:text="3D STAGING"
                                 android:textColor="?attr/colorOnSurfaceVariant"
                                 android:textSize="12sp"
                                 app:layout_constraintBottom_toBottomOf="parent"
@@ -1083,13 +1111,13 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
                     android:orientation="horizontal"
-                    android:weightSum="2"
-                    android:layout_marginTop="8dp">
+                    android:weightSum="2">
 
                     <com.google.android.material.card.MaterialCardView
                         android:id="@+id/de_esser_view_card"
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_margin="6dp"
                         android:layout_weight="1"
@@ -1106,11 +1134,16 @@
                             android:orientation="vertical"
                             android:padding="8dp">
 
-                            <!-- Simple knob for de-esser threshold -->
-                            <LinearLayout
-                                android:id="@+id/de_esser_knob_container"
+                            <com.giga.tech1000.heartbeatz.views.knobs.extended.BassKnob
+                                android:id="@+id/de_esser_knob"
                                 android:layout_width="match_parent"
                                 android:layout_height="0dp"
+                                app:kv_max="100"
+                                app:kv_min="0"
+                                app:kv_progressColor="?attr/colorPrimary"
+                                app:kv_source="BASS"
+                                app:kv_trackColor="?attr/colorSurfaceVariant"
+                                app:kv_value="0"
                                 app:layout_constraintBottom_toTopOf="@+id/de_esser_enable_disable"
                                 app:layout_constraintDimensionRatio="H,1:1"
                                 app:layout_constraintEnd_toEndOf="parent"
@@ -1133,10 +1166,10 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:paddingTop="4dp"
-                                android:text="De-Esser"
-                                android:textStyle="bold"
+                                android:text="Bass Boost"
                                 android:textColor="?attr/colorOnSurface"
                                 android:textSize="18sp"
+                                android:textStyle="bold"
                                 app:layout_constraintBottom_toTopOf="@+id/de_esser_subtitle"
                                 app:layout_constraintEnd_toEndOf="parent"
                                 app:layout_constraintStart_toStartOf="parent" />
@@ -1146,262 +1179,272 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:paddingBottom="12dp"
-                                android:text="SIBILANCE SUPPRESSOR"
+                                android:text="DEEP RESONANCE"
                                 android:textColor="?attr/colorOnSurfaceVariant"
                                 android:textSize="12sp"
                                 app:layout_constraintBottom_toBottomOf="parent"
                                 app:layout_constraintEnd_toEndOf="parent"
                                 app:layout_constraintStart_toStartOf="parent" />
 
-            <!-- === Loudness normalizer === -->
+                        </androidx.constraintlayout.widget.ConstraintLayout>
 
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/eq_loudness_normalizer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_margin="10dp"
-                android:layout_marginBottom="100dp"
-                app:cardBackgroundColor="?attr/colorSurface"
-                app:cardCornerRadius="20dp"
-                app:cardElevation="4dp"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@+id/equalizer_view_audio_enhancements">
+                    </com.google.android.material.card.MaterialCardView>
 
-
-                <LinearLayout
-                    android:id="@+id/loudness_view_card_child"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:layout_gravity="center_vertical"
-                    android:background="?attr/colorSurface"
-                    android:orientation="horizontal"
-                    android:padding="15dp">
-
-                    <androidx.appcompat.widget.AppCompatImageButton
-                        android:id="@+id/loudness_icon"
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
-                        android:background="?attr/colorSurfaceContainer"
-                        android:scaleType="centerCrop"
-                        android:src="@drawable/volume_up_24px"
-                        app:tint="?attr/colorPrimary" />
-
-                    <LinearLayout
-                        android:layout_width="wrap_content"
-                        android:layout_height="match_parent"
-                        android:layout_weight="1"
-                        android:orientation="vertical"
-                        android:paddingHorizontal="6dp">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Loudness normalizer"
-                            android:textColor="?attr/colorOnSurface"
-                            android:textSize="18sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Auto-adjusts peaks for consistency"
-                            android:textColor="?attr/colorOnSurfaceVariant"
-                            android:textSize="13sp"
-                            android:textStyle="normal" />
-
-
-                    </LinearLayout>
-
-                    <com.google.android.material.materialswitch.MaterialSwitch
-                        android:id="@+id/loudness_enable_disable"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checkMarkTint="?attr/colorPrimary"
-                        android:checked="false" />
 
                 </LinearLayout>
 
-
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Audio enhancements -->
-
-            <TextView
-                android:id="@+id/equalizer_view_tone_enhancements_title"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_margin="10dp"
-                android:padding="10dp"
-                android:text="Tone enhancements"
-                android:textColor="?attr/colorOnSurface"
-                android:textSize="20sp"
-                android:textStyle="bold"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@+id/eq_loudness_normalizer" />
-
-
-            <LinearLayout
-                android:id="@+id/equalizer_view_tone_enhancements"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:padding="12dp"
-                android:weightSum="2"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@+id/equalizer_view_tone_enhancements_title">
+                <!-- === Loudness normalizer === -->
 
                 <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/tempo_view_card"
-                    android:layout_width="wrap_content"
+                    android:id="@+id/eq_loudness_normalizer"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_margin="6dp"
-                    android:layout_weight="1"
+                    android:layout_margin="10dp"
+                    android:layout_marginBottom="100dp"
                     app:cardBackgroundColor="?attr/colorSurface"
                     app:cardCornerRadius="20dp"
-                    app:cardElevation="4dp">
+                    app:cardElevation="4dp"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/equalizer_view_audio_enhancements">
 
-                    <androidx.constraintlayout.widget.ConstraintLayout
-                        android:id="@+id/tempo_view_card_child"
+
+                    <LinearLayout
+                        android:id="@+id/loudness_view_card_child"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
+                        android:layout_gravity="center_vertical"
                         android:background="?attr/colorSurface"
-                        android:gravity="center_horizontal"
-                        android:orientation="vertical"
-                        android:padding="8dp">
+                        android:orientation="horizontal"
+                        android:padding="15dp">
 
-                        <com.giga.tech1000.heartbeatz.views.knobs.extended.TempoKnob
-                            android:id="@+id/tempo_knob"
-                            android:layout_width="match_parent"
-                            android:layout_height="0dp"
-                            app:kv_max="2.0"
-                            app:kv_min="0.5"
-                            app:kv_progressColor="?attr/colorPrimary"
-                            app:kv_trackColor="?attr/colorSurfaceVariant"
-                            app:kv_value="1"
-                            app:kv_source="TEMPO"
-                            app:layout_constraintBottom_toTopOf="@+id/tempo_enable_disable"
-                            app:layout_constraintDimensionRatio="H,1:1"
-                            app:layout_constraintEnd_toEndOf="parent"
-                            app:layout_constraintStart_toStartOf="parent"
-                            app:layout_constraintTop_toTopOf="parent" />
+                        <androidx.appcompat.widget.AppCompatImageButton
+                            android:id="@+id/loudness_icon"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="?attr/colorSurfaceContainer"
+                            android:scaleType="centerCrop"
+                            android:src="@drawable/volume_up_24px"
+                            app:tint="?attr/colorPrimary" />
+
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="match_parent"
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:paddingHorizontal="6dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Loudness normalizer"
+                                android:textColor="?attr/colorOnSurface"
+                                android:textSize="18sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Auto-adjusts peaks for consistency"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:textSize="13sp"
+                                android:textStyle="normal" />
+
+
+                        </LinearLayout>
+
 
                         <com.google.android.material.materialswitch.MaterialSwitch
-                            android:id="@+id/tempo_enable_disable"
+                            android:id="@+id/loudness_enable_disable"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:checkMarkTint="?attr/colorPrimary"
-                            android:checked="false"
-                            android:textColor="?attr/colorOnSurface"
-                            app:layout_constraintBottom_toTopOf="@+id/tempo_title"
-                            app:layout_constraintEnd_toEndOf="parent"
-                            app:layout_constraintStart_toStartOf="parent" />
+                            android:checked="false" />
 
-                        <TextView
-                            android:id="@+id/tempo_title"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:paddingTop="4dp"
-                            android:text="Tempo"
-                            android:textStyle="bold"
-                            android:textColor="?attr/colorOnSurface"
-                            android:textSize="18sp"
-                            app:layout_constraintBottom_toTopOf="@+id/tempo_subtitle"
-                            app:layout_constraintEnd_toEndOf="parent"
-                            app:layout_constraintStart_toStartOf="parent" />
-
-                        <TextView
-                            android:id="@+id/tempo_subtitle"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:paddingBottom="12dp"
-                            android:text="RHYTHMIC CONTROL"
-                            android:textColor="?attr/colorOnSurfaceVariant"
-                            android:textSize="12sp"
-                            app:layout_constraintBottom_toBottomOf="parent"
-                            app:layout_constraintEnd_toEndOf="parent"
-                            app:layout_constraintStart_toStartOf="parent" />
-
-                    </androidx.constraintlayout.widget.ConstraintLayout>
+                    </LinearLayout>
 
                 </com.google.android.material.card.MaterialCardView>
 
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/pitch_view_card"
+
+                <!-- Audio enhancements -->
+
+                <TextView
+                    android:id="@+id/equalizer_view_tone_enhancements_title"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_margin="6dp"
-                    android:layout_weight="1"
-                    app:cardBackgroundColor="?attr/colorSurface"
-                    app:cardCornerRadius="20dp"
-                    app:cardElevation="4dp">
+                    android:layout_margin="10dp"
+                    android:padding="10dp"
+                    android:text="Tone enhancements"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/eq_loudness_normalizer" />
 
-                    <androidx.constraintlayout.widget.ConstraintLayout
-                        android:id="@+id/pitch_view_card_child"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:background="?attr/colorSurface"
-                        android:gravity="center_horizontal"
-                        android:orientation="vertical"
-                        android:padding="8dp">
 
-                        <com.giga.tech1000.heartbeatz.views.knobs.extended.PitchKnob
-                            android:id="@+id/pitch_knob"
+                <LinearLayout
+                    android:id="@+id/equalizer_view_tone_enhancements"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:padding="12dp"
+                    android:weightSum="2"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/equalizer_view_tone_enhancements_title">
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/tempo_view_card"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="6dp"
+                        android:layout_weight="1"
+                        app:cardBackgroundColor="?attr/colorSurface"
+                        app:cardCornerRadius="20dp"
+                        app:cardElevation="4dp">
+
+                        <androidx.constraintlayout.widget.ConstraintLayout
+                            android:id="@+id/tempo_view_card_child"
                             android:layout_width="match_parent"
-                            android:layout_height="0dp"
-                            app:kv_max="12"
-                            app:kv_min="-12"
-                            app:kv_progressColor="?attr/colorPrimary"
-                            app:kv_trackColor="?attr/colorSurfaceVariant"
-                            app:kv_value="0"
-                            app:kv_source="PITCH"
-                            app:layout_constraintBottom_toTopOf="@+id/pitch_enable_disable"
-                            app:layout_constraintDimensionRatio="H,1:1"
-                            app:layout_constraintEnd_toEndOf="parent"
-                            app:layout_constraintStart_toStartOf="parent"
-                            app:layout_constraintTop_toTopOf="parent" />
+                            android:layout_height="match_parent"
+                            android:background="?attr/colorSurface"
+                            android:gravity="center_horizontal"
+                            android:orientation="vertical"
+                            android:padding="8dp">
 
-                        <com.google.android.material.materialswitch.MaterialSwitch
-                            android:id="@+id/pitch_enable_disable"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:checkMarkTint="?attr/colorPrimary"
-                            android:checked="false"
-                            android:textColor="?attr/colorOnSurface"
-                            app:layout_constraintBottom_toTopOf="@+id/pitch_title"
-                            app:layout_constraintEnd_toEndOf="parent"
-                            app:layout_constraintStart_toStartOf="parent" />
+                            <com.giga.tech1000.heartbeatz.views.knobs.extended.TempoKnob
+                                android:id="@+id/tempo_knob"
+                                android:layout_width="match_parent"
+                                android:layout_height="0dp"
+                                app:kv_max="2.0"
+                                app:kv_min="0.5"
+                                app:kv_progressColor="?attr/colorPrimary"
+                                app:kv_source="TEMPO"
+                                app:kv_trackColor="?attr/colorSurfaceVariant"
+                                app:kv_value="1"
+                                app:layout_constraintBottom_toTopOf="@+id/tempo_enable_disable"
+                                app:layout_constraintDimensionRatio="H,1:1"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toTopOf="parent" />
 
-                        <TextView
-                            android:id="@+id/pitch_title"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:paddingTop="4dp"
-                            android:text="Pitch "
-                            android:textColor="?attr/colorOnSurface"
-                            android:textSize="18sp"
-                            android:textStyle="bold"
-                            app:layout_constraintBottom_toTopOf="@+id/pitch_subtitle"
-                            app:layout_constraintEnd_toEndOf="parent"
-                            app:layout_constraintStart_toStartOf="parent" />
+                            <com.google.android.material.materialswitch.MaterialSwitch
+                                android:id="@+id/tempo_enable_disable"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:checkMarkTint="?attr/colorPrimary"
+                                android:checked="false"
+                                android:textColor="?attr/colorOnSurface"
+                                app:layout_constraintBottom_toTopOf="@+id/tempo_title"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
 
-                        <TextView
-                            android:id="@+id/pitch_subtitle"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:paddingBottom="12dp"
-                            android:text="TONE SHAPING"
-                            android:textColor="?attr/colorOnSurfaceVariant"
-                            android:textSize="12sp"
-                            app:layout_constraintBottom_toBottomOf="parent"
-                            app:layout_constraintEnd_toEndOf="parent"
-                            app:layout_constraintStart_toStartOf="parent" />
+                            <TextView
+                                android:id="@+id/tempo_title"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingTop="4dp"
+                                android:text="Tempo"
+                                android:textColor="?attr/colorOnSurface"
+                                android:textSize="18sp"
+                                android:textStyle="bold"
+                                app:layout_constraintBottom_toTopOf="@+id/tempo_subtitle"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
 
-                    </androidx.constraintlayout.widget.ConstraintLayout>
+                            <TextView
+                                android:id="@+id/tempo_subtitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingBottom="12dp"
+                                android:text="RHYTHMIC CONTROL"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:textSize="12sp"
+                                app:layout_constraintBottom_toBottomOf="parent"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
 
-                </com.google.android.material.card.MaterialCardView>
+                        </androidx.constraintlayout.widget.ConstraintLayout>
 
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/pitch_view_card"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="6dp"
+                        android:layout_weight="1"
+                        app:cardBackgroundColor="?attr/colorSurface"
+                        app:cardCornerRadius="20dp"
+                        app:cardElevation="4dp">
+
+                        <androidx.constraintlayout.widget.ConstraintLayout
+                            android:id="@+id/pitch_view_card_child"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:background="?attr/colorSurface"
+                            android:gravity="center_horizontal"
+                            android:orientation="vertical"
+                            android:padding="8dp">
+
+                            <com.giga.tech1000.heartbeatz.views.knobs.extended.PitchKnob
+                                android:id="@+id/pitch_knob"
+                                android:layout_width="match_parent"
+                                android:layout_height="0dp"
+                                app:kv_max="12"
+                                app:kv_min="-12"
+                                app:kv_progressColor="?attr/colorPrimary"
+                                app:kv_source="PITCH"
+                                app:kv_trackColor="?attr/colorSurfaceVariant"
+                                app:kv_value="0"
+                                app:layout_constraintBottom_toTopOf="@+id/pitch_enable_disable"
+                                app:layout_constraintDimensionRatio="H,1:1"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toTopOf="parent" />
+
+                            <com.google.android.material.materialswitch.MaterialSwitch
+                                android:id="@+id/pitch_enable_disable"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:checkMarkTint="?attr/colorPrimary"
+                                android:checked="false"
+                                android:textColor="?attr/colorOnSurface"
+                                app:layout_constraintBottom_toTopOf="@+id/pitch_title"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <TextView
+                                android:id="@+id/pitch_title"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingTop="4dp"
+                                android:text="Pitch "
+                                android:textColor="?attr/colorOnSurface"
+                                android:textSize="18sp"
+                                android:textStyle="bold"
+                                app:layout_constraintBottom_toTopOf="@+id/pitch_subtitle"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                            <TextView
+                                android:id="@+id/pitch_subtitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:paddingBottom="12dp"
+                                android:text="TONE SHAPING"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:textSize="12sp"
+                                app:layout_constraintBottom_toBottomOf="parent"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintStart_toStartOf="parent" />
+
+                        </androidx.constraintlayout.widget.ConstraintLayout>
+
+                    </com.google.android.material.card.MaterialCardView>
+
+
+                </LinearLayout>
 
             </LinearLayout>
 
@@ -1409,8 +1452,8 @@
             <View
                 android:layout_width="match_parent"
                 android:layout_height="@dimen/bar_and_navigation_height"
-                app:layout_constraintTop_toBottomOf="@+id/equalizer_view_tone_enhancements"
-                app:layout_constraintBottom_toBottomOf="parent"/>
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/equalizer_view_audio_enhancements" />
 
 
         </androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,5 +1,5 @@
 [versions]
-agp = "9.2.1"
+agp = "9.4.0"
 webRTC_android = "144.7559.09"
 compiler = "5.0.9"
 coreKtx = "1.15.0"
