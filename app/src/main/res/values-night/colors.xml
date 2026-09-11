@@ -43,6 +43,15 @@
     <color name="hb_icon_container">#338B5CF6</color> <!-- brighter for dark bg -->
     <color name="hb_icon_container_strong">#4D8B5CF6</color>
 
+    <!-- DAW Studio Accents -->
+    <color name="hb_accent_cyan">#06B6D4</color>
+    <color name="hb_accent_green">#10B981</color>
+    <color name="hb_accent_rose">#FB7185</color>
+    <color name="hb_accent_amber">#FBBF24</color>
+    <color name="hb_accent_purple">#C084FC</color>
+    <color name="hb_surface_dark_card">#141318</color>
+    <color name="hb_fader_track">#0A0A0D</color>
+
 
 
     <color name="tab_text_color_selector">

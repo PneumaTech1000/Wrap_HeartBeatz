@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.realgear.readable_bottom_bar"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 28
@@ -27,6 +27,8 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    compileSdkMinor = 0
+    buildToolsVersion = "36.0.0"
 
     publishing {
         singleVariant("release") {

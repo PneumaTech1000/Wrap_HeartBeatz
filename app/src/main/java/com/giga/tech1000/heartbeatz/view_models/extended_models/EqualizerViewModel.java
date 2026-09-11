@@ -5,6 +5,7 @@ import android.app.Application;
 import androidx.annotation.NonNull;
 import androidx.annotation.OptIn;
 import androidx.lifecycle.AndroidViewModel;
+import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.media3.common.util.UnstableApi;
@@ -12,7 +13,7 @@ import androidx.media3.common.util.UnstableApi;
 import com.giga.tech1000.heartbeatz.architecture.PlaybackStateManager;
 import com.giga.tech1000.heartbeatz.architecture.repositories.PlaybackStateRepository;
 import com.giga.tech1000.heartbeatz.ui.MediaPlayerThread;
-import com.giga.tech1000.media_player.AudioEngine;
+import com.giga.tech1000.media_player.engine.AudioEngine;
 import com.giga.tech1000.media_player.utils.enums.EqPreset;
 import com.giga.tech1000.heartbeatz.utils.Preset;
 import com.giga.tech1000.heartbeatz.utils.PresetManager;
@@ -254,6 +255,12 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
             band.setGainDb(gainDb);
             band.setQFactor(qFactor);
 
+            if (audioEngine != null && bandIndex < 10) {
+                audioEngine.setParametricEqualizerBand(
+                        bandIndex, frequencyHz, gainDb, qFactor,
+                        Boolean.TRUE.equals(equalizerEnabled.getValue()));
+            }
+
             // Notify observers of change
             eqBands.setValue(new ArrayList<>(bands));
 
@@ -264,6 +271,71 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
 
             // Save state to SharedPreferences
             saveStateToSharedPreferences();
+        }
+    }
+
+    public void setStereoWidening(boolean enabled, float width) {
+        stereoWideningEnabled.setValue(enabled);
+        stereoWideningWidth.setValue(width);
+        if (audioEngine != null) {
+            audioEngine.setStereoWideningEnabled(enabled);
+            audioEngine.setStereoWideningWidth(width);
+        }
+    }
+
+    public void setExciter(boolean enabled, float amount, float frequency) {
+        exciterEnabled.setValue(enabled);
+        exciterAmount.setValue(amount);
+        exciterFrequency.setValue(frequency);
+        if (audioEngine != null) {
+            audioEngine.setExciterEnabled(enabled);
+            audioEngine.setExciterAmount(amount);
+            audioEngine.setExciterFrequency(frequency);
+        }
+    }
+
+    public void setCompressor(boolean enabled, float threshold, float ratio,
+                               float attack, float release) {
+        compressorEnabled.setValue(enabled);
+        compressorThreshold.setValue(threshold);
+        compressorRatio.setValue(ratio);
+        compressorAttack.setValue(attack);
+        compressorRelease.setValue(release);
+        if (audioEngine != null) {
+            audioEngine.setCompressorEnabled(enabled);
+            audioEngine.setCompressorThreshold(threshold);
+            audioEngine.setCompressorRatio(ratio);
+            audioEngine.setCompressorAttack(attack);
+            audioEngine.setCompressorRelease(release);
+        }
+    }
+
+    public void setLimiter(boolean enabled, float threshold) {
+        limiterEnabled.setValue(enabled);
+        limiterThreshold.setValue(threshold);
+        if (audioEngine != null) {
+            audioEngine.setLimiterEnabled(enabled);
+            audioEngine.setLimiterThreshold(threshold);
+        }
+    }
+
+    public void setNoiseGate(boolean enabled, float threshold) {
+        noiseGateEnabled.setValue(enabled);
+        noiseGateThreshold.setValue(threshold);
+        if (audioEngine != null) {
+            audioEngine.setNoiseGateEnabled(enabled);
+            audioEngine.setNoiseGateThreshold(threshold);
+        }
+    }
+
+    public void setDeEsser(boolean enabled, float threshold, float frequency) {
+        deEsserEnabled.setValue(enabled);
+        deEsserThreshold.setValue(threshold);
+        deEsserFrequency.setValue(frequency);
+        if (audioEngine != null) {
+            audioEngine.setDeEsserEnabled(enabled);
+            audioEngine.setDeEsserThreshold(threshold);
+            audioEngine.setDeEsserFrequency(frequency);
         }
     }
 
@@ -461,8 +533,8 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
         current.setPitch(currentPitch.getValue());
 
         // Copy advanced effects states
-        current.setReverbEnabled(reverbEnabled.getValue());
-        current.setReverbRoomLevel(reverbRoomLevel.getValue());
+        reverbEnabled.observeForever(current::setReverbEnabled);
+        reverbRoomLevel.observe((LifecycleOwner) this, current::setReverbRoomLevel);
         current.setReverbDecayTime(reverbDecayTime.getValue());
         current.setStereoWideningEnabled(stereoWideningEnabled.getValue());
         current.setStereoWideningWidth(stereoWideningWidth.getValue());

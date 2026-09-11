@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="3dp" />
+            <solid android:color="#4B4958" />
+            <stroke android:width="1dp" android:color="#636075" />
+            <size android:width="28dp" android:height="14dp" />
+        </shape>
+    </item>
+    <item android:bottom="7dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="3dp" />
+            <solid android:color="@color/hb_fader_track" />
+        </shape>
+    </item>
+</layer-list>

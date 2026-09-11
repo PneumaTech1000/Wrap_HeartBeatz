@@ -4,7 +4,7 @@ plugins {
 
 android {
     namespace 'com.giga.tech1000.utils'
-    compileSdk 36
+    compileSdk 37
 
     defaultConfig {
         minSdk 28
@@ -23,6 +23,8 @@ android {
         sourceCompatibility JavaVersion.VERSION_21
         targetCompatibility JavaVersion.VERSION_21
     }
+    compileSdkMinor 0
+    buildToolsVersion '36.0.0'
 }
 
 dependencies {

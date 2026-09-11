@@ -1,0 +1,156 @@
+Starting a Gradle Daemon, 2 stopped Daemons could not be reused, use --status for details
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:generateDebugResources
+> Task :app:packageDebugResources
+> Task :lib:Extensions:preBuild UP-TO-DATE
+> Task :lib:Extensions:preDebugBuild UP-TO-DATE
+> Task :lib:Extensions:processDebugNavigationResources UP-TO-DATE
+> Task :lib:Icons_Pack:preBuild UP-TO-DATE
+> Task :lib:Icons_Pack:preDebugBuild UP-TO-DATE
+> Task :lib:Icons_Pack:processDebugNavigationResources UP-TO-DATE
+> Task :lib:Media_Player:preBuild UP-TO-DATE
+> Task :lib:Media_Player:preDebugBuild UP-TO-DATE
+> Task :lib:Media_Player:processDebugNavigationResources UP-TO-DATE
+> Task :lib:multiSlidingUpPanel:preBuild UP-TO-DATE
+> Task :lib:multiSlidingUpPanel:preDebugBuild UP-TO-DATE
+> Task :lib:multiSlidingUpPanel:processDebugNavigationResources UP-TO-DATE
+> Task :lib:Party_Mode:preBuild UP-TO-DATE
+> Task :lib:Party_Mode:preDebugBuild UP-TO-DATE
+> Task :lib:Party_Mode:processDebugNavigationResources UP-TO-DATE
+> Task :lib:readableBottomBar:preBuild UP-TO-DATE
+> Task :lib:readableBottomBar:preDebugBuild UP-TO-DATE
+> Task :lib:readableBottomBar:processDebugNavigationResources UP-TO-DATE
+> Task :lib:Sound_Engine:preBuild UP-TO-DATE
+> Task :lib:Sound_Engine:preDebugBuild UP-TO-DATE
+> Task :lib:Sound_Engine:processDebugNavigationResources UP-TO-DATE
+> Task :lib:Utils:preBuild UP-TO-DATE
+> Task :lib:Utils:preDebugBuild UP-TO-DATE
+> Task :lib:Utils:processDebugNavigationResources UP-TO-DATE
+> Task :lib:Visualizer_Android:preBuild UP-TO-DATE
+> Task :lib:Visualizer_Android:preDebugBuild UP-TO-DATE
+> Task :lib:Visualizer_Android:processDebugNavigationResources UP-TO-DATE
+> Task :app:processDebugNavigationResources
+> Task :lib:Extensions:generateDebugResources UP-TO-DATE
+> Task :lib:Extensions:packageDebugResources UP-TO-DATE
+> Task :lib:Extensions:parseDebugLocalResources UP-TO-DATE
+> Task :lib:Extensions:generateDebugRFile UP-TO-DATE
+> Task :lib:Extensions:compileDebugKotlin NO-SOURCE
+> Task :lib:Extensions:javaPreCompileDebug UP-TO-DATE
+> Task :lib:Extensions:compileDebugJavaWithJavac UP-TO-DATE
+> Task :lib:Extensions:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :lib:Icons_Pack:generateDebugResources UP-TO-DATE
+> Task :lib:Icons_Pack:packageDebugResources UP-TO-DATE
+> Task :lib:Icons_Pack:parseDebugLocalResources UP-TO-DATE
+> Task :lib:Icons_Pack:generateDebugRFile UP-TO-DATE
+> Task :lib:Icons_Pack:compileDebugKotlin NO-SOURCE
+> Task :lib:Icons_Pack:javaPreCompileDebug UP-TO-DATE
+> Task :lib:Icons_Pack:compileDebugJavaWithJavac NO-SOURCE
+> Task :lib:Icons_Pack:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :lib:Media_Player:generateDebugResources UP-TO-DATE
+> Task :lib:Media_Player:packageDebugResources UP-TO-DATE
+> Task :lib:Media_Player:parseDebugLocalResources UP-TO-DATE
+> Task :lib:Media_Player:generateDebugRFile UP-TO-DATE
+> Task :lib:Party_Mode:generateDebugResources UP-TO-DATE
+> Task :lib:Party_Mode:packageDebugResources UP-TO-DATE
+> Task :lib:Party_Mode:parseDebugLocalResources UP-TO-DATE
+> Task :lib:Party_Mode:generateDebugRFile UP-TO-DATE
+> Task :app:parseDebugLocalResources
+> Task :lib:Party_Mode:compileDebugKotlin NO-SOURCE
+> Task :lib:Party_Mode:javaPreCompileDebug UP-TO-DATE
+> Task :app:generateDebugRFile
+> Task :lib:Party_Mode:compileDebugJavaWithJavac UP-TO-DATE
+> Task :lib:Party_Mode:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :lib:Sound_Engine:generateDebugResources UP-TO-DATE
+> Task :lib:Sound_Engine:packageDebugResources UP-TO-DATE
+> Task :lib:Sound_Engine:parseDebugLocalResources UP-TO-DATE
+> Task :lib:Sound_Engine:generateDebugRFile UP-TO-DATE
+> Task :lib:Sound_Engine:compileDebugKotlin NO-SOURCE
+> Task :lib:Sound_Engine:javaPreCompileDebug UP-TO-DATE
+> Task :lib:Sound_Engine:compileDebugJavaWithJavac UP-TO-DATE
+> Task :lib:Sound_Engine:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :lib:Utils:generateDebugResources UP-TO-DATE
+> Task :lib:Utils:packageDebugResources UP-TO-DATE
+> Task :lib:Utils:parseDebugLocalResources UP-TO-DATE
+> Task :lib:Utils:generateDebugRFile UP-TO-DATE
+> Task :lib:Utils:compileDebugKotlin NO-SOURCE
+> Task :lib:Utils:javaPreCompileDebug UP-TO-DATE
+> Task :lib:Utils:compileDebugJavaWithJavac UP-TO-DATE
+> Task :lib:Utils:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :lib:Visualizer_Android:generateDebugResources UP-TO-DATE
+> Task :lib:Visualizer_Android:packageDebugResources UP-TO-DATE
+> Task :lib:Visualizer_Android:parseDebugLocalResources UP-TO-DATE
+> Task :lib:Visualizer_Android:generateDebugRFile UP-TO-DATE
+> Task :lib:Visualizer_Android:compileDebugKotlin NO-SOURCE
+> Task :lib:Visualizer_Android:javaPreCompileDebug UP-TO-DATE
+> Task :lib:Visualizer_Android:compileDebugJavaWithJavac UP-TO-DATE
+> Task :lib:Visualizer_Android:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :lib:Media_Player:compileDebugKotlin UP-TO-DATE
+> Task :lib:Media_Player:javaPreCompileDebug UP-TO-DATE
+> Task :lib:Media_Player:compileDebugJavaWithJavac UP-TO-DATE
+> Task :lib:Media_Player:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :lib:multiSlidingUpPanel:generateDebugResources UP-TO-DATE
+> Task :lib:multiSlidingUpPanel:packageDebugResources UP-TO-DATE
+> Task :lib:multiSlidingUpPanel:parseDebugLocalResources UP-TO-DATE
+> Task :lib:multiSlidingUpPanel:generateDebugRFile UP-TO-DATE
+> Task :lib:multiSlidingUpPanel:compileDebugKotlin NO-SOURCE
+> Task :lib:multiSlidingUpPanel:javaPreCompileDebug UP-TO-DATE
+> Task :lib:multiSlidingUpPanel:compileDebugJavaWithJavac UP-TO-DATE
+> Task :lib:multiSlidingUpPanel:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :lib:readableBottomBar:generateDebugResources UP-TO-DATE
+> Task :lib:readableBottomBar:packageDebugResources UP-TO-DATE
+> Task :lib:readableBottomBar:parseDebugLocalResources UP-TO-DATE
+> Task :lib:readableBottomBar:generateDebugRFile UP-TO-DATE
+> Task :lib:readableBottomBar:compileDebugKotlin UP-TO-DATE
+> Task :lib:readableBottomBar:javaPreCompileDebug UP-TO-DATE
+> Task :lib:readableBottomBar:compileDebugJavaWithJavac NO-SOURCE
+> Task :lib:readableBottomBar:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :app:compileDebugKotlin NO-SOURCE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+
+> Task :app:compileDebugJavaWithJavac
+C:\Users\PneumaTech\StudioProjects\Wrap_HeartBeatz\app\src\main\java\com\giga\tech1000\heartbeatz\views\panels\sub_panels\EqualizerViewPanel.java:811: error: implicitly declared classes are not supported in -source 17
+    private void mapPresets() {
+            ^
+  (use -source 25 or higher to enable implicitly declared classes)
+C:\Users\PneumaTech\StudioProjects\Wrap_HeartBeatz\app\src\main\java\com\giga\tech1000\heartbeatz\views\panels\sub_panels\EqualizerViewPanel.java:1547: error: class, interface, enum, or record expected
+}
+^
+C:\Users\PneumaTech\StudioProjects\Wrap_HeartBeatz\app\src\main\java\com\giga\tech1000\heartbeatz\views\panels\sub_panels\EqualizerViewPanel.java:1: error: compact source file should not have package declaration
+package com.giga.tech1000.heartbeatz.views.panels.sub_panels;
+^
+3 errors
+
+> Task :app:compileDebugJavaWithJavac FAILED
+
+[Incubating] Problems report is available at: file:///C:/Users/PneumaTech/StudioProjects/Wrap_HeartBeatz/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugJavaWithJavac' (registered by plugin 'com.android.internal.application').
+> Compilation failed; see the compiler output below.
+  C:\Users\PneumaTech\StudioProjects\Wrap_HeartBeatz\app\src\main\java\com\giga\tech1000\heartbeatz\views\panels\sub_panels\EqualizerViewPanel.java:1: error: compact source file should not have package declaration
+  package com.giga.tech1000.heartbeatz.views.panels.sub_panels;
+  ^
+  C:\Users\PneumaTech\StudioProjects\Wrap_HeartBeatz\app\src\main\java\com\giga\tech1000\heartbeatz\views\panels\sub_panels\EqualizerViewPanel.java:811: error: implicitly declared classes are not supported in -source 17
+      private void mapPresets() {
+              ^
+    (use -source 25 or higher to enable implicitly declared classes)
+  C:\Users\PneumaTech\StudioProjects\Wrap_HeartBeatz\app\src\main\java\com\giga\tech1000\heartbeatz\views\panels\sub_panels\EqualizerViewPanel.java:1547: error: class, interface, enum, or record expected
+  }
+  ^
+  3 errors
+
+* Try:
+> Check your code and dependencies to fix the compilation error(s)
+> Run with --scan to get full insights from a Build Scan (powered by Develocity).
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.6.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 2m 3s
+79 actionable tasks: 6 executed, 73 up-to-date

@@ -4,14 +4,12 @@ plugins {
 
 android {
     namespace 'com.giga.tech1000.heartbeatz'
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk 37
 
     defaultConfig {
         applicationId "com.giga.tech1000.heartbeatz"
         minSdk 28
-        targetSdk 36
+        targetSdk 37
         versionCode 1
         versionName "1.0"
 
@@ -70,6 +68,9 @@ dependencies {
     implementation libs.zxing.core
 
     implementation libs.okhttp
+    implementation libs.gson
+    implementation libs.firebase.database
+    implementation libs.firebase.auth
 
     implementation libs.marquee.text.view
 

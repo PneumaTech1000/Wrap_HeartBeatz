@@ -1,76 +1,58 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="48dp"
+    android:layout_height="wrap_content"
+    android:background="@drawable/daw_card_background"
+    android:backgroundTint="?attr/colorSurfaceContainerHigh"
+    android:gravity="center_horizontal"
     android:orientation="vertical"
-    android:padding="6dp">
-
-    <TextView
-        android:id="@+id/eqTextView"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="125Hz"
-        android:textAppearance="?attr/textAppearanceLabelSmall"
-        android:textColor="?attr/colorOnSurfaceVariant"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginBottom="2dp" />
-
-    <TextView
-        android:id="@+id/eqFreqValue"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android.text="125.0 Hz"
-        android:textAppearance="?attr/textAppearanceLabelSmall"
-        android:textColor="?attr/colorOnSurface"
-        android:textStyle="bold"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginBottom="2dp" />
-
-    <com.giga.tech1000.extensions.VerticalSeekBar
-        android:id="@+id/eqFreqSeekBar"
-        android:layout_width="24dp"
-        android:layout_height="120dp"
-        android:layout_gravity="center_horizontal"
-        app:vs_progress="50"
-        app:vs_max="100"
-        app:vs_thumb="@drawable/bg_icon_circle"
-        app:vs_thumb_tint="?attr/colorPrimary"
-        app:vs_track_width="3dp"
-        app:vs_track_color="?attr/colorSurfaceVariant"
-        app:vs_progress_color="?attr/colorPrimary"
-        android:layout_marginBottom="4dp"/>
-
-    <TextView
-        android:id="@+id/eqDbLabel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Gain"
-        android:textAppearance="?attr/textAppearanceLabelSmall"
-        android:textColor="?attr/colorOnSurfaceVariant"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginBottom="2dp" />
+    android:paddingVertical="8dp"
+    android:layout_marginHorizontal="2dp">
 
     <TextView
         android:id="@+id/eqDbValue"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="0.0 dB"
-        android:textAppearance="?attr/textAppearanceLabelSmall"
+        android:fontFamily="monospace"
+        android:text="+3.5"
+        android:textColor="@color/hb_primary"
+        android:textSize="10sp"
+        android:textStyle="bold" />
+
+    <com.giga.tech1000.extensions.VerticalSeekBar
+        android:id="@+id/eqFreqSeekBar"
+        android:layout_width="22dp"
+        android:layout_height="140dp"
+        android:layout_marginVertical="10dp"
+        app:vs_max="100"
+        app:vs_progress="50"
+        app:vs_progress_color="@color/hb_primary"
+        app:vs_thumb="@drawable/daw_fader_thumb"
+        app:vs_track_color="@color/hb_fader_track"
+        app:vs_track_width="22dp" />
+
+    <TextView
+        android:id="@+id/eqTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="sans-serif-medium"
+        android:text="32Hz"
         android:textColor="?attr/colorOnSurface"
-        android:textStyle="bold"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginBottom="2dp" />
+        android:textSize="10sp" />
 
     <TextView
         android:id="@+id/eqQValue"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Q: 1.0"
-        android:textAppearance="?attr/textAppearanceLabelSmall"
-        android:textColor="?attr/colorOnSurface"
-        android:textStyle="bold"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginBottom="2dp" />
+        android:layout_marginTop="4dp"
+        android:background="@drawable/daw_card_background"
+        android:backgroundTint="?android:attr/colorBackground"
+        android:fontFamily="monospace"
+        android:paddingHorizontal="4dp"
+        android:paddingVertical="2dp"
+        android:text="Q:1.4"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:textSize="8sp" />
 
 </LinearLayout>

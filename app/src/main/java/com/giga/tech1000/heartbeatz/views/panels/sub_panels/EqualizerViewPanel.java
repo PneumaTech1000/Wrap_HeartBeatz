@@ -19,17 +19,19 @@ import androidx.media3.common.util.UnstableApi;
 import com.giga.tech1000.extensions.VerticalSeekBar;
 import com.giga.tech1000.heartbeatz.R;
 import com.giga.tech1000.heartbeatz.ui.fragments.FragmentHome;
+import com.giga.tech1000.heartbeatz.utils.audio.ParametricEQBand;
 import com.giga.tech1000.heartbeatz.view_models.extended_models.EqualizerViewModel;
 import com.giga.tech1000.heartbeatz.views.SpectrumView;
 import com.giga.tech1000.heartbeatz.views.knobs.extended.BassKnob;
 import com.giga.tech1000.heartbeatz.views.knobs.extended.PitchKnob;
 import com.giga.tech1000.heartbeatz.views.knobs.extended.TempoKnob;
 import com.giga.tech1000.heartbeatz.views.knobs.extended.VisualizerKnob;
-import com.giga.tech1000.media_player.AudioEngine;
+import com.giga.tech1000.media_player.engine.AudioEngine;
 import com.giga.tech1000.media_player.utils.enums.EqPreset;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.materialswitch.MaterialSwitch;
 import com.google.android.material.button.MaterialButton;
+
 import android.view.Gravity;
 import android.widget.Toast;
 
@@ -80,8 +82,8 @@ public final class EqualizerViewPanel {
     // =========================
 
     private ConstraintLayout parentView;
-    private LinearLayout chipsContainer;
-    private ConstraintLayout eqCard;
+    private View chipsContainer;
+    private View eqCard;
 
     private MaterialSwitch eqSwitch;
     private MaterialSwitch bassSwitch;
@@ -142,9 +144,9 @@ public final class EqualizerViewPanel {
     private float bassValue = 0f;
 
 
-    private AppCompatImageButton loudnessIcon;
-    private ImageButton closeButton;
-    private TextView eqReset;
+    private View loudnessIcon;
+    private View closeButton;
+    private View eqReset;
 
     private ChipGroup presetGroup;
 
@@ -173,8 +175,15 @@ public final class EqualizerViewPanel {
     private final Stack<List<Integer>> undoStack = new Stack<>();
     private final Stack<List<Integer>> redoStack = new Stack<>();
     private static final int MAX_HISTORY_SIZE = 50;
-    private MaterialButton undoButton;
-    private MaterialButton redoButton;
+    private View undoButton;
+    private View redoButton;
+
+    private com.google.android.material.slider.Slider stereoWidthSlider;
+    private com.google.android.material.slider.Slider exciterAmountSlider;
+    private com.google.android.material.slider.Slider compressorThresholdSlider;
+    private com.google.android.material.slider.Slider limiterCeilingSlider;
+    private com.google.android.material.slider.Slider noiseGateThresholdSlider;
+    private com.google.android.material.slider.Slider deEsserThresholdSlider;
 
     private final Map<Integer, EqPreset> presetMap = new HashMap<>();
 
@@ -208,57 +217,60 @@ public final class EqualizerViewPanel {
     // =========================
 
     private void bindViews(View v) {
-        parentView = v.findViewById(R.id.parent_view);
-        chipsContainer = v.findViewById(R.id.equalizer_view_chips);
-        eqCard = v.findViewById(R.id.equalizer_view_card_child);
+        parentView = v.findViewById(R.id.eq_workspace_root);
+        chipsContainer = v.findViewById(R.id.chip_group_eq_presets);
+        eqCard = v.findViewById(R.id.faders_container);
 
-        eqSwitch = v.findViewById(R.id.eq_enable_disable);
-        bassSwitch = v.findViewById(R.id.bass_enable_disable);
-        virtualizerSwitch = v.findViewById(R.id.virtualizer_enable_disable);
-        tempoSwitch = v.findViewById(R.id.tempo_enable_disable);
-        pitchSwitch = v.findViewById(R.id.pitch_enable_disable);
-        loudnessSwitch = v.findViewById(R.id.loudness_enable_disable);
+        eqSwitch = v.findViewById(R.id.switch_master_eq);
+        bassSwitch = new MaterialSwitch(context);
+        virtualizerSwitch = new MaterialSwitch(context);
+        tempoSwitch = new MaterialSwitch(context);
+        pitchSwitch = new MaterialSwitch(context);
+        loudnessSwitch = new MaterialSwitch(context);
 
-        bassKnob = v.findViewById(R.id.base_knob);
-        virtualizerKnob = v.findViewById(R.id.virtualizer_knob);
-        tempoKnob = v.findViewById(R.id.tempo_knob);
-        pitchKnob = v.findViewById(R.id.pitch_knob);
+        bassKnob = new BassKnob(context);
+        virtualizerKnob = new VisualizerKnob(context);
+        tempoKnob = new TempoKnob(context);
+        pitchKnob = new PitchKnob(context);
+        loudnessIcon = new AppCompatImageButton(context);
 
-        loudnessIcon = v.findViewById(R.id.loudness_icon);
-        closeButton = v.findViewById(R.id.equalizer_view_close);
-        presetGroup = v.findViewById(R.id.sound_profile_group);
-        eqReset = v.findViewById(R.id.eq_reset);
+        closeButton = v.findViewById(R.id.btn_eq_back);
+        presetGroup = v.findViewById(R.id.chip_group_eq_presets);
+        eqReset = v.findViewById(R.id.btn_eq_reset);
+        undoButton = v.findViewById(R.id.btn_eq_undo);
+        redoButton = v.findViewById(R.id.btn_eq_redo);
 
         // Initialize spectrum view
-        spectrumView = v.findViewById(R.id.spectrum_view);
+        spectrumView = v.findViewById(R.id.spectrum_canvas);
 
         // Initialize advanced effects views
-        reverbSwitch = v.findViewById(R.id.reverb_enable_disable);
-        stereoWideningSwitch = v.findViewById(R.id.stereo_widening_enable_disable);
-        exciterSwitch = v.findViewById(R.id.exciter_enable_disable);
-        compressorSwitch = v.findViewById(R.id.compressor_enable_disable);
-        limiterSwitch = v.findViewById(R.id.limiter_enable_disable);
-        noiseGateSwitch = v.findViewById(R.id.noise_gate_enable_disable);
-        deEsserSwitch = v.findViewById(R.id.de_esser_enable_disable);
+        reverbSwitch = new MaterialSwitch(context);
+        stereoWideningSwitch = v.findViewById(R.id.switch_stereo_enabled);
+        exciterSwitch = v.findViewById(R.id.switch_exciter_enabled);
+        compressorSwitch = v.findViewById(R.id.switch_compressor_enabled);
+        limiterSwitch = v.findViewById(R.id.switch_limiter_enabled);
+        noiseGateSwitch = v.findViewById(R.id.switch_gate_enabled);
+        deEsserSwitch = v.findViewById(R.id.switch_deesser_enabled);
 
-        reverbKnobContainer = v.findViewById(R.id.reverb_knob_container);
-        stereoWideningKnobContainer = v.findViewById(R.id.stereo_widening_knob_container);
-        exciterKnobContainer = v.findViewById(R.id.exciter_knob_container);
-        compressorKnobContainer = v.findViewById(R.id.compressor_knob_container);
-        limiterKnobContainer = v.findViewById(R.id.limiter_knob_container);
-        noiseGateKnobContainer = v.findViewById(R.id.noise_gate_knob_container);
-        deEsserKnobContainer = v.findViewById(R.id.de_esser_knob_container);
+        reverbKnobContainer = v.findViewById(R.id.rack_stereo_content);
+        stereoWideningKnobContainer = v.findViewById(R.id.rack_stereo_content);
+        exciterKnobContainer = v.findViewById(R.id.rack_exciter_content);
+        compressorKnobContainer = v.findViewById(R.id.rack_compressor_content);
+        limiterKnobContainer = v.findViewById(R.id.rack_limiter_content);
+        noiseGateKnobContainer = v.findViewById(R.id.rack_gate_content);
+        deEsserKnobContainer = v.findViewById(R.id.rack_deesser_content);
 
-        bandViews[0] = v.findViewById(R.id.first);
-        bandViews[1] = v.findViewById(R.id.second);
-        bandViews[2] = v.findViewById(R.id.third);
-        bandViews[3] = v.findViewById(R.id.fourth);
-        bandViews[4] = v.findViewById(R.id.fifth);
-        bandViews[5] = v.findViewById(R.id.sixth);
-        bandViews[6] = v.findViewById(R.id.seventh);
-        bandViews[7] = v.findViewById(R.id.eighth);
-        bandViews[8] = v.findViewById(R.id.ninth);
-        bandViews[9] = v.findViewById(R.id.tenth);
+        stereoWidthSlider = v.findViewById(R.id.slider_stereo_width);
+        exciterAmountSlider = v.findViewById(R.id.slider_exciter_amount);
+        compressorThresholdSlider = v.findViewById(R.id.slider_comp_threshold);
+        limiterCeilingSlider = v.findViewById(R.id.slider_limiter_ceiling);
+        noiseGateThresholdSlider = v.findViewById(R.id.slider_gate_threshold);
+        deEsserThresholdSlider = v.findViewById(R.id.slider_deesser_threshold);
+
+        ViewGroup faders = v.findViewById(R.id.faders_container);
+        for (int i = 0; i < UI_BANDS; i++) {
+            bandViews[i] = faders.getChildAt(i);
+        }
 
         // Initialize frequency value TextViews
         freqValueViews[0] = bandViews[0].findViewById(R.id.eqFreqValue);
@@ -272,7 +284,7 @@ public final class EqualizerViewPanel {
         freqValueViews[8] = bandViews[8].findViewById(R.id.eqFreqValue);
         freqValueViews[9] = bandViews[9].findViewById(R.id.eqFreqValue);
 
-        // Initialize frequency seekbars
+        // The redesigned fader controls gain. Frequency and Q remain ViewModel values.
         freqSeekBars[0] = bandViews[0].findViewById(R.id.eqFreqSeekBar);
         freqSeekBars[1] = bandViews[1].findViewById(R.id.eqFreqSeekBar);
         freqSeekBars[2] = bandViews[2].findViewById(R.id.eqFreqSeekBar);
@@ -297,16 +309,16 @@ public final class EqualizerViewPanel {
         qValueViews[9] = bandViews[9].findViewById(R.id.eqQValue);
 
         // Initialize Q factor seekbars
-        qSeekBars[0] = bandViews[0].findViewById(R.id.eqQSeekBar);
-        qSeekBars[1] = bandViews[1].findViewById(R.id.eqQSeekBar);
-        qSeekBars[2] = bandViews[2].findViewById(R.id.eqQSeekBar);
-        qSeekBars[3] = bandViews[3].findViewById(R.id.eqQSeekBar);
-        qSeekBars[4] = bandViews[4].findViewById(R.id.eqQSeekBar);
-        qSeekBars[5] = bandViews[5].findViewById(R.id.eqQSeekBar);
-        qSeekBars[6] = bandViews[6].findViewById(R.id.eqQSeekBar);
-        qSeekBars[7] = bandViews[7].findViewById(R.id.eqQSeekBar);
-        qSeekBars[8] = bandViews[8].findViewById(R.id.eqQSeekBar);
-        qSeekBars[9] = bandViews[9].findViewById(R.id.eqQSeekBar);
+        qSeekBars[0] = null;
+        qSeekBars[1] = null;
+        qSeekBars[2] = null;
+        qSeekBars[3] = null;
+        qSeekBars[4] = null;
+        qSeekBars[5] = null;
+        qSeekBars[6] = null;
+        qSeekBars[7] = null;
+        qSeekBars[8] = null;
+        qSeekBars[9] = null;
 
         // Initialize dB value TextViews
         dbValueViews[0] = bandViews[0].findViewById(R.id.eqDbValue);
@@ -320,9 +332,6 @@ public final class EqualizerViewPanel {
         dbValueViews[8] = bandViews[8].findViewById(R.id.eqDbValue);
         dbValueViews[9] = bandViews[9].findViewById(R.id.eqDbValue);
 
-        // Initialize undo/redo buttons
-        undoButton = v.findViewById(R.id.eq_undo_button);
-        redoButton = v.findViewById(R.id.eq_redo_button);
     }
 
     private void initUiState() {
@@ -353,9 +362,7 @@ public final class EqualizerViewPanel {
             public void run() {
                 // Only update spectrum if view is visible to save battery
                 if (isVisible.get() && spectrumView != null) {
-                    // Generate mock spectrum data for visualization
-                    // In a real implementation, this would come from audio processing
-                    updateMockSpectrumData();
+                    updateSpectrumData();
                 }
 
                 // Calculate next update interval based on visibility and recent activity
@@ -442,7 +449,7 @@ public final class EqualizerViewPanel {
         return (float) Math.exp(-0.5f * Math.pow(octaves / bandwidthOctaves, 2));
     }
 
-    private void updateSpectrumEqCurve(List<EqualizerViewModel.ParametricEQBand> bands) {
+    private void updateSpectrumEqCurve(List<ParametricEQBand> bands) {
         if (spectrumView == null || bands == null) return;
 
         // Create EQ curve data for spectrum display
@@ -454,7 +461,7 @@ public final class EqualizerViewPanel {
         }
 
         // Apply each parametric band
-        for (EqualizerViewModel.ParametricEQBand band : bands) {
+        for (ParametricEQBand band : bands) {
             float freq = band.getFrequencyHz();
             float gainDb = band.getGainDb();
             float qFactor = band.getQFactor();
@@ -466,7 +473,7 @@ public final class EqualizerViewPanel {
                 float gainFactor = (float) Math.pow(10, gainDb / 20f);
                 // Blend the gain with current curve value
                 eqCurve[i] = 0.5f + (eqCurve[i] - 0.5f) * (1f - influence) +
-                             (gainFactor * 0.5f) * influence;
+                        (gainFactor * 0.5f) * influence;
             }
         }
 
@@ -487,14 +494,14 @@ public final class EqualizerViewPanel {
                 for (int i = 0; i < bandsToShow; i++) {
                     EqualizerViewModel.ParametricEQBand band = eqBands.get(i);
 
-                    // Update frequency value and UI
-                    freqValues.set(i, band.getFrequencyHz());
-                    updateFrequencyDisplay(i);
+                        if (freqSeekBars[i] != null) {
+                            freqValues.set(i, band.getFrequencyHz());
+                            updateFrequencyDisplay(i);
+                        }
 
                     // Update frequency seekbar (0-100 maps to 20Hz-20000Hz on logarithmic scale)
                     float freqProgress = (Math.log10(band.getFrequencyHz()) - Math.log10(20)) /
-                                       (Math.log10(20000) - Math.log10(20)) * 100;
-                    freqSeekBars[i].setProgress(Math.round(freqProgress));
+                            (Math.log10(20000) - Math.log10(20)) * 100;
 
                     // Update gain value and UI
                     float gainDb = band.getGainDb();
@@ -522,8 +529,10 @@ public final class EqualizerViewPanel {
 
                     // Update Q factor seekbar (0-100 maps to 0.1-10.0 Q factor on logarithmic scale)
                     float qProgress = (Math.log10(qFactor) - Math.log10(0.1f)) /
-                                   (Math.log10(10.0f) - Math.log10(0.1f)) * 100;
-                    qSeekBars[i].setProgress(Math.round(qProgress));
+                            (Math.log10(10.0f) - Math.log10(0.1f)) * 100;
+                    if (qSeekBars[i] != null) {
+                        qSeekBars[i].setProgress(Math.round(qProgress));
+                    }
                 }
 
                 // Update spectrum analyzer with EQ curve
@@ -673,78 +682,6 @@ public final class EqualizerViewPanel {
                 }
             });
 
-            // Setup frequency seekbar (0-100 maps to 20Hz-20000Hz on logarithmic scale)
-            freqSeekBars[i].setMax(100);
-            freqSeekBars[i].setProgress(50); // Start at middle
-            freqSeekBars[i].setOnSeekBarChangeListener(new VerticalSeekBar.OnSeekBarChangeListener() {
-                @Override
-                public void onProgressChanged(VerticalSeekBar sb, int progress, boolean fromUser) {
-                    if (!fromUser || internalUpdate) return;
-
-                    // Convert progress (0-100) to frequency (20Hz-20000Hz) on logarithmic scale
-                    float freq = (float) Math.pow(10, (progress / 100f) * (Math.log10(20000) - Math.log10(20)) + Math.log10(20));
-                    freqValues.set(index, freq);
-
-                    // Update frequency display
-                    updateFrequencyDisplay(index);
-
-                    // Update the corresponding parametric band's frequency
-                    updateParametricBandFromUi(index,
-                        freqValues.get(index),
-                        ((uiLevels.get(index) / 100f) * 30f) - 15f, // gain
-                        qValues.get(index)); // Q factor
-
-                    // Update last change time for spectrum update rate adjustment
-                    lastChangeTime = System.currentTimeMillis();
-
-                    scheduleApply();
-                }
-
-                @Override
-                public void onStartTrackingTouch(VerticalSeekBar sb) {
-                }
-
-                @Override
-                public void onStopTrackingTouch(VerticalSeekBar sb) {
-                }
-            });
-
-            // Setup Q factor seekbar (0-100 maps to 0.1-10.0 Q factor)
-            qSeekBars[i].setMax(100);
-            qSeekBars[i].setProgress(50); // Start at middle (Q=1.0)
-            qSeekBars[i].setOnSeekBarChangeListener(new VerticalSeekBar.OnSeekBarChangeListener() {
-                @Override
-                public void onProgressChanged(VerticalSeekBar sb, int progress, boolean fromUser) {
-                    if (!fromUser || internalUpdate) return;
-
-                    // Convert progress (0-100) to Q factor (0.1-10.0) on logarithmic scale
-                    float qFactor = (float) Math.pow(10, (progress / 100f) * (Math.log10(10.0) - Math.log10(0.1)) + Math.log10(0.1));
-                    qValues.set(index, qFactor);
-
-                    // Update Q factor display
-                    String qText = String.format(Locale.getDefault(), "Q: %.1f", qFactor);
-                    qValueViews[index].setText(qText);
-
-                    // Update the corresponding parametric band's Q factor
-                    updateParametricBandFromUi(index,
-                        freqValues.get(index),
-                        ((uiLevels.get(index) / 100f) * 30f) - 15f, // gain
-                        qFactor);
-
-                    // Update last change time for spectrum update rate adjustment
-                    lastChangeTime = System.currentTimeMillis();
-
-                    scheduleApply();
-                }
-
-                @Override
-                public void onStartTrackingTouch(VerticalSeekBar sb) {
-                }
-
-                @Override
-                public void onStopTrackingTouch(VerticalSeekBar sb) {
-                }
-            });
         }
 
         updateFrequencyLabels();
@@ -759,9 +696,9 @@ public final class EqualizerViewPanel {
         float gainDb = ((progress / 100f) * 30f) - 15f;
 
         equalizerViewModel.setEqBand(bandIndex,
-            equalizerViewModel.getEqBands().getValue().get(bandIndex).getFrequencyHz(),
-            gainDb,
-            equalizerViewModel.getEqBands().getValue().get(bandIndex).getQFactor());
+                equalizerViewModel.getEqBands().getValue().get(bandIndex).getFrequencyHz(),
+                gainDb,
+                equalizerViewModel.getEqBands().getValue().get(bandIndex).getQFactor());
     }
 
     // =========================
@@ -793,57 +730,21 @@ public final class EqualizerViewPanel {
     /**
      * Update UI controls to match current parametric bands
      */
-    private void updateUiFromParametricBands() {
-        List<EqualizerViewModel.ParametricEQBand> bands = equalizerViewModel.getEqBands().getValue();
-        if (bands != null) {
-            internalUpdate = true;
-            int bandsToShow = Math.min(bands.size(), UI_BANDS);
-            for (int i = 0; i < bandsToShow; i++) {
-                EqualizerViewModel.ParametricEQBand band = bands.get(i);
+    private void updateSpectrumData() {
+        if (spectrumView == null || audioEngine == null || !audioEngine.isSpectrumDataReady())
+            return;
 
-                // Update frequency value and UI
-                freqValues.set(i, band.getFrequencyHz());
-                updateFrequencyDisplay(i);
+        int bins = audioEngine.getSpectrumNumBins();
+        if (bins <= 0) return;
 
-                // Update frequency seekbar (0-100 maps to 20Hz-20000Hz on logarithmic scale)
-                float freqProgress = (Math.log10(band.getFrequencyHz()) - Math.log10(20)) /
-                                   (Math.log10(20000) - Math.log10(20)) * 100;
-                freqSeekBars[i].setProgress(Math.round(freqProgress));
-
-                // Update gain value and UI
-                float gainDb = band.getGainDb();
-                // Convert gain from -15..+15 dB to 0..100 progress
-                int gainProgress = Math.round(((gainDb + 15f) / 30f) * 100);
-                gainProgress = Math.max(0, Math.min(100, gainProgress));
-                uiLevels.set(i, gainProgress);
-
-                // Update gain seekbar if not currently updating internally
-                if (!internalUpdate) {
-                    VerticalSeekBar bar = getSeekBar(i);
-                    bar.setProgress(gainProgress);
-                }
-
-                // Update dB value display
-                dbValueViews[i].setText(String.format(Locale.getDefault(), "%.1f dB", gainDb));
-
-                // Update Q factor value and UI
-                float qFactor = band.getQFactor();
-                qValues.set(i, qFactor);
-
-                // Update Q factor display
-                String qText = String.format(Locale.getDefault(), "Q: %.1f", qFactor);
-                qValueViews[i].setText(qText);
-
-                // Update Q factor seekbar (0-100 maps to 0.1-10.0 Q factor on logarithmic scale)
-                float qProgress = (Math.log10(qFactor) - Math.log10(0.1f)) /
-                               (Math.log10(10.0f) - Math.log10(0.1f)) * 100;
-                qSeekBars[i].setProgress(Math.round(qProgress));
-            }
-            internalUpdate = false;
-
-            // Update last change time for spectrum update rate adjustment
-            lastChangeTime = System.currentTimeMillis();
+        float[] magnitudesDb = new float[bins];
+        audioEngine.getSpectrumMagnitudes(magnitudesDb);
+        float[] normalized = new float[bins];
+        for (int i = 0; i < bins; i++) {
+            normalized[i] = Math.max(0.0f, Math.min(1.0f,
+                    (magnitudesDb[i] + 96.0f) / 96.0f));
         }
+        spectrumView.setFftData(normalized);
     }
 
     private void mapPresets() {
@@ -880,29 +781,15 @@ public final class EqualizerViewPanel {
                 EqualizerViewModel.ParametricEQBand band = currentBands.get(i);
                 // Update all three parameters: frequency, gain, and Q factor
                 equalizerViewModel.setEqBand(i,
-                    freqValues.get(i), // frequency from UI
-                    // Convert UI level to gain Db
-                    ((uiLevels.get(i) - minLevel) / (float)(maxLevel - minLevel)) * 30f - 15f,
-                    qValues.get(i)); // Q factor from UI
+                        freqValues.get(i), // frequency from UI
+                        // Convert UI level to gain Db
+                        (uiLevels.get(i) / (float) Math.max(1, maxLevel - minLevel)) * 30f - 15f,
+                        qValues.get(i)); // Q factor from UI
             }
         }
 
-        // Apply to hardware using the existing interpolation method
-        // (This maintains compatibility with the existing hardware equalizer)
-        for (short band = 0; band < bandCount; band++) {
-            float pos = band * (UI_BANDS - 1f) / (bandCount - 1);
-            int left = (int) pos;
-            int right = Math.min(left + 1, UI_BANDS - 1);
-            float t = pos - left;
-
-            int interpolated =
-                    (int) (uiLevels.get(left) * (1 - t) + uiLevels.get(right) * t);
-
-            audioEngine.setEqualizerBandLevel(
-                    band,
-                    (short) (minLevel + interpolated)
-            );
-        }
+        // Parametric bands are processed by SoundEngine through the ViewModel.
+        // Do not also apply Android's fixed-band EqualizerFX approximation here.
     }
 
     private void scheduleApply() {
@@ -1024,54 +911,44 @@ public final class EqualizerViewPanel {
         });
 
         stereoWideningSwitch.setOnCheckedChangeListener((b, on) -> {
-            if (audioEngine != null && eqSwitch.isChecked()) {
-                audioEngine.setStereoWideningEnabled(on);
-                audioEngine.setStereoWideningWidth(stereoWideningWidthValue);
+            if (eqSwitch.isChecked()) {
+                equalizerViewModel.setStereoWidening(on, stereoWideningWidthValue);
             }
             setEnabledWithAlpha(stereoWideningKnobContainer, on && eqSwitch.isChecked());
         });
 
         exciterSwitch.setOnCheckedChangeListener((b, on) -> {
-            if (audioEngine != null && eqSwitch.isChecked()) {
-                audioEngine.setExciterEnabled(on);
-                audioEngine.setExciterAmount(exciterAmountValue);
-                audioEngine.setExciterFrequency(exciterFrequencyValue);
+            if (eqSwitch.isChecked()) {
+                equalizerViewModel.setExciter(on, exciterAmountValue, exciterFrequencyValue);
             }
             setEnabledWithAlpha(exciterKnobContainer, on && eqSwitch.isChecked());
         });
 
         compressorSwitch.setOnCheckedChangeListener((b, on) -> {
-            if (audioEngine != null && eqSwitch.isChecked()) {
-                audioEngine.setCompressorEnabled(on);
-                audioEngine.setCompressorThreshold(compressorThresholdValue);
-                audioEngine.setCompressorRatio(compressorRatioValue);
-                audioEngine.setCompressorAttack(compressorAttackValue);
-                audioEngine.setCompressorRelease(compressorReleaseValue);
+            if (eqSwitch.isChecked()) {
+                equalizerViewModel.setCompressor(on, compressorThresholdValue,
+                        compressorRatioValue, compressorAttackValue, compressorReleaseValue);
             }
             setEnabledWithAlpha(compressorKnobContainer, on && eqSwitch.isChecked());
         });
 
         limiterSwitch.setOnCheckedChangeListener((b, on) -> {
-            if (audioEngine != null && eqSwitch.isChecked()) {
-                audioEngine.setLimiterEnabled(on);
-                audioEngine.setLimiterThreshold(limiterThresholdValue);
+            if (eqSwitch.isChecked()) {
+                equalizerViewModel.setLimiter(on, limiterThresholdValue);
             }
             setEnabledWithAlpha(limiterKnobContainer, on && eqSwitch.isChecked());
         });
 
         noiseGateSwitch.setOnCheckedChangeListener((b, on) -> {
-            if (audioEngine != null && eqSwitch.isChecked()) {
-                audioEngine.setNoiseGateEnabled(on);
-                audioEngine.setNoiseGateThreshold(noiseGateThresholdValue);
+            if (eqSwitch.isChecked()) {
+                equalizerViewModel.setNoiseGate(on, noiseGateThresholdValue);
             }
             setEnabledWithAlpha(noiseGateKnobContainer, on && eqSwitch.isChecked());
         });
 
         deEsserSwitch.setOnCheckedChangeListener((b, on) -> {
-            if (audioEngine != null && eqSwitch.isChecked()) {
-                audioEngine.setDeEsserEnabled(on);
-                audioEngine.setDeEsserThreshold(deEsserThresholdValue);
-                audioEngine.setDeEsserFrequency(deEsserFrequencyValue);
+            if (eqSwitch.isChecked()) {
+                equalizerViewModel.setDeEsser(on, deEsserThresholdValue, deEsserFrequencyValue);
             }
             setEnabledWithAlpha(deEsserKnobContainer, on && eqSwitch.isChecked());
         });
@@ -1086,6 +963,48 @@ public final class EqualizerViewPanel {
         virtualizerKnob.setOnValueChangedListener(v -> {
             if (audioEngine != null && virtualizerSwitch.isChecked() && eqSwitch.isChecked()) {
                 audioEngine.setVirtualizer((short) v);
+            }
+        });
+
+        stereoWidthSlider.addOnChangeListener((slider, value, fromUser) -> {
+            if (fromUser && eqSwitch.isChecked()) {
+                stereoWideningWidthValue = value / 100f;
+                equalizerViewModel.setStereoWidening(stereoWideningSwitch.isChecked(),
+                        stereoWideningWidthValue);
+            }
+        });
+        exciterAmountSlider.addOnChangeListener((slider, value, fromUser) -> {
+            if (fromUser && eqSwitch.isChecked()) {
+                exciterAmountValue = value / 10f;
+                equalizerViewModel.setExciter(exciterSwitch.isChecked(), exciterAmountValue,
+                        exciterFrequencyValue);
+            }
+        });
+        compressorThresholdSlider.addOnChangeListener((slider, value, fromUser) -> {
+            if (fromUser && eqSwitch.isChecked()) {
+                compressorThresholdValue = value;
+                equalizerViewModel.setCompressor(compressorSwitch.isChecked(),
+                        compressorThresholdValue, compressorRatioValue,
+                        compressorAttackValue, compressorReleaseValue);
+            }
+        });
+        limiterCeilingSlider.addOnChangeListener((slider, value, fromUser) -> {
+            if (fromUser && eqSwitch.isChecked()) {
+                limiterThresholdValue = value;
+                equalizerViewModel.setLimiter(limiterSwitch.isChecked(), value);
+            }
+        });
+        noiseGateThresholdSlider.addOnChangeListener((slider, value, fromUser) -> {
+            if (fromUser && eqSwitch.isChecked()) {
+                noiseGateThresholdValue = value;
+                equalizerViewModel.setNoiseGate(noiseGateSwitch.isChecked(), value);
+            }
+        });
+        deEsserThresholdSlider.addOnChangeListener((slider, value, fromUser) -> {
+            if (fromUser && eqSwitch.isChecked()) {
+                deEsserThresholdValue = value;
+                equalizerViewModel.setDeEsser(deEsserSwitch.isChecked(), value,
+                        deEsserFrequencyValue);
             }
         });
 
@@ -1109,88 +1028,92 @@ public final class EqualizerViewPanel {
         // Stereo Widening Width (0 to 100, representing 0.0 to 1.0)
         stereoWideningKnobContainer.addView(createSeekBar(0, 100, (int) (stereoWideningWidthValue * 100), value -> {
             stereoWideningWidthValue = value / 100f;
-            if (audioEngine != null && stereoWideningSwitch.isChecked() && eqSwitch.isChecked()) {
-                audioEngine.setStereoWideningWidth(stereoWideningWidthValue);
+            if (stereoWideningSwitch.isChecked() && eqSwitch.isChecked()) {
+                equalizerViewModel.setStereoWidening(true, stereoWideningWidthValue);
             }
         }, "Stereo Width"));
 
         // Exciter Amount (0 to 100, representing 0.0 to 1.0)
         exciterKnobContainer.addView(createSeekBar(0, 100, (int) (exciterAmountValue * 100), value -> {
             exciterAmountValue = value / 100f;
-            if (audioEngine != null && exciterSwitch.isChecked() && eqSwitch.isChecked()) {
-                audioEngine.setExciterAmount(exciterAmountValue);
+            if (exciterSwitch.isChecked() && eqSwitch.isChecked()) {
+                equalizerViewModel.setExciter(true, exciterAmountValue, exciterFrequencyValue);
             }
         }, "Exciter Amount"));
 
         // Exciter Frequency (20 to 20000 Hz)
         exciterKnobContainer.addView(createSeekBar(20, 20000, (int) exciterFrequencyValue, value -> {
             exciterFrequencyValue = value;
-            if (audioEngine != null && exciterSwitch.isChecked() && eqSwitch.isChecked()) {
-                audioEngine.setExciterFrequency(exciterFrequencyValue);
+            if (exciterSwitch.isChecked() && eqSwitch.isChecked()) {
+                equalizerViewModel.setExciter(true, exciterAmountValue, exciterFrequencyValue);
             }
         }, "Exciter Freq"));
 
         // Compressor Threshold (-60 to 0 dB)
         compressorKnobContainer.addView(createSeekBar(-60, 0, (int) compressorThresholdValue, value -> {
             compressorThresholdValue = value;
-            if (audioEngine != null && compressorSwitch.isChecked() && eqSwitch.isChecked()) {
-                audioEngine.setCompressorThreshold(compressorThresholdValue);
+            if (compressorSwitch.isChecked() && eqSwitch.isChecked()) {
+                equalizerViewModel.setCompressor(true, compressorThresholdValue,
+                        compressorRatioValue, compressorAttackValue, compressorReleaseValue);
             }
         }, "Comp Threshold"));
 
         // Compressor Ratio (100 to 500, representing 1.0 to 5.0, with higher ratios approximated)
         compressorKnobContainer.addView(createSeekBar(100, 500, (int) (compressorRatioValue * 100), value -> {
             compressorRatioValue = value / 100f;
-            if (audioEngine != null && compressorSwitch.isChecked() && eqSwitch.isChecked()) {
-                audioEngine.setCompressorRatio(compressorRatioValue);
+            if (compressorSwitch.isChecked() && eqSwitch.isChecked()) {
+                equalizerViewModel.setCompressor(true, compressorThresholdValue,
+                        compressorRatioValue, compressorAttackValue, compressorReleaseValue);
             }
         }, "Comp Ratio"));
 
         // Compressor Attack (0 to 200 ms)
         compressorKnobContainer.addView(createSeekBar(0, 200, (int) compressorAttackValue, value -> {
             compressorAttackValue = value;
-            if (audioEngine != null && compressorSwitch.isChecked() && eqSwitch.isChecked()) {
-                audioEngine.setCompressorAttack(compressorAttackValue);
+            if (compressorSwitch.isChecked() && eqSwitch.isChecked()) {
+                equalizerViewModel.setCompressor(true, compressorThresholdValue,
+                        compressorRatioValue, compressorAttackValue, compressorReleaseValue);
             }
         }, "Comp Attack"));
 
         // Compressor Release (0 to 500 ms)
         compressorKnobContainer.addView(createSeekBar(0, 500, (int) compressorReleaseValue, value -> {
             compressorReleaseValue = value;
-            if (audioEngine != null && compressorSwitch.isChecked() && eqSwitch.isChecked()) {
-                audioEngine.setCompressorRelease(compressorReleaseValue);
+            if (compressorSwitch.isChecked() && eqSwitch.isChecked()) {
+                equalizerViewModel.setCompressor(true, compressorThresholdValue,
+                        compressorRatioValue, compressorAttackValue, compressorReleaseValue);
             }
         }, "Comp Release"));
 
         // Limiter Threshold (-20 to 0 dB)
         limiterKnobContainer.addView(createSeekBar(-20, 0, (int) limiterThresholdValue, value -> {
             limiterThresholdValue = value;
-            if (audioEngine != null && limiterSwitch.isChecked() && eqSwitch.isChecked()) {
-                audioEngine.setLimiterThreshold(limiterThresholdValue);
+            if (limiterSwitch.isChecked() && eqSwitch.isChecked()) {
+                equalizerViewModel.setLimiter(true, limiterThresholdValue);
             }
         }, "Limit Threshold"));
 
         // Noise Gate Threshold (-80 to -20 dB)
         noiseGateKnobContainer.addView(createSeekBar(-80, -20, (int) noiseGateThresholdValue, value -> {
             noiseGateThresholdValue = value;
-            if (audioEngine != null && noiseGateSwitch.isChecked() && eqSwitch.isChecked()) {
-                audioEngine.setNoiseGateThreshold(noiseGateThresholdValue);
+            if (noiseGateSwitch.isChecked() && eqSwitch.isChecked()) {
+                equalizerViewModel.setNoiseGate(true, noiseGateThresholdValue);
             }
         }, "Noise Gate"));
 
         // De-esser Threshold (-40 to 0 dB)
         deEsserKnobContainer.addView(createSeekBar(-40, 0, (int) deEsserThresholdValue, value -> {
             deEsserThresholdValue = value;
-            if (audioEngine != null && deEsserSwitch.isChecked() && eqSwitch.isChecked()) {
-                audioEngine.setDeEsserThreshold(deEsserThresholdValue);
+            if (deEsserSwitch.isChecked() && eqSwitch.isChecked()) {
+                equalizerViewModel.setDeEsser(true, deEsserThresholdValue, deEsserFrequencyValue);
             }
         }, "DeEsser Thresh"));
 
         // De-esser Frequency (2000 to 20000 Hz)
         deEsserKnobContainer.addView(createSeekBar(2000, 20000, (int) deEsserFrequencyValue, value -> {
             deEsserFrequencyValue = value;
-            if (audioEngine != null && deEsserSwitch.isChecked() && eqSwitch.isChecked()) {
-                audioEngine.setDeEsserFrequency(deEsserFrequencyValue);
+            if (deEsserSwitch.isChecked() && eqSwitch.isChecked()) {
+                equalizerViewModel.setDeEsser(true, deEsserThresholdValue, deEsserFrequencyValue);
             }
         }, "DeEsser Freq"));
 
@@ -1308,7 +1231,7 @@ public final class EqualizerViewPanel {
     }
 
     private VerticalSeekBar getSeekBar(int index) {
-        return bandViews[index].findViewById(R.id.eqSeekBar);
+        return freqSeekBars[index];
     }
 
     private void updateFrequencyLabels() {
@@ -1429,40 +1352,6 @@ public final class EqualizerViewPanel {
             // Update frequency UI
             freqValues.set(i, freq);
             updateFrequencyDisplay(i);
-            float freqProgress = (Math.log10(freq) - Math.log10(20)) /
-                               (Math.log10(20000) - Math.log10(20)) * 100;
-            freqSeekBars[i].setProgress(Math.round(freqProgress));
-
-            // Update dB value display
-            float gainDb = ((progress / 100f) * 30f) - 15f;
-            dbValueViews[i].setText(String.format(Locale.getDefault(), "%.1f dB", gainDb));
-
-            // Update Q factor UI
-            qValues.set(i, qFactor);
-            String qText = String.format(Locale.getDefault(), "Q: %.1f", qFactor);
-            qValueViews[i].setText(qText);
-            float qProgress = (Math.log10(qFactor) - Math.log10(0.1f)) /
-                            (Math.log10(10.0f) - Math.log10(0.1f)) * 100;
-            qSeekBars[i].setProgress(Math.round(qProgress));
-
-            // Update parametric band in ViewModel
-            if (equalizerViewModel.getEqBands().getValue() != null &&
-                i < equalizerViewModel.getEqBands().getValue().size()) {
-                equalizerViewModel.setEqBand(i,
-                    freq,
-                    gainDb,
-                    qFactor);
-            }
-        }
-        internalUpdate = false;
-
-        // Apply to hardware
-        applyUiToHardware();
-
-        // Update spectrum
-        lastChangeTime = System.currentTimeMillis();
-        updateSpectrumEqCurve(equalizerViewModel.getEqBands().getValue());
-
         // Update button states
         updateUndoRedoButtons();
 
@@ -1512,8 +1401,7 @@ public final class EqualizerViewPanel {
             freqValues.set(i, freq);
             updateFrequencyDisplay(i);
             float freqProgress = (Math.log10(freq) - Math.log10(20)) /
-                               (Math.log10(20000) - Math.log10(20)) * 100;
-            freqSeekBars[i].setProgress(Math.round(freqProgress));
+                    (Math.log10(20000) - Math.log10(20)) * 100;
 
             // Update dB value display
             float gainDb = ((progress / 100f) * 30f) - 15f;
@@ -1524,16 +1412,16 @@ public final class EqualizerViewPanel {
             String qText = String.format(Locale.getDefault(), "Q: %.1f", qFactor);
             qValueViews[i].setText(qText);
             float qProgress = (Math.log10(qFactor) - Math.log10(0.1f)) /
-                            (Math.log10(10.0f) - Math.log10(0.1f)) * 100;
+                    (Math.log10(10.0f) - Math.log10(0.1f)) * 100;
             qSeekBars[i].setProgress(Math.round(qProgress));
 
             // Update parametric band in ViewModel
             if (equalizerViewModel.getEqBands().getValue() != null &&
-                i < equalizerViewModel.getEqBands().getValue().size()) {
+                    i < equalizerViewModel.getEqBands().getValue().size()) {
                 equalizerViewModel.setEqBand(i,
-                    freq,
-                    gainDb,
-                    qFactor);
+                        freq,
+                        gainDb,
+                        qFactor);
             }
         }
         internalUpdate = false;

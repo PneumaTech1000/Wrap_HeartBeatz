@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace 'com.realgear.multislidinguppanel'
-    compileSdk 36
+    compileSdk 37
 
     defaultConfig {
         minSdk 24
@@ -37,6 +37,8 @@ android {
             allVariants()
         }
     }
+    compileSdkMinor 0
+    buildToolsVersion '36.0.0'
 }
 
 afterEvaluate {

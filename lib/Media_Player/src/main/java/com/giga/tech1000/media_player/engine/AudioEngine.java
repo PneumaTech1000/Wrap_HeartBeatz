@@ -1,4 +1,4 @@
-package com.giga.tech1000.media_player;
+package com.giga.tech1000.media_player.engine;
 
 import android.content.Context;
 import android.media.audiofx.BassBoost;
@@ -8,13 +8,16 @@ import android.media.audiofx.Virtualizer;
 import android.media.audiofx.EnvironmentalReverb;
 import android.os.Build;
 
+import com.giga.tech1000.soundengine.SoundEngine;
+import com.giga.tech1000.soundengine.SoundEngineHolder;
+
 public final class AudioEngine {
 
-    private final Equalizer equalizer;
-    private final BassBoost bassBoost;
-    private final Virtualizer virtualizer;
-    private final LoudnessEnhancer loudnessEnhancer;
-    private final EnvironmentalReverb reverb;
+    private Equalizer equalizer;
+    private BassBoost bassBoost;
+    private Virtualizer virtualizer;
+    private LoudnessEnhancer loudnessEnhancer;
+    private EnvironmentalReverb reverb;
 
     private final Context context;
 
@@ -123,7 +126,7 @@ public final class AudioEngine {
         if (context == null) {
             return null;
         }
-        return DspEngineHolder.getInstance(context);
+        return SoundEngineHolder.getInstance(48000, 4096, 2);
     }
 
     // Helper to apply effect to both Android audiofx (if applicable) and DSP engine
@@ -131,7 +134,7 @@ public final class AudioEngine {
         this.stereoWideningEnabled = enabled;
         SoundEngine dsp = getDspEngine();
         if (dsp != null) {
-            // TODO: Implement effect enable/disable in SoundEngine
+            dsp.setStereoWideningEnabled(enabled);
         }
     }
 
@@ -139,7 +142,7 @@ public final class AudioEngine {
         this.stereoWideningWidth = width;
         SoundEngine dsp = getDspEngine();
         if (dsp != null) {
-            // TODO: Implement effect parameter in SoundEngine
+            dsp.setStereoWideningWidth(width);
         }
     }
 
@@ -437,6 +440,38 @@ public final class AudioEngine {
         }
     }
 
+    public void setParametricEqualizerBand(
+            int band, float frequencyHz, float gainDb, float qFactor, boolean enabled) {
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setEqualizerBand(band, frequencyHz, gainDb, qFactor, enabled);
+        }
+    }
+
+    public boolean isSpectrumDataReady() {
+        SoundEngine dsp = getDspEngine();
+        return dsp != null && dsp.isSpectrumDataReady();
+    }
+
+    public int getSpectrumNumBins() {
+        SoundEngine dsp = getDspEngine();
+        return dsp == null ? 0 : dsp.getSpectrumNumBins();
+    }
+
+    public void getSpectrumMagnitudes(float[] destination) {
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.getSpectrumMagnitudes(destination);
+        }
+    }
+
+    public void getSpectrumPeakHold(float[] destination) {
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.getSpectrumPeakHold(destination);
+        }
+    }
+
     // ========= Bass =========
     public void setBassBoost(int strengthPercent) {
         if (bassBoost == null) return;
@@ -578,10 +613,10 @@ public final class AudioEngine {
 
     // ========= Cleanup =========
     public void release() {
-        equalizer.release();
-        bassBoost.release();
-        virtualizer.release();
-        loudnessEnhancer.release();
+        if (equalizer != null) equalizer.release();
+        if (bassBoost != null) bassBoost.release();
+        if (virtualizer != null) virtualizer.release();
+        if (loudnessEnhancer != null) loudnessEnhancer.release();
         if (reverb != null) {
             reverb.release();
         }

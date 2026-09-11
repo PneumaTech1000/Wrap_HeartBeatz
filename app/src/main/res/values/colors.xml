@@ -48,6 +48,15 @@
     <color name="hb_icon_container">#1A8B5CF6</color> <!-- primary @ 10% -->
     <color name="hb_icon_container_strong">#2B8B5CF6</color> <!-- primary @ 17% -->
 
+    <!-- DAW Studio Accents -->
+    <color name="hb_accent_cyan">#06B6D4</color>
+    <color name="hb_accent_green">#10B981</color>
+    <color name="hb_accent_rose">#F43F5E</color>
+    <color name="hb_accent_amber">#F59E0B</color>
+    <color name="hb_accent_purple">#A855F7</color>
+    <color name="hb_surface_dark_card">#1C1B22</color>
+    <color name="hb_fader_track">#2A2835</color>
+
 
     <color name="tab_unselected_text">#8A8A8A</color>
 
