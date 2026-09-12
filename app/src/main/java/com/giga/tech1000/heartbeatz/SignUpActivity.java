@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
+import android.util.Patterns;
 import android.view.View;
 import android.widget.Toast;
 
@@ -28,8 +29,9 @@ import androidx.credentials.CustomCredential;
 import androidx.credentials.GetCredentialRequest;
 import androidx.credentials.GetCredentialResponse;
 import androidx.credentials.exceptions.GetCredentialException;
+import androidx.media3.common.util.UnstableApi;
 
-@OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)
+@OptIn(markerClass = UnstableApi.class)
 public class SignUpActivity extends AppCompatActivity {
 
     // UI References
@@ -50,6 +52,8 @@ public class SignUpActivity extends AppCompatActivity {
 
     // Firebase Auth
     private FirebaseAuth mAuth;
+    private GetGoogleIdOption googleIdOption;
+    private GetCredentialRequest request;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,16 +70,16 @@ public class SignUpActivity extends AppCompatActivity {
 
         // Set up click listeners
         setUpClickListeners();
+
+        googleIdOption = new GetGoogleIdOption.Builder()
+                .setFilterByAuthorizedAccounts(true)
+                .setServerClientId(getString(R.string.default_web_client_id))
+                .build();
+
+        request = new GetCredentialRequest.Builder()
+                .addCredentialOption(googleIdOption)
+                .build();
     }
-
-    GetGoogleIdOption googleIdOption = new GetGoogleIdOption.Builder()
-            .setFilterByAuthorizedAccounts(true)
-            .setServerClientId(getString(R.string.default_web_client_id))
-            .build();
-
-    GetCredentialRequest request = new GetCredentialRequest.Builder()
-            .addCredentialOption(googleIdOption)
-            .build();
 
     private void initViews() {
         nameInputLayout = findViewById(R.id.name_input_layout);
@@ -186,7 +190,7 @@ public class SignUpActivity extends AppCompatActivity {
         if (TextUtils.isEmpty(email)) {
             emailInputLayout.setError("Email is required");
             valid = false;
-        } else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+        } else if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
             emailInputLayout.setError("Enter a valid email");
             valid = false;
         } else {

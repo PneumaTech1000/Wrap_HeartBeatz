@@ -185,4 +185,7 @@
     <string name="no_playlists_desc">Create your first playlist to group your favorites.</string>
     <string name="no_folders_found">No folders found</string>
     <string name="no_folders_desc">Add music folders to your library settings.</string>
+
+    <!-- Firebase/Google Auth -->
+    <string name="default_web_client_id">212899330502-fu1no4ui3k5a0hahs6j6qpplruhpuba3.apps.googleusercontent.com</string>
 </resources>

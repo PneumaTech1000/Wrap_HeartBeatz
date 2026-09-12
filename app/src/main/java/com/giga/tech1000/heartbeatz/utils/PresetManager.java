@@ -6,6 +6,7 @@ import android.preference.PreferenceManager;
 
 import androidx.annotation.NonNull;
 
+import com.giga.tech1000.heartbeatz.utils.audio.ParametricEQBand;
 import com.giga.tech1000.heartbeatz.view_models.extended_models.EqualizerViewModel;
 
 import org.json.JSONArray;
@@ -453,7 +454,7 @@ public class PresetManager {
         float trebleGain = 0f;
         int bassCount = 0, midCount = 0, trebleCount = 0;
 
-        for (EqualizerViewModel.ParametricEQBand band : preset.getEqBands()) {
+        for (ParametricEQBand band : preset.getEqBands()) {
             float freq = band.getFrequencyHz();
             float gain = band.getGainDb(); // -15 to +15 dB
 

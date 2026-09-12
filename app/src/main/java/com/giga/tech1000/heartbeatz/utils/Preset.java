@@ -272,6 +272,7 @@ public class Preset implements Parcelable {
     /**
      * Get a deep copy of this preset
      */
+    @NonNull
     public Preset clone() {
         return new Preset(this);
     }

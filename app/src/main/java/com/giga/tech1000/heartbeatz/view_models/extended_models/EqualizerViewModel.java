@@ -1,6 +1,9 @@
 package com.giga.tech1000.heartbeatz.view_models.extended_models;
 
 import android.app.Application;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.OptIn;
@@ -13,6 +16,7 @@ import androidx.media3.common.util.UnstableApi;
 import com.giga.tech1000.heartbeatz.architecture.PlaybackStateManager;
 import com.giga.tech1000.heartbeatz.architecture.repositories.PlaybackStateRepository;
 import com.giga.tech1000.heartbeatz.ui.MediaPlayerThread;
+import com.giga.tech1000.heartbeatz.ui.UIThread;
 import com.giga.tech1000.media_player.engine.AudioEngine;
 import com.giga.tech1000.media_player.utils.enums.EqPreset;
 import com.giga.tech1000.heartbeatz.utils.Preset;
@@ -87,7 +91,7 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
 
     public EqualizerViewModel(@NonNull Application application) {
         super(application);
-        MediaPlayerThread playerThread = com.giga.tech1000.heartbeatz.ui.UIThread.getInstance().getMediaPlayerThread();
+        MediaPlayerThread playerThread = UIThread.getInstance().getMediaPlayerThread();
         this.playbackState = new PlaybackStateManager(playerThread);
         this.presetManager = new PresetManager(application);
         // Initialize with default parametric bands
@@ -118,11 +122,17 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
 
     public void setAudioEngine(AudioEngine audioEngine) {
         this.audioEngine = audioEngine;
-        // Initialize preset manager if not already set
-        if (this.presetManager == null) {
-            // Note: We can't initialize PresetManager without a Context here
-            // This would need to be handled differently in a real implementation
-            // For now, we'll leave it as is and rely on the constructors
+        if (audioEngine != null) {
+            // Apply current state to the new engine
+            Preset current = currentPreset.getValue();
+            if (current != null) {
+                setPreset(current);
+            }
+            
+            // Ensure master switch state is applied
+            if (Boolean.TRUE.equals(equalizerEnabled.getValue())) {
+                audioEngine.enableEqualizer(true);
+            }
         }
     }
 
@@ -152,6 +162,34 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
     @NonNull
     public LiveData<Preset> getCurrentPreset() {
         return currentPreset;
+    }
+
+    /**
+     * Set EQ preset from an EqPreset enum (legacy support)
+     */
+    public void setPreset(@NonNull EqPreset eqPreset) {
+        // Map EqPreset to a Preset object
+        Preset preset = new Preset();
+        preset.setName(eqPreset.getLabel());
+        preset.setCategory("Built-in");
+
+        int[] dbLevels = eqPreset.getDbLevels();
+        List<ParametricEQBand> bands = new ArrayList<>();
+
+        // Map the fixed band gains to our parametric bands
+        // Standard frequencies for parametric EQ (logarithmic spacing)
+        float[] frequencies = {
+            32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000
+        };
+
+        for (int i = 0; i < Math.min(frequencies.length, dbLevels.length); i++) {
+            bands.add(new ParametricEQBand(i, frequencies[i], (float) dbLevels[i], 1.4f));
+        }
+
+        preset.setEqBands(bands);
+
+        // Apply it
+        setPreset(preset);
     }
 
     /**
@@ -265,7 +303,7 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
             eqBands.setValue(new ArrayList<>(bands));
 
             // Apply to audio engine if available and equalizer is enabled
-            if (audioEngine != null && equalizerEnabled.getValue()) {
+            if (audioEngine != null && Boolean.TRUE.equals(equalizerEnabled.getValue())) {
                 applyBandToHardware(bandIndex, band);
             }
 
@@ -940,6 +978,75 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
             for (int i = 0; i < bandsToApply; i++) {
                 audioEngine.setEqualizerBandLevel((short) i, fixedBandGains[i]);
             }
+        }
+    }
+
+    /**
+     * Save current state to SharedPreferences
+     */
+    private void saveStateToSharedPreferences() {
+        try {
+            Preset preset = new Preset();
+            preset.setName("Last Session State");
+
+            // Copy EQ bands
+            List<ParametricEQBand> currentBands = eqBands.getValue();
+            if (currentBands != null) {
+                preset.setEqBands(new ArrayList<>(currentBands));
+            }
+
+            // Copy basic effects states
+            preset.setBassEnabled(Boolean.TRUE.equals(bassEnabled.getValue()));
+            preset.setVirtualizerEnabled(Boolean.TRUE.equals(virtualizerEnabled.getValue()));
+            preset.setLoudnessEnabled(Boolean.TRUE.equals(loudnessEnabled.getValue()));
+            preset.setTempo(currentTempo.getValue() != null ? currentTempo.getValue() : 1.0f);
+            preset.setPitch(currentPitch.getValue() != null ? currentPitch.getValue() : 0.0f);
+
+            // Advanced effects
+            preset.setReverbEnabled(Boolean.TRUE.equals(reverbEnabled.getValue()));
+            preset.setReverbRoomLevel(reverbRoomLevel.getValue() != null ? reverbRoomLevel.getValue() : 0);
+            preset.setReverbDecayTime(reverbDecayTime.getValue() != null ? reverbDecayTime.getValue() : 1000);
+            preset.setStereoWideningEnabled(Boolean.TRUE.equals(stereoWideningEnabled.getValue()));
+            preset.setStereoWideningWidth(stereoWideningWidth.getValue() != null ? stereoWideningWidth.getValue() : 0.5f);
+            preset.setExciterEnabled(Boolean.TRUE.equals(exciterEnabled.getValue()));
+            preset.setExciterAmount(exciterAmount.getValue() != null ? exciterAmount.getValue() : 0.0f);
+            preset.setExciterFrequency(exciterFrequency.getValue() != null ? exciterFrequency.getValue() : 2000.0f);
+            preset.setCompressorEnabled(Boolean.TRUE.equals(compressorEnabled.getValue()));
+            preset.setCompressorThreshold(compressorThreshold.getValue() != null ? compressorThreshold.getValue() : -20.0f);
+            preset.setCompressorRatio(compressorRatio.getValue() != null ? compressorRatio.getValue() : 4.0f);
+            preset.setCompressorAttack(compressorAttack.getValue() != null ? compressorAttack.getValue() : 10.0f);
+            preset.setCompressorRelease(compressorRelease.getValue() != null ? compressorRelease.getValue() : 100.0f);
+            preset.setLimiterEnabled(Boolean.TRUE.equals(limiterEnabled.getValue()));
+            preset.setLimiterThreshold(limiterThreshold.getValue() != null ? limiterThreshold.getValue() : -3.0f);
+            preset.setNoiseGateEnabled(Boolean.TRUE.equals(noiseGateEnabled.getValue()));
+            preset.setNoiseGateThreshold(noiseGateThreshold.getValue() != null ? noiseGateThreshold.getValue() : -60.0f);
+            preset.setDeEsserEnabled(Boolean.TRUE.equals(deEsserEnabled.getValue()));
+            preset.setDeEsserThreshold(deEsserThreshold.getValue() != null ? deEsserThreshold.getValue() : -20.0f);
+            preset.setDeEsserFrequency(deEsserFrequency.getValue() != null ? deEsserFrequency.getValue() : 5000.0f);
+
+            String json = preset.toJsonString();
+            getApplication().getSharedPreferences(PREFS_NAME_LAST_STATE, Context.MODE_PRIVATE)
+                    .edit()
+                    .putString(KEY_LAST_STATE_JSON, json)
+                    .apply();
+        } catch (Exception e) {
+            Log.e(TAG, "Error saving state", e);
+        }
+    }
+
+    /**
+     * Load state from SharedPreferences
+     */
+    private void loadStateFromSharedPreferences() {
+        try {
+            String json = getApplication().getSharedPreferences(PREFS_NAME_LAST_STATE, Context.MODE_PRIVATE)
+                    .getString(KEY_LAST_STATE_JSON, null);
+            if (json != null) {
+                Preset preset = Preset.fromJsonString(json);
+                setPreset(preset);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error loading state", e);
         }
     }
 

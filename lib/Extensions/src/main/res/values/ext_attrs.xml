@@ -19,6 +19,7 @@
         <attr name="vs_trackWidth" format="dimension" />
         <attr name="vs_thumbRadius" format="dimension" />
         <attr name="vs_progress" format="integer" />
+        <attr name="vs_min" format="integer" />
         <attr name="vs_max" format="integer" />
 
         <!-- Compatibility aliases for legacy naming -->

@@ -31,9 +31,14 @@ import androidx.appcompat.widget.AppCompatImageButton;
 import androidx.appcompat.widget.SearchView;
 import androidx.constraintlayout.motion.widget.MotionLayout;
 import androidx.core.view.GravityCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.Observer;
+import androidx.lifecycle.ViewModelProvider;
 import androidx.media3.common.util.UnstableApi;
 import androidx.navigation.NavController;
 import androidx.navigation.Navigation;
@@ -63,6 +68,7 @@ import com.giga.tech1000.heartbeatz.views.panels.sub_panels.SongSelectionPanel;
 import com.giga.tech1000.media_player.models.Song;
 import com.giga.tech1000.utils.interfaces.DisplayMarginCallback;
 import com.giga.tech1000.utils.interfaces.OnBackPressedHandler;
+import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.tabs.TabLayout;
 import com.google.android.material.tabs.TabLayoutMediator;
@@ -100,6 +106,8 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
     private PlaybackCacheViewModel playbackCacheViewModel;
 
     private FrameLayout equalizerPanelView, songSelectionPanelView, songInfoPanelView, editSongInfoPanelView, mediaDetailsWithImgPanelView, mediaDetailsWithoutImgPanelView;
+
+    private View navDrawerScrollContent;
 
     private LibraryObservers libraryObservers;
     private SearchController search;
@@ -177,6 +185,7 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
 
         drawerLayout = view.findViewById(R.id.drawer_layout);
         navView = view.findViewById(R.id.nav_view);
+        navDrawerScrollContent = view.findViewById(R.id.nav_drawer_scroll_content);
 
         authButtonsContainer = view.findViewById(R.id.auth_buttons_container);
         btnLogin = view.findViewById(R.id.btn_login);
@@ -198,9 +207,9 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
         librarySetViewModel = UIThread.getInstance().getLibrarySetViewModel();
 
         // Initialize ViewModels for UI panels
-        songInfoPanelViewModel = new androidx.lifecycle.ViewModelProvider(this).get(SongInfoPanelViewModel.class);
-        equalizerViewModel = new androidx.lifecycle.ViewModelProvider(this).get(EqualizerViewModel.class);
-        playbackCacheViewModel = new androidx.lifecycle.ViewModelProvider(this).get(PlaybackCacheViewModel.class);
+        songInfoPanelViewModel = new ViewModelProvider(this).get(SongInfoPanelViewModel.class);
+        equalizerViewModel = new ViewModelProvider(this).get(EqualizerViewModel.class);
+        playbackCacheViewModel = new ViewModelProvider(this).get(PlaybackCacheViewModel.class);
 
         mediaNavigationManager = new MediaNavigationManager(this, motionLayout);
 
@@ -214,6 +223,8 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
         setupViewPager();
         setupMenu();
         setupDrawerAuth();
+        setupEdgeToEdgeInsets(view);
+        setupMotionLayoutTransitions();
 
         view.getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
             @Override
@@ -243,7 +254,7 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
     public final ActivityResultLauncher<IntentSenderRequest> updateLauncher = registerForActivityResult(
             new ActivityResultContracts.StartIntentSenderForResult(),
             result -> {
-                if (result.getResultCode() == Activity.RESULT_OK) {
+                if (result.getResultCode() == RESULT_OK) {
                     Toast.makeText(requireContext(), "Permission granted, changes saved", Toast.LENGTH_SHORT).show();
                     // After permission is granted, we usually need to re-trigger the update
                     // or the OS might have already applied it depending on how the intent was built.
@@ -288,6 +299,11 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
 
         mediaNavigationManager.setBottomPadding(paddingHeight);
         pagerWrapper.setPadding(0, 0, 0, paddingHeight);
+
+        if (navDrawerScrollContent != null) {
+            navDrawerScrollContent.setPadding(0, navDrawerScrollContent.getPaddingTop(), 0, paddingHeight);
+        }
+
         if (getSongInfoPanel().getIsVisible().get())
             getSongInfoPanel().setBottomPadding(paddingHeight);
         if (getEqualizerViewPanel().getIsVisible().get())
@@ -337,12 +353,12 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
             });
         }
 
-        if (btnSignup != null) {
+        //if (btnSignup != null) {
             btnSignup.setOnClickListener(v -> {
                 startActivity(new Intent(requireContext(), SignUpActivity.class));
                 drawerLayout.closeDrawer(GravityCompat.START);
             });
-        }
+       // }
 
         if (btnLogout != null) {
             btnLogout.setOnClickListener(v -> {
@@ -490,6 +506,9 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
         if (equalizerViewPanel == null) {
             equalizerViewPanel = new EqualizerViewPanel(this, equalizerPanelView, equalizerViewModel);
             equalizerPanelView.addView(equalizerViewPanel.getView());
+
+            // Apply insets to the newly created panel
+            ViewCompat.requestApplyInsets(requireView());
 
             // Immediately sync current session ID if available
             Integer currentId = UIThread.getInstance().getSessionIdViewModel().getSessionId().getValue();
@@ -647,6 +666,102 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
                     }
                 }
         ).attach();
+    }
+
+    private void setupEdgeToEdgeInsets(View root) {
+        ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
+            Insets statusBars = insets.getInsets(WindowInsetsCompat.Type.statusBars());
+
+            // Handle Toolbar
+            View toolbarWrapper = v.findViewById(R.id.tool_bar_wrapper);
+            if (toolbarWrapper != null) {
+                toolbarWrapper.setPadding(toolbarWrapper.getPaddingLeft(), statusBars.top,
+                        toolbarWrapper.getPaddingRight(), toolbarWrapper.getPaddingBottom());
+
+                // Adjust its height to include status bar
+                ViewGroup.LayoutParams params = toolbarWrapper.getLayoutParams();
+                params.height = getResources().getDimensionPixelSize(com.google.android.material.R.dimen.m3_appbar_size_compact) + statusBars.top;
+                toolbarWrapper.setLayoutParams(params);
+            }
+
+            // Handle Drawer Header (if separate) or NavView
+            if (navView != null) {
+                View header = navView.getHeaderView(0);
+                if (header != null) {
+                    header.setPadding(header.getPaddingLeft(), statusBars.top,
+                            header.getPaddingRight(), header.getPaddingBottom());
+                }
+            }
+
+            // Handle Equalizer Top Padding
+            if (equalizerViewPanel != null && equalizerViewPanel.getView() != null) {
+                View eqHeader = (View) equalizerViewPanel.getView().findViewById(R.id.equalizer_view_close).getParent().getParent();
+                if (eqHeader instanceof AppBarLayout) {
+                    eqHeader.setPadding(eqHeader.getPaddingLeft(), statusBars.top,
+                            eqHeader.getPaddingRight(), eqHeader.getPaddingBottom());
+                }
+            }
+
+            return insets;
+        });
+    }
+
+    private void setupMotionLayoutTransitions() {
+        if (motionLayout == null) return;
+
+        motionLayout.setTransitionListener(new MotionLayout.TransitionListener() {
+            @Override
+            public void onTransitionStarted(MotionLayout motionLayout, int startId, int endId) {}
+
+            @Override
+            public void onTransitionChange(MotionLayout motionLayout, int startId, int endId, float progress) {
+                // Determine if we are transitioning to a full-screen state
+                boolean isEnteringFullScreen = endId == R.id.equalizer_page ||
+                        endId == R.id.with_image ||
+                        endId == R.id.without_image ||
+                        endId == R.id.song_info_page ||
+                        endId == R.id.edit_song_info_page;
+
+                updateStatusBarAppearance(isEnteringFullScreen, progress);
+            }
+
+            @Override
+            public void onTransitionCompleted(MotionLayout motionLayout, int currentId) {
+                boolean isFullScreen = currentId == R.id.equalizer_page ||
+                        currentId == R.id.with_image ||
+                        currentId == R.id.without_image ||
+                        currentId == R.id.song_info_page ||
+                        currentId == R.id.edit_song_info_page;
+
+                if (isFullScreen) {
+                    // Optionally hide status bar completely when settled
+                    // WindowInsetsControllerCompat controller = ViewCompat.getWindowInsetsController(motionLayout);
+                    // if (controller != null) controller.hide(WindowInsetsCompat.Type.statusBars());
+                }
+            }
+
+            @Override
+            public void onTransitionTrigger(MotionLayout motionLayout, int triggerId, boolean positive, float progress) {}
+        });
+    }
+
+    private void updateStatusBarAppearance(boolean isFullScreen, float progress) {
+        Activity activity = getActivity();
+        if (activity == null) return;
+
+        WindowInsetsControllerCompat controller = ViewCompat.getWindowInsetsController(activity.getWindow().getDecorView());
+        if (controller == null) return;
+
+        // Modern approach: Update light/dark status bar icons based on background
+        // For Equalizer, it's usually dark or matches surface color.
+        // If surface is dark, set isAppearanceLightStatusBars(false)
+        if (isFullScreen && progress > 0.5f) {
+            controller.setAppearanceLightStatusBars(false); // White icons
+        } else {
+            // Revert to system/default (usually dark icons on light theme)
+            // check theme...
+            controller.setAppearanceLightStatusBars(true);
+        }
     }
 
     private void openEqualizer() {

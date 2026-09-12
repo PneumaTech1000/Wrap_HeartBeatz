@@ -14,20 +14,24 @@ public enum EqPreset {
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     }),
 
-    BASS_BOOST("Straightness", new int[]{
-            1, 1, 1, 1, 1, -7, -7, -7, -7, -7
+    BASS_BOOST("Bass boost", new int[]{
+            3, 3, 3, 3, 3, -9, -9, -9, -9, -9
     }),
 
     // =====================
     // Bass-forward profiles
     // =====================
 
-    DOUBLE_BASS("Bass boost", new int[]{
-            3, 3, 3, 3, 3, -9, -9, -9, -9, -9
-    }),
-
     HIP_HOP("Hip hop", new int[]{
             2, 0, 0, 0, 0, 2, 3, 3, 5, 5
+    }),
+
+    STRAIGHTNESS("Straightness", new int[]{
+            1, 1, 1, 1, 1, -7, -7, -7, -7, -7
+    }),
+
+    DEEP("Deep", new int[]{
+
     }),
 
     R_AND_B("R&B", new int[]{

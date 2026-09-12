@@ -23,6 +23,7 @@ public class VerticalSeekBar extends View {
     private final RectF trackRect = new RectF();
     private final RectF progressRect = new RectF();
 
+    private int min = 0;
     private int max = 100;
     private int progress = 0;
 
@@ -79,6 +80,7 @@ public class VerticalSeekBar extends View {
             thumbDrawable = a.getDrawable(R.styleable.VerticalSeekBar_vs_thumb);
             thumbRadius = a.getDimension(R.styleable.VerticalSeekBar_vs_thumbRadius, defaultThumbRadius);
             progress = a.getInt(R.styleable.VerticalSeekBar_vs_progress, 0);
+            min = a.getInt(R.styleable.VerticalSeekBar_vs_min, 0);
             max = a.getInt(R.styleable.VerticalSeekBar_vs_max, 100);
 
             trackPaint.setColor(trackColor);
@@ -126,7 +128,7 @@ public class VerticalSeekBar extends View {
         canvas.drawRoundRect(trackRect, trackWidth / 2, trackWidth / 2, trackPaint);
 
         // Calculate thumb Y based on progress (Bottom is 0, Top is Max)
-        float progressRatio = (float) progress / max;
+        float progressRatio = (float) (progress - min) / (max - min);
         float thumbY = bottom - (progressRatio * usableHeight);
 
         // Draw progress
@@ -189,7 +191,7 @@ public class VerticalSeekBar extends View {
     private void updateProgress(float y, float top, float bottom, float usableHeight) {
         float clampedY = Math.max(top, Math.min(y, bottom));
         float progressRatio = (bottom - clampedY) / usableHeight;
-        int newProgress = Math.round(progressRatio * max);
+        int newProgress = min + Math.round(progressRatio * (max - min));
 
         if (newProgress != progress) {
             progress = newProgress;
@@ -201,12 +203,21 @@ public class VerticalSeekBar extends View {
     }
 
     public void setProgress(int progress) {
-        this.progress = Math.max(0, Math.min(progress, max));
+        this.progress = Math.max(min, Math.min(progress, max));
         invalidate();
     }
 
     public int getProgress() {
         return progress;
+    }
+
+    public void setMin(int min) {
+        this.min = min;
+        invalidate();
+    }
+
+    public int getMin() {
+        return min;
     }
 
     public void setMax(int max) {

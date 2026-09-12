@@ -100,6 +100,7 @@ public class FragmentBottomSheetQueue extends Fragment implements BottomSheetQue
 
     private void sortItem() {
         List<Song> songs = new ArrayList<>();
+        Log.i("HHHVHVHVHVH", prevQueue.size() + " Song");
 
         for (Integer id : prevQueue) {
             Song song = songTreeMap.get(id);
