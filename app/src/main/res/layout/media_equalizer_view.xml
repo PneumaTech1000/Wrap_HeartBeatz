@@ -169,41 +169,36 @@
                     app:layout_constraintTop_toTopOf="parent" />
 
                 <!-- A/B Comparison Toggle -->
-                <LinearLayout
+
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/chip_group_choice"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:background="@drawable/daw_card_background"
-                    android:backgroundTint="?attr/colorSurfaceContainer"
-                    android:orientation="horizontal"
-                    android:padding="2dp"
+                    android:backgroundTint="@color/hb_primary"
                     app:layout_constraintBottom_toBottomOf="@+id/preset_label"
                     app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintTop_toTopOf="@+id/preset_label">
+                    app:layout_constraintTop_toTopOf="@+id/preset_label"
+                    app:selectionRequired="true"
+                    app:singleSelection="true">
 
-                    <TextView
+                    <com.google.android.material.chip.Chip
                         android:id="@+id/btn_ab_a"
+                        style="@style/Widget.Material3.Chip.Filter"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:background="@drawable/daw_card_background"
-                        android:backgroundTint="@color/hb_primary"
-                        android:fontFamily="monospace"
-                        android:paddingHorizontal="10dp"
-                        android:paddingVertical="4dp"
-                        android:text="Slot A"
-                        android:textColor="?attr/colorOnSurface"
-                        android:textSize="11sp" />
+                        android:checkable="true"
+                        android:text="Slot A" />
 
-                    <TextView
+                    <com.google.android.material.chip.Chip
                         android:id="@+id/btn_ab_b"
+                        style="@style/Widget.Material3.Chip.Filter"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:fontFamily="monospace"
-                        android:paddingHorizontal="10dp"
-                        android:paddingVertical="4dp"
-                        android:text="Slot B"
-                        android:textColor="?attr/colorOnSurfaceVariant"
-                        android:textSize="11sp" />
-                </LinearLayout>
+                        android:checkable="true"
+                        android:text="Slot B" />
+
+                </com.google.android.material.chip.ChipGroup>
 
                 <HorizontalScrollView
                     android:layout_width="match_parent"
@@ -212,31 +207,137 @@
                     android:scrollbars="none"
                     app:layout_constraintTop_toBottomOf="@+id/preset_label">
 
-                    <com.google.android.material.chip.ChipGroup android:id="@+id/sound_profile_chip_group" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingHorizontal="16dp" android:paddingVertical="6dp" app:chipSpacingHorizontal="12dp" app:chipSpacingVertical="5dp" app:selectionRequired="true" app:singleSelection="true">
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_custom" style="@style/EqProfileChip" android:text="Custom"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_normal" style="@style/EqProfileChip" android:checked="true" android:text="Normal"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_rock" style="@style/EqProfileChip" android:text="Rock"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_dance" style="@style/EqProfileChip" android:text="Dance"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_pop" style="@style/EqProfileChip" android:text="Pop"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_hip_hop" style="@style/EqProfileChip" android:text="Hip hop"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_acoustic" style="@style/EqProfileChip" android:text="Acoustic"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_heavy_metal" style="@style/EqProfileChip" android:text="Heavy metal"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_folk" style="@style/EqProfileChip" android:text="Folk"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_head_phones" style="@style/EqProfileChip" android:text="Head phones"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_loud" style="@style/EqProfileChip" android:text="Loud"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_piano" style="@style/EqProfileChip" android:text="Piano"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_r_and_b" style="@style/EqProfileChip" android:text="R &amp; B"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_lounge" style="@style/EqProfileChip" android:text="Lounge"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_deep" style="@style/EqProfileChip" android:text="Deep"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_latin" style="@style/EqProfileChip" android:text="Latin"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_vocal_boost" style="@style/EqProfileChip" android:text="Vocal boost"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_treble_boost" style="@style/EqProfileChip" android:text="Treble boost"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_jazz" style="@style/EqProfileChip" android:text="Jazz"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_straightness" style="@style/EqProfileChip" android:text="Straightness"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_classical" style="@style/EqProfileChip" android:text="Classical"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_flat" style="@style/EqProfileChip" android:text="Flat"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_electronic" style="@style/EqProfileChip" android:text="Electronic"/>
-                        <com.google.android.material.chip.Chip android:id="@+id/eq_bazz_boost" style="@style/EqProfileChip" android:text="Bazz boost"/>
+                    <com.google.android.material.chip.ChipGroup
+                        android:id="@+id/sound_profile_chip_group"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:paddingHorizontal="16dp"
+                        android:paddingVertical="6dp"
+                        app:chipSpacingHorizontal="12dp"
+                        app:chipSpacingVertical="5dp"
+                        app:selectionRequired="true"
+                        app:singleSelection="true">
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_custom"
+                            style="@style/EqProfileChip"
+                            android:text="Custom" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_normal"
+                            style="@style/EqProfileChip"
+                            android:checked="true"
+                            android:text="Normal" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_rock"
+                            style="@style/EqProfileChip"
+                            android:text="Rock" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_dance"
+                            style="@style/EqProfileChip"
+                            android:text="Dance" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_pop"
+                            style="@style/EqProfileChip"
+                            android:text="Pop" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_hip_hop"
+                            style="@style/EqProfileChip"
+                            android:text="Hip hop" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_acoustic"
+                            style="@style/EqProfileChip"
+                            android:text="Acoustic" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_heavy_metal"
+                            style="@style/EqProfileChip"
+                            android:text="Heavy metal" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_folk"
+                            style="@style/EqProfileChip"
+                            android:text="Folk" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_head_phones"
+                            style="@style/EqProfileChip"
+                            android:text="Head phones" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_loud"
+                            style="@style/EqProfileChip"
+                            android:text="Loud" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_piano"
+                            style="@style/EqProfileChip"
+                            android:text="Piano" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_r_and_b"
+                            style="@style/EqProfileChip"
+                            android:text="R &amp; B" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_lounge"
+                            style="@style/EqProfileChip"
+                            android:text="Lounge" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_deep"
+                            style="@style/EqProfileChip"
+                            android:text="Deep" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_latin"
+                            style="@style/EqProfileChip"
+                            android:text="Latin" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_vocal_boost"
+                            style="@style/EqProfileChip"
+                            android:text="Vocal boost" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_treble_boost"
+                            style="@style/EqProfileChip"
+                            android:text="Treble boost" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_jazz"
+                            style="@style/EqProfileChip"
+                            android:text="Jazz" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_straightness"
+                            style="@style/EqProfileChip"
+                            android:text="Straightness" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_classical"
+                            style="@style/EqProfileChip"
+                            android:text="Classical" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_flat"
+                            style="@style/EqProfileChip"
+                            android:text="Flat" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_electronic"
+                            style="@style/EqProfileChip"
+                            android:text="Electronic" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/eq_bazz_boost"
+                            style="@style/EqProfileChip"
+                            android:text="Bazz boost" />
                     </com.google.android.material.chip.ChipGroup>
                 </HorizontalScrollView>
             </androidx.constraintlayout.widget.ConstraintLayout>
@@ -317,11 +418,50 @@
                             android:orientation="vertical"
                             android:paddingVertical="4dp">
 
-                            <TextView android:layout_width="wrap_content" android:layout_height="0dp" android:layout_weight="1" android:text="+12 dB" android:textColor="?attr/colorOnSurfaceVariant" android:textSize="9sp" android:fontFamily="monospace" />
-                            <TextView android:layout_width="wrap_content" android:layout_height="0dp" android:layout_weight="1" android:text="+6 dB" android:textColor="?attr/colorOnSurfaceVariant" android:textSize="9sp" android:fontFamily="monospace" />
-                            <TextView android:layout_width="wrap_content" android:layout_height="0dp" android:layout_weight="1" android:text="0 dB" android:textColor="?attr/colorOnSurfaceVariant" android:textSize="9sp" android:fontFamily="monospace" />
-                            <TextView android:layout_width="wrap_content" android:layout_height="0dp" android:layout_weight="1" android:text="-6 dB" android:textColor="?attr/colorOnSurfaceVariant" android:textSize="9sp" android:fontFamily="monospace" />
-                            <TextView android:layout_width="wrap_content" android:layout_height="0dp" android:layout_weight="1" android:text="-12 dB" android:textColor="?attr/colorOnSurfaceVariant" android:textSize="9sp" android:fontFamily="monospace" />
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="0dp"
+                                android:layout_weight="1"
+                                android:fontFamily="monospace"
+                                android:text="+12 dB"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:textSize="9sp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="0dp"
+                                android:layout_weight="1"
+                                android:fontFamily="monospace"
+                                android:text="+6 dB"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:textSize="9sp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="0dp"
+                                android:layout_weight="1"
+                                android:fontFamily="monospace"
+                                android:text="0 dB"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:textSize="9sp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="0dp"
+                                android:layout_weight="1"
+                                android:fontFamily="monospace"
+                                android:text="-6 dB"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:textSize="9sp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="0dp"
+                                android:layout_weight="1"
+                                android:fontFamily="monospace"
+                                android:text="-12 dB"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:textSize="9sp" />
                         </LinearLayout>
 
                         <!-- Offline Overlay (Hidden by default) -->
@@ -357,11 +497,54 @@
                         android:layout_marginTop="8dp"
                         android:orientation="horizontal">
 
-                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:fontFamily="monospace" android:text="20Hz" android:textColor="?attr/colorOnSurfaceVariant" android:textSize="10sp" />
-                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:fontFamily="monospace" android:text="250Hz" android:textColor="?attr/colorOnSurfaceVariant" android:textSize="10sp" android:gravity="center" />
-                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:fontFamily="monospace" android:text="1kHz" android:textColor="?attr/colorOnSurfaceVariant" android:textSize="10sp" android:gravity="center" />
-                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:fontFamily="monospace" android:text="4kHz" android:textColor="?attr/colorOnSurfaceVariant" android:textSize="10sp" android:gravity="center" />
-                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:fontFamily="monospace" android:text="20kHz" android:textColor="?attr/colorOnSurfaceVariant" android:textSize="10sp" android:gravity="end" />
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:fontFamily="monospace"
+                            android:text="20Hz"
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:textSize="10sp" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:fontFamily="monospace"
+                            android:gravity="center"
+                            android:text="250Hz"
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:textSize="10sp" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:fontFamily="monospace"
+                            android:gravity="center"
+                            android:text="1kHz"
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:textSize="10sp" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:fontFamily="monospace"
+                            android:gravity="center"
+                            android:text="4kHz"
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:textSize="10sp" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:fontFamily="monospace"
+                            android:gravity="end"
+                            android:text="20kHz"
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:textSize="10sp" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -785,16 +968,45 @@
                             android:paddingHorizontal="4dp"
                             android:paddingBottom="8dp">
 
-                            <include android:id="@+id/first" layout="@layout/equalizer_item_vertical_seekbar" />
-                            <include android:id="@+id/second" layout="@layout/equalizer_item_vertical_seekbar" />
-                            <include android:id="@+id/third" layout="@layout/equalizer_item_vertical_seekbar" />
-                            <include android:id="@+id/fourth" layout="@layout/equalizer_item_vertical_seekbar" />
-                            <include android:id="@+id/fifth" layout="@layout/equalizer_item_vertical_seekbar" />
-                            <include android:id="@+id/sixth" layout="@layout/equalizer_item_vertical_seekbar" />
-                            <include android:id="@+id/seventh" layout="@layout/equalizer_item_vertical_seekbar" />
-                            <include android:id="@+id/eighth" layout="@layout/equalizer_item_vertical_seekbar" />
-                            <include android:id="@+id/ninth" layout="@layout/equalizer_item_vertical_seekbar" />
-                            <include android:id="@+id/tenth" layout="@layout/equalizer_item_vertical_seekbar" />
+                            <include
+                                android:id="@+id/first"
+                                layout="@layout/equalizer_item_vertical_seekbar" />
+
+                            <include
+                                android:id="@+id/second"
+                                layout="@layout/equalizer_item_vertical_seekbar" />
+
+                            <include
+                                android:id="@+id/third"
+                                layout="@layout/equalizer_item_vertical_seekbar" />
+
+                            <include
+                                android:id="@+id/fourth"
+                                layout="@layout/equalizer_item_vertical_seekbar" />
+
+                            <include
+                                android:id="@+id/fifth"
+                                layout="@layout/equalizer_item_vertical_seekbar" />
+
+                            <include
+                                android:id="@+id/sixth"
+                                layout="@layout/equalizer_item_vertical_seekbar" />
+
+                            <include
+                                android:id="@+id/seventh"
+                                layout="@layout/equalizer_item_vertical_seekbar" />
+
+                            <include
+                                android:id="@+id/eighth"
+                                layout="@layout/equalizer_item_vertical_seekbar" />
+
+                            <include
+                                android:id="@+id/ninth"
+                                layout="@layout/equalizer_item_vertical_seekbar" />
+
+                            <include
+                                android:id="@+id/tenth"
+                                layout="@layout/equalizer_item_vertical_seekbar" />
                         </LinearLayout>
                     </HorizontalScrollView>
 
@@ -868,8 +1080,8 @@
                 android:layout_marginBottom="8dp"
                 android:drawablePadding="6dp"
                 android:fontFamily="monospace"
-                android:text="Studio Dynamics &amp; Processing Racks"
                 android:gravity="center_vertical"
+                android:text="Studio Dynamics &amp; Processing Racks"
                 android:textColor="?attr/colorOnSurface"
                 android:textSize="12sp"
                 android:textStyle="bold"

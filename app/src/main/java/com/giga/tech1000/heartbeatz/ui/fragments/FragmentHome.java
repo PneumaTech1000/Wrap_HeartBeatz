@@ -78,6 +78,7 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.android.material.button.MaterialButton;
 
 import android.content.Intent;
+
 import com.giga.tech1000.heartbeatz.LoginActivity;
 import com.giga.tech1000.heartbeatz.SignUpActivity;
 
@@ -354,11 +355,11 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
         }
 
         //if (btnSignup != null) {
-            btnSignup.setOnClickListener(v -> {
-                startActivity(new Intent(requireContext(), SignUpActivity.class));
-                drawerLayout.closeDrawer(GravityCompat.START);
-            });
-       // }
+        btnSignup.setOnClickListener(v -> {
+            startActivity(new Intent(requireContext(), SignUpActivity.class));
+            drawerLayout.closeDrawer(GravityCompat.START);
+        });
+        // }
 
         if (btnLogout != null) {
             btnLogout.setOnClickListener(v -> {
@@ -711,7 +712,8 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
 
         motionLayout.setTransitionListener(new MotionLayout.TransitionListener() {
             @Override
-            public void onTransitionStarted(MotionLayout motionLayout, int startId, int endId) {}
+            public void onTransitionStarted(MotionLayout motionLayout, int startId, int endId) {
+            }
 
             @Override
             public void onTransitionChange(MotionLayout motionLayout, int startId, int endId, float progress) {
@@ -741,7 +743,8 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
             }
 
             @Override
-            public void onTransitionTrigger(MotionLayout motionLayout, int triggerId, boolean positive, float progress) {}
+            public void onTransitionTrigger(MotionLayout motionLayout, int triggerId, boolean positive, float progress) {
+            }
         });
     }
 
