@@ -480,7 +480,8 @@ public class MultiSlidingUpPanelLayout extends ViewGroup {
 
         if (mAdapter != null) {
             for (int i = 0; i < mAdapter.getItemCount(); i++) {
-                if (mAdapter.getItem(i).getPanelState() == EXPANDED) {
+                IPanel item = mAdapter.getItem(i);
+                if (item != null && item.getPanelState() == EXPANDED) {
                     hasExpandedPanel = true;
                     break;
                 }

@@ -240,6 +240,11 @@ public abstract class BasePanelView extends FrameLayout implements IPanel<View> 
 
     private int getPrevPanelsHeight(int currentPosition) {
         int maxHeight = 0;
+        if (this.mParentSlidingPanel == null || this.mParentSlidingPanel.getAdapter() == null) {
+            Log.d("UIInfo", "[BasePanelView.getPrevPanelsHeight] parent/adapter null self="
+                    + getClass().getSimpleName());
+            return 0;
+        }
 
         int count = this.mParentSlidingPanel.getAdapter().getItemCount();
         int i = currentPosition + 1;
@@ -250,8 +255,14 @@ public abstract class BasePanelView extends FrameLayout implements IPanel<View> 
         sb.append("[BasePanelView.getPrevPanelsHeight] self=").append(getClass().getSimpleName())
                 .append(" pos=").append(currentPosition).append(" noLimits=").append(maxHeight);
         for (; i < count; i++) {
-            BasePanelView panel = ((BasePanelView)this.mParentSlidingPanel.getAdapter().getItem(i));
-            int add = (panel.isUserHidden()) ? 0 : panel.getPeakHeight();
+            // During onCreateView, later panels may not be attached yet — getItem returns null
+            IPanel panelItem = this.mParentSlidingPanel.getAdapter().getItem(i);
+            if (!(panelItem instanceof BasePanelView)) {
+                sb.append(" | [").append(i).append("]=null/skip");
+                continue;
+            }
+            BasePanelView panel = (BasePanelView) panelItem;
+            int add = panel.isUserHidden() ? 0 : panel.getPeakHeight();
             maxHeight += add;
             sb.append(" | [").append(i).append("]").append(panel.getClass().getSimpleName())
                     .append(" hidden=").append(panel.isUserHidden())
