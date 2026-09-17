@@ -45,16 +45,18 @@ public class RootNavigationBarPanel extends BasePanelView {
 
     @Override
     public void onCreateView() {
-        // Allow full hide when media player is expanded
-        this.setUserHiddenMode(true);
+        // Peak height MUST be set before setPanelState (collapsedH uses peak)
+        this.setPeakHeight(getResources().getDimensionPixelSize(R.dimen.navigation_bar_height));
 
-        // Visible at peak height on start
-        this.setPanelState(MultiSlidingUpPanelLayout.COLLAPSED);
+        // Programmatic hide when full player expands is OK; user swipe-to-hide is not
+        // (logs: user dragged nav to HIDDEN → mini sat wrong).
+        this.setUserHiddenMode(false);
+
         this.isHidden = false;
+        this.setPanelState(MultiSlidingUpPanelLayout.COLLAPSED);
 
         this.setSlideDirection(MultiSlidingUpPanelLayout.SLIDE_VERTICAL);
 
-        this.setPeakHeight(getResources().getDimensionPixelSize(R.dimen.navigation_bar_height));
         UIInfoLog.d("RootNav.onCreateView", "COLLAPSED isHidden=false peak=" + getPeakHeight());
 
         getSupportFragmentManager().registerFragmentLifecycleCallbacks(

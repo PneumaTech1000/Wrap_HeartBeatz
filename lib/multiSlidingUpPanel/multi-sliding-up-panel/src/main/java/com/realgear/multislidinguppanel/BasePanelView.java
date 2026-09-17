@@ -73,28 +73,46 @@ public abstract class BasePanelView extends FrameLayout implements IPanel<View> 
 
     @Override
     public int getPanelExpandedHeight() {
+        // Prefer the actual MultiSlidingUpPanel host height. Edge-to-edge + gesture nav
+        // means DisplayMetrics minus status/nav dimen leaves a permanent gap under panels
+        // (logs: parent h=1920, expandedH was 1731 → ~189px dead space under bottom nav).
+        if (this.mParentSlidingPanel != null) {
+            int hostH = this.mParentSlidingPanel.getHeight()
+                    - this.mParentSlidingPanel.getPaddingTop()
+                    - this.mParentSlidingPanel.getPaddingBottom();
+            if (hostH > 0) {
+                if (this.mExpandedHeight != hostH) {
+                    Log.d("UIInfo", "[BasePanelView.getPanelExpandedHeight] "
+                            + getClass().getSimpleName()
+                            + " hostH=" + hostH
+                            + " (was cached=" + this.mExpandedHeight + ")");
+                    this.mExpandedHeight = hostH;
+                    // Collapsed real height depends on expanded height math in callers
+                    this.mRealPanelHeight = 0;
+                }
+                return this.mExpandedHeight;
+            }
+        }
         if (this.mExpandedHeight == 0) {
-            int status_bar_height = 0;
-            int navigation_bar_height = 0;
-
-            int status_r_id = getResources().getIdentifier("status_bar_height", "dimen", "android");
-            if(status_r_id > 0)
-                status_bar_height = getResources().getDimensionPixelSize(status_r_id);
-
-            int nav_r_id = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
-            if(nav_r_id > 0)
-                navigation_bar_height = getResources().getDimensionPixelSize(nav_r_id);
-
+            // Fallback before first layout only
             DisplayMetrics dm = Resources.getSystem().getDisplayMetrics();
             WindowManager windowManager = (WindowManager) getContext().getSystemService(Context.WINDOW_SERVICE);
             if (windowManager != null) {
                 windowManager.getDefaultDisplay().getRealMetrics(dm);
             }
-
-            this.mExpandedHeight = ((dm.heightPixels + this.mParentSlidingPanel.getNoLimitsOffset()) - (status_bar_height + navigation_bar_height));
-            //Log.i("BaseSlideView", MessageFormat.format("HeightPixels {0} - (SB {1} + NB {2}) = {3}", dm.heightPixels, statusbarheight, navigationbarheight, this.mExpandedHeight));
+            int offset = this.mParentSlidingPanel != null
+                    ? this.mParentSlidingPanel.getNoLimitsOffset() : 0;
+            this.mExpandedHeight = dm.heightPixels + offset;
+            Log.d("UIInfo", "[BasePanelView.getPanelExpandedHeight] fallback displayH="
+                    + this.mExpandedHeight + " self=" + getClass().getSimpleName());
         }
         return this.mExpandedHeight;
+    }
+
+    /** Force recalculation after host layout size is known. */
+    public void invalidateExpandedHeight() {
+        this.mExpandedHeight = 0;
+        this.mRealPanelHeight = 0;
     }
 
     @Override

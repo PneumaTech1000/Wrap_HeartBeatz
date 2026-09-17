@@ -548,8 +548,16 @@ public class MultiSlidingUpPanelLayout extends ViewGroup {
         super.onSizeChanged(w, h, oldw, oldh);
 
         if (h != oldh) {
+            Log.d("UIInfo", "[MultiSliding.onSizeChanged] " + oldw + "x" + oldh + " -> " + w + "x" + h);
             isFirstLayout = true;
             mSlidingPanel = null;
+            // Recompute expanded heights from new host size (fixes gap under bottom nav)
+            for (int i = 0; i < getChildCount(); i++) {
+                View child = getChildAt(i);
+                if (child instanceof BasePanelView) {
+                    ((BasePanelView) child).invalidateExpandedHeight();
+                }
+            }
         }
     }
 
