@@ -3,6 +3,7 @@ package com.giga.tech1000.heartbeatz.views.panels;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 
@@ -16,6 +17,7 @@ import androidx.navigation.fragment.NavHostFragment;
 import androidx.navigation.ui.NavigationUI;
 
 import com.giga.tech1000.heartbeatz.R;
+import com.giga.tech1000.heartbeatz.ui.UIInfoLog;
 import com.giga.tech1000.heartbeatz.ui.UIThread;
 import com.giga.tech1000.utils.interfaces.DisplayMarginCallback;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
@@ -53,6 +55,7 @@ public class RootNavigationBarPanel extends BasePanelView {
         this.setSlideDirection(MultiSlidingUpPanelLayout.SLIDE_VERTICAL);
 
         this.setPeakHeight(getResources().getDimensionPixelSize(R.dimen.navigation_bar_height));
+        UIInfoLog.d("RootNav.onCreateView", "COLLAPSED isHidden=false peak=" + getPeakHeight());
 
         getSupportFragmentManager().registerFragmentLifecycleCallbacks(
                 new FragmentManager.FragmentLifecycleCallbacks() {
@@ -108,9 +111,20 @@ public class RootNavigationBarPanel extends BasePanelView {
 
     @Override
     public void onPanelStateChanged(int i) {
+        UIInfoLog.d("RootNav.onPanelStateChanged", "state=" + UIInfoLog.stateName(i)
+                + " isHidden=" + isUserHidden()
+                + " top=" + getTop() + " bottom=" + getBottom());
+        UIInfoLog.panelSnapshot("RootNav.onPanelStateChanged", this);
     }
 
     public void updatePaddingWhenWhenBarChanged(boolean isDisplaying) {
+        UIInfoLog.d("RootNav.updatePadding", "isDisplaying=" + isDisplaying
+                + " activeFragment=" + (activeFragment != null ? activeFragment.getClass().getSimpleName() : "null")
+                + " navState=" + UIInfoLog.stateName(getPanelState())
+                + " isHidden=" + isUserHidden()
+                + " top=" + getTop() + " bottom=" + getBottom()
+                + " peak=" + getPeakHeight()
+                + " collapsedH=" + getPanelCollapsedHeight());
         if (activeFragment instanceof DisplayMarginCallback listener) {
             listener.onDisplayBarPlayerChanged(isDisplaying);
         }

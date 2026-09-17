@@ -180,6 +180,7 @@ public abstract class BasePanelView extends FrameLayout implements IPanel<View> 
 
     @Override
     public void setPanelState(int panelState) {
+        int prev = this.mPanelState;
         this.mPrevPanelState = (this.mPanelState == panelState) ? this.mPrevPanelState : this.mPanelState;
 
         this.mPanelState = panelState;
@@ -188,6 +189,15 @@ public abstract class BasePanelView extends FrameLayout implements IPanel<View> 
             this.mSlope = 0;
 
         }
+
+        Log.d("UIInfo", "[BasePanelView.setPanelState] " + getClass().getSimpleName()
+                + " " + prev + "->" + panelState
+                + " isHidden=" + isHidden
+                + " floor=" + mIndex
+                + " peak=" + getPeakHeight()
+                + " collapsedH=" + getPanelCollapsedHeight()
+                + " top=" + getTop()
+                + " bottom=" + getBottom());
 
         this.onPanelStateChanged(panelState);
     }
@@ -236,10 +246,20 @@ public abstract class BasePanelView extends FrameLayout implements IPanel<View> 
 
         maxHeight = this.mParentSlidingPanel.getNoLimitsOffset();
 
+        StringBuilder sb = new StringBuilder();
+        sb.append("[BasePanelView.getPrevPanelsHeight] self=").append(getClass().getSimpleName())
+                .append(" pos=").append(currentPosition).append(" noLimits=").append(maxHeight);
         for (; i < count; i++) {
             BasePanelView panel = ((BasePanelView)this.mParentSlidingPanel.getAdapter().getItem(i));
-            maxHeight += (panel.isUserHidden()) ? 0 : panel.getPeakHeight();
+            int add = (panel.isUserHidden()) ? 0 : panel.getPeakHeight();
+            maxHeight += add;
+            sb.append(" | [").append(i).append("]").append(panel.getClass().getSimpleName())
+                    .append(" hidden=").append(panel.isUserHidden())
+                    .append(" peak=").append(panel.getPeakHeight())
+                    .append(" add=").append(add);
         }
+        sb.append(" => totalPrev=").append(maxHeight);
+        Log.d("UIInfo", sb.toString());
 
         return maxHeight;
     }

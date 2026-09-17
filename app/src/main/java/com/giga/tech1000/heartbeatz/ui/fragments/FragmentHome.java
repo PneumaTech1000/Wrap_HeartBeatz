@@ -47,6 +47,7 @@ import androidx.viewpager2.widget.ViewPager2;
 
 import com.bumptech.glide.Glide;
 import com.giga.tech1000.heartbeatz.R;
+import com.giga.tech1000.heartbeatz.ui.UIInfoLog;
 import com.giga.tech1000.heartbeatz.layouts.adapters.LibraryLayoutAdapter;
 import com.giga.tech1000.heartbeatz.layouts.models.BaseLayoutItem;
 import com.giga.tech1000.heartbeatz.layouts.models.LibraryLayoutItem;
@@ -189,8 +190,11 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
         // Drawer must draw above bottom nav + mini player when open
         View drawerContainer = view.findViewById(R.id.nav_drawer_container);
         if (drawerContainer != null) {
-            drawerContainer.setElevation(24f * getResources().getDisplayMetrics().density);
-            drawerContainer.setTranslationZ(24f * getResources().getDisplayMetrics().density);
+            float e = 24f * getResources().getDisplayMetrics().density;
+            drawerContainer.setElevation(e);
+            drawerContainer.setTranslationZ(e);
+            UIInfoLog.d("FragmentHome.drawer", "container elev/tz=" + e
+                    + " w=" + drawerContainer.getWidth() + " h=" + drawerContainer.getHeight());
         }
         drawerLayout.addDrawerListener(new DrawerLayout.SimpleDrawerListener() {
             @Override
@@ -310,6 +314,10 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
     @Override
     public void onDisplayBarPlayerChanged(boolean isDisplaying) {
         paddingHeight = (isDisplaying) ? getResources().getDimensionPixelSize(R.dimen.bar_and_navigation_height) : getResources().getDimensionPixelSize(R.dimen.navigation_bar_height);
+        UIInfoLog.d("FragmentHome.onDisplayBarPlayerChanged",
+                "isDisplaying=" + isDisplaying + " paddingHeightPx=" + paddingHeight
+                + " barAndNavDimen=" + getResources().getDimensionPixelSize(R.dimen.bar_and_navigation_height)
+                + " navDimen=" + getResources().getDimensionPixelSize(R.dimen.navigation_bar_height));
 
         mediaNavigationManager.setBottomPadding(paddingHeight);
         pagerWrapper.setPadding(0, 0, 0, paddingHeight);
@@ -704,6 +712,10 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
                     statusTop = getResources().getDimensionPixelSize(resId);
                 }
             }
+            UIInfoLog.d("FragmentHome.insets", "statusTop=" + statusTop
+                    + " rawStatus=" + statusBars.top
+                    + " systemBars=" + insets.getInsets(WindowInsetsCompat.Type.systemBars())
+                    + " rootH=" + v.getHeight());
 
             View toolbarWrapper = v.findViewById(R.id.tool_bar_wrapper);
             if (toolbarWrapper != null) {

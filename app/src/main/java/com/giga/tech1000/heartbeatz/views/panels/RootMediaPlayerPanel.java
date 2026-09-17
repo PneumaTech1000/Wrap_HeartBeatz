@@ -18,6 +18,7 @@ import androidx.media3.common.util.UnstableApi;
 
 import com.giga.tech1000.extensions.bottom_sheet.CustomBottomSheetBehavior;
 import com.giga.tech1000.heartbeatz.R;
+import com.giga.tech1000.heartbeatz.ui.UIInfoLog;
 import com.giga.tech1000.heartbeatz.view_models.extended_models.SettingViewModel;
 import com.giga.tech1000.heartbeatz.views.BottomSheetView;
 import com.giga.tech1000.heartbeatz.views.MediaPlayerBarView;
@@ -78,6 +79,8 @@ public class RootMediaPlayerPanel extends BasePanelView implements OnBackPressed
         if (getMultiSlidingUpPanel() != null) {
             getMultiSlidingUpPanel().requestLayout();
         }
+        UIInfoLog.d("RootMediaPlayer.onCreateView", "HIDDEN isHidden=true peak=" + getPeakHeight());
+        UIInfoLog.layoutChildren("RootMediaPlayer.onCreateView", getMultiSlidingUpPanel());
     }
 
     @Override
@@ -160,6 +163,15 @@ public class RootMediaPlayerPanel extends BasePanelView implements OnBackPressed
         boolean miniVisible = (i == MultiSlidingUpPanelLayout.COLLAPSED) && !isUserHidden();
         boolean fullVisible = (i == MultiSlidingUpPanelLayout.EXPANDED);
         boolean playerHidden = (i == MultiSlidingUpPanelLayout.HIDDEN) || isUserHidden();
+        UIInfoLog.d("RootMediaPlayer.onPanelStateChanged",
+                "state=" + UIInfoLog.stateName(i)
+                + " miniVisible=" + miniVisible
+                + " fullVisible=" + fullVisible
+                + " playerHidden=" + playerHidden
+                + " isUserHidden=" + isUserHidden()
+                + " top=" + getTop() + " bottom=" + getBottom()
+                + " peak=" + getPeakHeight()
+                + " collapsedH=" + getPanelCollapsedHeight());
 
         RootNavigationBarPanel nav = null;
         try {
@@ -195,6 +207,9 @@ public class RootMediaPlayerPanel extends BasePanelView implements OnBackPressed
         if (getMultiSlidingUpPanel() != null) {
             getMultiSlidingUpPanel().requestLayout();
         }
+        UIInfoLog.panelSnapshot("RootMediaPlayer.afterStateSync", this);
+        if (nav != null) UIInfoLog.panelSnapshot("RootMediaPlayer.navAfterSync", nav);
+        UIInfoLog.layoutChildren("RootMediaPlayer.afterStateSync", getMultiSlidingUpPanel());
     }
 
     @Override
@@ -238,11 +253,20 @@ public class RootMediaPlayerPanel extends BasePanelView implements OnBackPressed
     }
 
     private void updatePlaybackViews(PlaybackStateCompat state) {
+        UIInfoLog.d("RootMediaPlayer.updatePlaybackViews",
+                "pbState=" + state.getState()
+                + " isFirstPlay=" + isFirstPlay
+                + " isStarted=" + isStarted
+                + " song=" + (currentSong != null)
+                + " panelState=" + UIInfoLog.stateName(getPanelState())
+                + " isHidden=" + isUserHidden());
         if (isFirstPlay) {
             if (isStarted && state.getState() == PlaybackStateCompat.STATE_PLAYING) {
+                UIInfoLog.d("RootMediaPlayer.updatePlaybackViews", "-> expandPanel()");
                 expandPanel();
                 isFirstPlay = false;
             } else if (!isStarted && currentSong != null)  {
+                UIInfoLog.d("RootMediaPlayer.updatePlaybackViews", "-> collapsePanel()");
                 collapsePanel();
                 isStarted = true;
             }
@@ -274,18 +298,24 @@ public class RootMediaPlayerPanel extends BasePanelView implements OnBackPressed
      * Shows the mini player at collapsed peak height (above the bottom navigation).
      */
     public void showMiniPlayerCollapsed() {
+        UIInfoLog.d("RootMediaPlayer.showMiniPlayerCollapsed",
+                "isHidden=" + isUserHidden() + " state=" + UIInfoLog.stateName(getPanelState()));
         if (isUserHidden() || getPanelState() == MultiSlidingUpPanelLayout.HIDDEN) {
             collapsePanel();
         }
+        post(() -> UIInfoLog.layoutChildren("RootMediaPlayer.showMini.posted", getMultiSlidingUpPanel()));
     }
 
     /**
      * Fully removes the mini player from the panel stack so the bottom nav is flush.
      */
     public void hideMiniPlayer() {
+        UIInfoLog.d("RootMediaPlayer.hideMiniPlayer",
+                "isHidden=" + isUserHidden() + " state=" + UIInfoLog.stateName(getPanelState()));
         if (!isUserHidden() || getPanelState() != MultiSlidingUpPanelLayout.HIDDEN) {
             hidePanel();
         }
+        post(() -> UIInfoLog.layoutChildren("RootMediaPlayer.hideMini.posted", getMultiSlidingUpPanel()));
     }
 
     @Nullable
