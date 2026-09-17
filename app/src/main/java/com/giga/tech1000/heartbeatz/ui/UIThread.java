@@ -1,5 +1,7 @@
 package com.giga.tech1000.heartbeatz.ui;
 
+// UIInfoLog is same package
+
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -132,7 +134,9 @@ public class UIThread implements IPlaybackCallback {
     }
 
     public boolean isPlayerBarVisible() {
-        return lastPlaybackState != Player.STATE_IDLE;
+        boolean v = lastPlaybackState != Player.STATE_IDLE;
+        UIInfoLog.d("UIThread.isPlayerBarVisible", "visible=" + v + " lastPlaybackState=" + lastPlaybackState);
+        return v;
     }
 
     // --- Clean IPlaybackCallback Implementation ---
@@ -162,17 +166,28 @@ public class UIThread implements IPlaybackCallback {
         playerCache.cachePlaybackStateChanged(playbackState);
 
         RootMediaPlayerPanel mediaPanel = getMediaPlayerPanel();
+        UIInfoLog.d("UIThread.onPlaybackStateChanged",
+                "isPlaying=" + isPlaying + " playbackState=" + playbackState
+                + " mediaPanel=" + (mediaPanel != null)
+                + " song=" + (mediaPanel != null && mediaPanel.getCurrentSong() != null));
         if (mediaPanel != null) {
             // Idle with no active item → hide mini player so bottom nav is flush
             if (playbackState == Player.STATE_IDLE && mediaPanel.getCurrentSong() == null) {
+                UIInfoLog.d("UIThread.onPlaybackStateChanged", "-> hideMiniPlayer");
                 mediaPanel.hideMiniPlayer();
             } else if (playbackState != Player.STATE_IDLE) {
+                UIInfoLog.d("UIThread.onPlaybackStateChanged", "-> showMiniPlayerCollapsed");
                 mediaPanel.showMiniPlayerCollapsed();
             }
+            UIInfoLog.panelSnapshot("UIThread.afterPlayback", mediaPanel);
         }
 
         RootNavigationBarPanel navPanel = getNavigationPanel();
-        if (navPanel != null) navPanel.updatePaddingWhenWhenBarChanged(isPlayerBarVisible());
+        if (navPanel != null) {
+            UIInfoLog.panelSnapshot("UIThread.nav", navPanel);
+            navPanel.updatePaddingWhenWhenBarChanged(isPlayerBarVisible());
+        }
+        UIInfoLog.layoutChildren("UIThread.onPlaybackStateChanged", panelLayout);
     }
 
     @Override
@@ -346,8 +361,10 @@ public class UIThread implements IPlaybackCallback {
         List<Class<?>> items = new ArrayList<>();
         items.add(RootMediaPlayerPanel.class);
         items.add(RootNavigationBarPanel.class);
+        UIInfoLog.d("UIThread.onCreate", "panel order: [0]=RootMediaPlayerPanel [1]=RootNavigationBarPanel");
         panelLayout.setPanelStateListener(new PanelStateListener(panelLayout));
         panelLayout.setAdapter(new MultiSlidingPanelAdapter(activity, items));
+        panelLayout.post(() -> UIInfoLog.layoutChildren("UIThread.onCreate.posted", panelLayout));
     }
 
     public <T extends View> T findViewById(@IdRes int id) { return activity.findViewById(id); }

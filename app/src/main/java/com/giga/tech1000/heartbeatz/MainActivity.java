@@ -1,6 +1,7 @@
 package com.giga.tech1000.heartbeatz;
 
 import android.content.Intent;
+import android.util.Log;
 import android.os.Bundle;
 import android.widget.Toast;
 
@@ -97,6 +98,10 @@ public class MainActivity extends AppCompatActivity {
             Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
             int bottom = Math.max(systemBars.bottom, ime.bottom);
             v.setPadding(systemBars.left, 0, systemBars.right, bottom);
+            Log.d("UIInfo", "[MainActivity.insets] content pad L=" + systemBars.left
+                    + " R=" + systemBars.right + " B=" + bottom
+                    + " statusTop kept for children=" + systemBars.top
+                    + " contentH=" + v.getHeight());
 
             // Consume left/right/bottom so children do not double-pad; keep status bar for FragmentHome.
             return new WindowInsetsCompat.Builder(insets)
