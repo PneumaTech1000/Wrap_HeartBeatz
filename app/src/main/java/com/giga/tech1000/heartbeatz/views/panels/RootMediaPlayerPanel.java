@@ -154,11 +154,12 @@ public class RootMediaPlayerPanel extends BasePanelView implements OnBackPressed
 
     @Override
     public void onPanelStateChanged(int i) {
-        // Never call nav.hidePanel()/collapsePanel() here — those call setSlidingUpPanel()
-        // and steal the active sliding panel, which cancels full-player expand.
-        // Sibling visibility is owned by PanelStateListener + isHidden flags.
+        // Never call nav.hidePanel()/collapsePanel() — those call setSlidingUpPanel()
+        // and steal the active sliding panel (breaks expand).
+        // Only mutate isHidden + setPanelState + requestLayout.
         boolean miniVisible = (i == MultiSlidingUpPanelLayout.COLLAPSED) && !isUserHidden();
         boolean fullVisible = (i == MultiSlidingUpPanelLayout.EXPANDED);
+        boolean playerHidden = (i == MultiSlidingUpPanelLayout.HIDDEN) || isUserHidden();
 
         RootNavigationBarPanel nav = null;
         try {
@@ -168,9 +169,31 @@ public class RootMediaPlayerPanel extends BasePanelView implements OnBackPressed
             }
         } catch (Exception ignored) {
         }
-        if (nav != null) {
-            // Content / drawer bottom inset only (no panel state changes)
-            nav.updatePaddingWhenWhenBarChanged(miniVisible && !fullVisible);
+        if (nav == null) return;
+
+        if (fullVisible) {
+            // Full player: remove nav from height stack so player is truly full-screen
+            nav.isHidden = true;
+            if (nav.getPanelState() != MultiSlidingUpPanelLayout.HIDDEN) {
+                nav.setPanelState(MultiSlidingUpPanelLayout.HIDDEN);
+            }
+            nav.updatePaddingWhenWhenBarChanged(false);
+        } else {
+            // Mini or idle: nav must be visible and counted in media collapsed height
+            // so the mini bar sits *above* the bottom nav (not under it).
+            nav.isHidden = false;
+            if (nav.getPanelState() != MultiSlidingUpPanelLayout.COLLAPSED) {
+                nav.setPanelState(MultiSlidingUpPanelLayout.COLLAPSED);
+            }
+            try {
+                resetPanelRealHeight();
+                nav.resetPanelRealHeight();
+            } catch (Exception ignored) {
+            }
+            nav.updatePaddingWhenWhenBarChanged(miniVisible);
+        }
+        if (getMultiSlidingUpPanel() != null) {
+            getMultiSlidingUpPanel().requestLayout();
         }
     }
 

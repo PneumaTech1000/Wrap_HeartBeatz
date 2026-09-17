@@ -186,6 +186,19 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
 
         drawerLayout = view.findViewById(R.id.drawer_layout);
         navView = view.findViewById(R.id.nav_view);
+        // Drawer must draw above bottom nav + mini player when open
+        View drawerContainer = view.findViewById(R.id.nav_drawer_container);
+        if (drawerContainer != null) {
+            drawerContainer.setElevation(24f * getResources().getDisplayMetrics().density);
+            drawerContainer.setTranslationZ(24f * getResources().getDisplayMetrics().density);
+        }
+        drawerLayout.addDrawerListener(new DrawerLayout.SimpleDrawerListener() {
+            @Override
+            public void onDrawerOpened(View drawerView) {
+                drawerView.setElevation(24f * getResources().getDisplayMetrics().density);
+                drawerView.setTranslationZ(24f * getResources().getDisplayMetrics().density);
+            }
+        });
         navDrawerScrollContent = view.findViewById(R.id.nav_drawer_scroll_content);
 
         authButtonsContainer = view.findViewById(R.id.auth_buttons_container);
