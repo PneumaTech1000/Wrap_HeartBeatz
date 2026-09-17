@@ -37,7 +37,7 @@ public abstract class BasePanelView extends FrameLayout implements IPanel<View> 
 
     protected float mSlope;
 
-    protected boolean isHidden = false;
+    public boolean isHidden = false;
     protected boolean isUserHideModeEnabled = false;
 
     public BasePanelView(@NonNull Context context, MultiSlidingUpPanelLayout panelLayout) {
