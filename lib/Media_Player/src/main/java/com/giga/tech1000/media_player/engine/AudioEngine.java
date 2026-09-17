@@ -1,127 +1,117 @@
 package com.giga.tech1000.media_player.engine;
 
 import android.content.Context;
-import android.media.audiofx.BassBoost;
-import android.media.audiofx.Equalizer;
-import android.media.audiofx.LoudnessEnhancer;
-import android.media.audiofx.Virtualizer;
-import android.media.audiofx.EnvironmentalReverb;
-import android.os.Build;
 
 import com.giga.tech1000.soundengine.SoundEngine;
 import com.giga.tech1000.soundengine.SoundEngineHolder;
 
+/**
+ * UI-facing audio effect controller.
+ * All processing is delegated to the native {@link SoundEngine} (DSPark) via
+ * {@link DspAudioProcessor} in the Media3 pipeline. No Android {@code audiofx} APIs.
+ */
 public final class AudioEngine {
 
-    private Equalizer equalizer;
-    private BassBoost bassBoost;
-    private Virtualizer virtualizer;
-    private LoudnessEnhancer loudnessEnhancer;
-    private EnvironmentalReverb reverb;
+    private static final int NUM_BANDS = 10;
+    /** Standard 10-band center frequencies (Hz), matching Sound_Engine defaults. */
+    private static final float[] CENTER_FREQS_HZ = {
+            31f, 62f, 125f, 250f, 500f, 1000f, 2000f, 4000f, 8000f, 16000f
+    };
+    private static final float DEFAULT_Q = 0.707f;
+    /** Band level range in millibels (compatible with old audiofx-style API). */
+    private static final short MIN_BAND_MB = -1500;
+    private static final short MAX_BAND_MB = 1500;
 
     private final Context context;
 
-    // Advanced effects (implemented via DSP engine)
+    private boolean equalizerEnabled;
+    private final short[] bandLevelsMb = new short[NUM_BANDS];
+    private final boolean[] bandEnabled = new boolean[NUM_BANDS];
+
+    private boolean bassEnabled;
+    private int bassStrength; // 0–1000 (legacy scale)
+
+    private boolean virtualizerEnabled;
+    private int virtualizerStrength; // 0–1000
+
+    private boolean loudnessEnabled;
+    private int loudnessGainMb;
+
+    private boolean reverbEnabled;
+    private int reverbRoomLevel;
+    private int reverbDecayTime;
+
     private boolean stereoWideningEnabled;
-    private float stereoWideningWidth; // 0.0 to 1.0
+    private float stereoWideningWidth;
     private boolean exciterEnabled;
-    private float exciterAmount; // 0.0 to 1.0
-    private float exciterFrequency; // Hz
+    private float exciterAmount;
+    private float exciterFrequency;
     private boolean compressorEnabled;
-    private float compressorThreshold; // dB
-    private float compressorRatio; // 1.0 to inf
-    private float compressorAttack; // ms
-    private float compressorRelease; // ms
+    private float compressorThreshold;
+    private float compressorRatio;
+    private float compressorAttack;
+    private float compressorRelease;
     private boolean limiterEnabled;
-    private float limiterThreshold; // dB
+    private float limiterThreshold;
     private boolean noiseGateEnabled;
-    private float noiseGateThreshold; // dB
-    private float noiseGateHysteresis; // dB
-    private float noiseGateAttack; // ms
-    private float noiseGateHold; // ms
-    private float noiseGateRelease; // ms
-    private float noiseGateRange; // dB
+    private float noiseGateThreshold;
+    private float noiseGateHysteresis;
+    private float noiseGateAttack;
+    private float noiseGateHold;
+    private float noiseGateRelease;
+    private float noiseGateRange;
     private boolean noiseGateDuckMode;
     private boolean deEsserEnabled;
-    private float deEsserThreshold; // dB
-    private float deEsserFrequency; // Hz
+    private float deEsserThreshold;
+    private float deEsserFrequency;
 
-    // FFT/Spectrum Analysis
-
-
+    /**
+     * @param sessionId retained for call-site compatibility; unused (DSP is not session-bound).
+     */
     public AudioEngine(int sessionId, Context context) {
-        this.context = context.getApplicationContext();
+        this.context = context != null ? context.getApplicationContext() : null;
 
-        try {
-            equalizer = new Equalizer(0, sessionId);
-            equalizer.setEnabled(false);
-        } catch (IllegalArgumentException e) {
-            // Handle invalid session ID
-            equalizer = null;
+        equalizerEnabled = false;
+        for (int i = 0; i < NUM_BANDS; i++) {
+            bandLevelsMb[i] = 0;
+            bandEnabled[i] = false;
         }
 
-        try {
-            bassBoost = new BassBoost(0, sessionId);
-            bassBoost.setEnabled(false);
-        } catch (IllegalArgumentException e) {
-            // Handle invalid session ID
-            bassBoost = null;
-        }
+        bassEnabled = false;
+        bassStrength = 0;
+        virtualizerEnabled = false;
+        virtualizerStrength = 0;
+        loudnessEnabled = false;
+        loudnessGainMb = 0;
+        reverbEnabled = false;
+        reverbRoomLevel = 0;
+        reverbDecayTime = 1000;
 
-        try {
-            virtualizer = new Virtualizer(0, sessionId);
-            virtualizer.setEnabled(false);
-        } catch (IllegalArgumentException e) {
-            // Handle invalid session ID
-            virtualizer = null;
-        }
-
-        // Initialize EnvironmentalReverb if available (API 9+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD) {
-            try {
-                reverb = new EnvironmentalReverb(0, sessionId);
-                reverb.setEnabled(false);
-            } catch (IllegalArgumentException e) {
-                // Handle invalid session ID or missing feature
-                reverb = null;
-            }
-        } else {
-            reverb = null;
-        }
-
-        try {
-            loudnessEnhancer = new LoudnessEnhancer(sessionId);
-            loudnessEnhancer.setEnabled(false);
-        } catch (IllegalArgumentException e) {
-            // Handle invalid session ID
-            loudnessEnhancer = null;
-        }
-
-        // Initialize advanced effects with default values
         stereoWideningEnabled = false;
         stereoWideningWidth = 0.5f;
         exciterEnabled = false;
         exciterAmount = 0.0f;
-        exciterFrequency = 2000.0f; // 2kHz
+        exciterFrequency = 2000.0f;
         compressorEnabled = false;
-        compressorThreshold = -20.0f; // dB
+        compressorThreshold = -20.0f;
         compressorRatio = 4.0f;
-        compressorAttack = 10.0f; // ms
-        compressorRelease = 100.0f; // ms
+        compressorAttack = 10.0f;
+        compressorRelease = 100.0f;
         limiterEnabled = false;
-        limiterThreshold = -3.0f; // dB
+        limiterThreshold = -3.0f;
         noiseGateEnabled = false;
-        noiseGateThreshold = -60.0f; // dB
+        noiseGateThreshold = -60.0f;
+        noiseGateHysteresis = 6.0f;
+        noiseGateAttack = 1.0f;
+        noiseGateHold = 20.0f;
+        noiseGateRelease = 100.0f;
+        noiseGateRange = -80.0f;
+        noiseGateDuckMode = false;
         deEsserEnabled = false;
-        deEsserThreshold = -20.0f; // dB
-        deEsserFrequency = 5000.0f; // 5kHz
-
+        deEsserThreshold = -20.0f;
+        deEsserFrequency = 5000.0f;
     }
 
-    /**
-     * Gets the DSP engine instance from the holder.
-     * @return the DSP engine, or null if context is not available.
-     */
     private SoundEngine getDspEngine() {
         if (context == null) {
             return null;
@@ -129,250 +119,49 @@ public final class AudioEngine {
         return SoundEngineHolder.getInstance(48000, 4096, 2);
     }
 
-    // Helper to apply effect to both Android audiofx (if applicable) and DSP engine
-    private void setStereoWideningEnabledInternal(boolean enabled) {
-        this.stereoWideningEnabled = enabled;
+    private static float mbToDb(short millibels) {
+        return millibels / 100.0f;
+    }
+
+    private static short clampBandMb(short millibels) {
+        if (millibels < MIN_BAND_MB) return MIN_BAND_MB;
+        if (millibels > MAX_BAND_MB) return MAX_BAND_MB;
+        return millibels;
+    }
+
+    private void applyEqBandToDsp(int band) {
         SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setStereoWideningEnabled(enabled);
+        if (dsp == null || band < 0 || band >= NUM_BANDS) return;
+        boolean on = equalizerEnabled && bandEnabled[band];
+        dsp.setEqualizerBand(band, CENTER_FREQS_HZ[band], mbToDb(bandLevelsMb[band]), DEFAULT_Q, on);
+    }
+
+    private void applyAllEqBandsToDsp() {
+        SoundEngine dsp = getDspEngine();
+        if (dsp == null) return;
+        dsp.setEqualizerEnabled(equalizerEnabled);
+        for (int i = 0; i < NUM_BANDS; i++) {
+            boolean on = equalizerEnabled && bandEnabled[i];
+            dsp.setEqualizerBand(i, CENTER_FREQS_HZ[i], mbToDb(bandLevelsMb[i]), DEFAULT_Q, on);
         }
     }
 
-    private void setStereoWideningWidthInternal(float width) {
-        this.stereoWideningWidth = width;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setStereoWideningWidth(width);
-        }
-    }
-
-    private void setExciterEnabledInternal(boolean enabled) {
-        this.exciterEnabled = enabled;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setExciterEnabled(enabled);
-        }
-    }
-
-    private void setExciterAmountInternal(float amount) {
-        this.exciterAmount = amount;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setExciterAmount(amount);
-        }
-    }
-
-    private void setExciterFrequencyInternal(float frequency) {
-        this.exciterFrequency = frequency;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setExciterFrequency(frequency);
-        }
-    }
-
-    private void setCompressorEnabledInternal(boolean enabled) {
-        this.compressorEnabled = enabled;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setCompressorEnabled(enabled);
-        }
-    }
-
-    private void setCompressorThresholdInternal(float threshold) {
-        this.compressorThreshold = threshold;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setCompressorThreshold(threshold);
-        }
-    }
-
-    private void setCompressorRatioInternal(float ratio) {
-        this.compressorRatio = ratio;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setCompressorRatio(ratio);
-        }
-    }
-
-    private void setCompressorAttackInternal(float attack) {
-        this.compressorAttack = attack;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setCompressorAttack(attack);
-        }
-    }
-
-    private void setCompressorReleaseInternal(float release) {
-        this.compressorRelease = release;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setCompressorRelease(release);
-        }
-    }
-
-    private void setLimiterEnabledInternal(boolean enabled) {
-        this.limiterEnabled = enabled;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setLimiterEnabled(enabled);
-        }
-    }
-
-    private void setLimiterThresholdInternal(float threshold) {
-        this.limiterThreshold = threshold;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setLimiterThreshold(threshold);
-        }
-    }
-
-    private void setLimiterReleaseInternal(float release) {
-        // Note: we don't have a release parameter in the limiter? Actually we do in DSP.
-        // But we don't have a liveData for limiter release in ViewModel; we have only threshold.
-        // We'll ignore for now, or we could add later.
-    }
-
-    private void setNoiseGateEnabledInternal(boolean enabled) {
-        this.noiseGateEnabled = enabled;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setNoiseGateEnabled(enabled);
-        }
-    }
-
-    private void setNoiseGateThresholdInternal(float threshold) {
-        this.noiseGateThreshold = threshold;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setNoiseGateThreshold(threshold);
-        }
-    }
-
-    private void setNoiseGateHysteresisInternal(float hysteresis) {
-        this.noiseGateHysteresis = hysteresis;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setNoiseGateHysteresis(hysteresis);
-        }
-    }
-
-    private void setNoiseGateAttackInternal(float attack) {
-        this.noiseGateAttack = attack;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setNoiseGateAttack(attack);
-        }
-    }
-
-    private void setNoiseGateHoldInternal(float hold) {
-        this.noiseGateHold = hold;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setNoiseGateHold(hold);
-        }
-    }
-
-    private void setNoiseGateReleaseInternal(float release) {
-        this.noiseGateRelease = release;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setNoiseGateRelease(release);
-        }
-    }
-
-    private void setNoiseGateRangeInternal(float range) {
-        this.noiseGateRange = range;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setNoiseGateRange(range);
-        }
-    }
-
-    private void setNoiseGateDuckModeInternal(boolean duckMode) {
-        this.noiseGateDuckMode = duckMode;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setNoiseGateDuckMode(duckMode);
-        }
-    }
-
-    private void setDeEsserEnabledInternal(boolean enabled) {
-        this.deEsserEnabled = enabled;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setDeEsserEnabled(enabled);
-        }
-    }
-
-    private void setDeEsserThresholdInternal(float threshold) {
-        this.deEsserThreshold = threshold;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setDeEsserThreshold(threshold);
-        }
-    }
-
-    private void setDeEsserFrequencyInternal(float frequency) {
-        this.deEsserFrequency = frequency;
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setDeEsserFrequency(frequency);
-        }
-    }
-
-    // ========= FFT/Spectrum Analysis =========
-    private boolean isSpectrumDataReadyInternal() {
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            return dsp.isSpectrumDataReady();
-        }
-        return false;
-    }
-
-    private int getSpectrumNumBinsInternal() {
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            return dsp.getSpectrumNumBins();
-        }
-        return 0;
-    }
-
-    private float getSpectrumBinFrequencyInternal(int binIndex) {
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            return dsp.getSpectrumBinFrequency(binIndex);
-        }
-        return 0.0f;
-    }
-
-    private void getSpectrumMagnitudesInternal(float[] magnitudeArray) {
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.getSpectrumMagnitudes(magnitudeArray);
-        }
-    }
-
-    private void getSpectrumPeakHoldInternal(float[] peakHoldArray) {
-        SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.getSpectrumPeakHold(peakHoldArray);
-        }
-    }
+    // --- Enable queries ---
 
     public boolean isBassEnabled() {
-        return bassBoost.getEnabled();
+        return bassEnabled;
     }
 
     public boolean isVirtualizerEnabled() {
-        return virtualizer.getEnabled();
+        return virtualizerEnabled;
     }
 
     public boolean isEqualizerEnabled() {
-        return equalizer.getEnabled();
+        return equalizerEnabled;
     }
 
     public boolean isReverbEnabled() {
-        return reverb != null && reverb.getEnabled();
+        return reverbEnabled;
     }
 
     public boolean isStereoWideningEnabled() {
@@ -399,53 +188,47 @@ public final class AudioEngine {
         return deEsserEnabled;
     }
 
-    // ========= Equalizer =========
+    // ========= Equalizer (fixed-band API → parametric DSP) =========
+
     public void setEqualizerBandLevel(short band, short millibels) {
-        if (equalizer == null) return;
-
-        try {
-            short min = equalizer.getBandLevelRange()[0];
-            short max = equalizer.getBandLevelRange()[1];
-
-            millibels = (short) Math.max(min, Math.min(max, millibels));
-            equalizer.setBandLevel(band, millibels);
-        } catch (IllegalArgumentException e) {
-            // Handle invalid band index
-        }
+        if (band < 0 || band >= NUM_BANDS) return;
+        bandLevelsMb[band] = clampBandMb(millibels);
+        bandEnabled[band] = true;
+        applyEqBandToDsp(band);
     }
 
     public short getNumberOfBands() {
-        return equalizer.getNumberOfBands();
+        return NUM_BANDS;
     }
 
     public short getMinBandLevelRange() {
-        return equalizer.getBandLevelRange()[0];
+        return MIN_BAND_MB;
     }
 
     public short getMaxBandLevelRange() {
-        return equalizer.getBandLevelRange()[1];
+        return MAX_BAND_MB;
     }
 
+    /** Center frequency in millihertz (mHz), matching old audiofx {@code getCenterFreq} units. */
     public int getEqualizerCenterFreq(short band) {
-        return equalizer.getCenterFreq(band);
+        if (band < 0 || band >= NUM_BANDS) return 0;
+        return Math.round(CENTER_FREQS_HZ[band] * 1000f);
     }
 
     public void enableEqualizer(boolean enable) {
-        if (equalizer == null) return;
-
-        try {
-            equalizer.setEnabled(enable);
-        } catch (IllegalArgumentException e) {
-            // Handle if equalizer is not available
-        }
+        equalizerEnabled = enable;
+        applyAllEqBandsToDsp();
     }
 
     public void setParametricEqualizerBand(
             int band, float frequencyHz, float gainDb, float qFactor, boolean enabled) {
         SoundEngine dsp = getDspEngine();
-        if (dsp != null) {
-            dsp.setEqualizerBand(band, frequencyHz, gainDb, qFactor, enabled);
+        if (dsp == null) return;
+        if (band >= 0 && band < NUM_BANDS) {
+            bandLevelsMb[band] = clampBandMb((short) Math.round(gainDb * 100f));
+            bandEnabled[band] = enabled;
         }
+        dsp.setEqualizerBand(band, frequencyHz, gainDb, qFactor, enabled && equalizerEnabled);
     }
 
     public boolean isSpectrumDataReady() {
@@ -472,154 +255,258 @@ public final class AudioEngine {
         }
     }
 
-    // ========= Bass =========
-    public void setBassBoost(int strengthPercent) {
-        if (bassBoost == null) return;
+    // ========= Bass → low EQ bands on DSP =========
 
-        try {
-            bassBoost.setStrength((short) Math.min(1000, strengthPercent * 10));
-        } catch (IllegalArgumentException e) {
-            // Handle invalid strength value
+    public void setBassBoost(int strengthPercent) {
+        bassStrength = Math.max(0, Math.min(1000, strengthPercent));
+        if (bassEnabled) {
+            applyBassToDsp();
         }
     }
 
     public void enableBass(boolean enable) {
-        if (bassBoost == null) return;
-
-        try {
-            bassBoost.setEnabled(enable);
-        } catch (IllegalArgumentException e) {
-            // Handle if bass boost is not available
-        }
+        bassEnabled = enable;
+        applyBassToDsp();
     }
 
-    // ========= Virtualizer (legacy) =========
+    private void applyBassToDsp() {
+        SoundEngine dsp = getDspEngine();
+        if (dsp == null) return;
+        // Map 0–1000 strength → 0–12 dB on 31 Hz and 62 Hz bands
+        float gainDb = bassEnabled ? (bassStrength / 1000f) * 12f : 0f;
+        boolean on = bassEnabled && gainDb != 0f;
+        dsp.setEqualizerBand(0, CENTER_FREQS_HZ[0], gainDb, DEFAULT_Q, on);
+        dsp.setEqualizerBand(1, CENTER_FREQS_HZ[1], gainDb * 0.75f, DEFAULT_Q, on);
+        if (equalizerEnabled) {
+            // Re-apply user EQ on those bands if EQ is on (bass stacks as override when enabled)
+            if (!bassEnabled) {
+                applyEqBandToDsp(0);
+                applyEqBandToDsp(1);
+            }
+        }
+        dsp.setEqualizerEnabled(equalizerEnabled || bassEnabled);
+    }
+
+    // ========= Virtualizer → stereo widening on DSP =========
+
     public void setVirtualizer(int strengthPercent) {
-        virtualizer.setStrength((short) Math.min(1000, strengthPercent * 10));
+        virtualizerStrength = Math.max(0, Math.min(1000, strengthPercent));
+        float width = virtualizerStrength / 1000f;
+        stereoWideningWidth = width;
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setStereoWideningWidth(width);
+        }
     }
 
     public void enableVirtualizer(boolean enable) {
-        virtualizer.setEnabled(enable);
-    }
-
-    // ========= Loudness Enhancer =========
-    public void setLoudnessGain(int gainMb) {
-        loudnessEnhancer.setTargetGain(gainMb);
-    }
-
-    public void enableLoudness(boolean enable) {
-        loudnessEnhancer.setEnabled(enable);
-    }
-
-    // ========= Reverb =========
-    public void setReverbEnabled(boolean enable) {
-        if (reverb != null) {
-            reverb.setEnabled(enable);
-        }
-    }
-
-    public void setReverbProperties(int roomLevel, int decayTime) {
-        if (reverb != null) {
-            // These are simplified - in practice you'd use EnvironmentalReverb.Settings
-            try {
-                reverb.setRoomLevel((short) roomLevel);
-                reverb.setDecayTime((short) decayTime);
-            } catch (IllegalArgumentException e) {
-                // Invalid settings
+        virtualizerEnabled = enable;
+        stereoWideningEnabled = enable;
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setStereoWideningEnabled(enable);
+            if (enable) {
+                dsp.setStereoWideningWidth(virtualizerStrength / 1000f);
             }
         }
     }
 
-    // ========= Stereo Widening =========
-    public void setStereoWideningEnabled(boolean enabled) {
-        setStereoWideningEnabledInternal(enabled);
-    }
+    // ========= Loudness → mild broadband EQ lift on DSP =========
 
-    public void setStereoWideningWidth(float width) {
-        float clampedWidth = Math.max(0.0f, Math.min(1.0f, width));
-        setStereoWideningWidthInternal(clampedWidth);
-    }
-
-    // ========= Exciter =========
-    public void setExciterEnabled(boolean enabled) {
-        setExciterEnabledInternal(enabled);
-    }
-
-    public void setExciterAmount(float amount) {
-        float clampedAmount = Math.max(0.0f, Math.min(1.0f, amount));
-        setExciterAmountInternal(clampedAmount);
-    }
-
-    public void setExciterFrequency(float frequency) {
-        float clampedFrequency = Math.max(20.0f, Math.min(20000.0f, frequency));
-        setExciterFrequencyInternal(clampedFrequency);
-    }
-
-    // ========= Compressor =========
-    public void setCompressorEnabled(boolean enabled) {
-        setCompressorEnabledInternal(enabled);
-    }
-
-    public void setCompressorThreshold(float threshold) {
-        setCompressorThresholdInternal(threshold);
-    }
-
-    public void setCompressorRatio(float ratio) {
-        float clampedRatio = Math.max(1.0f, ratio);
-        setCompressorRatioInternal(clampedRatio);
-    }
-
-    public void setCompressorAttack(float attack) {
-        float clampedAttack = Math.max(0.0f, attack);
-        setCompressorAttackInternal(clampedAttack);
-    }
-
-    public void setCompressorRelease(float release) {
-        float clampedRelease = Math.max(0.0f, release);
-        setCompressorReleaseInternal(clampedRelease);
-    }
-
-    // ========= Limiter =========
-    public void setLimiterEnabled(boolean enabled) {
-        setLimiterEnabledInternal(enabled);
-    }
-
-    public void setLimiterThreshold(float threshold) {
-        setLimiterThresholdInternal(threshold);
-    }
-
-    // ========= Noise Gate =========
-    public void setNoiseGateEnabled(boolean enabled) {
-        setNoiseGateEnabledInternal(enabled);
-    }
-
-    public void setNoiseGateThreshold(float threshold) {
-        setNoiseGateThresholdInternal(threshold);
-    }
-
-    // ========= De-esser =========
-    public void setDeEsserEnabled(boolean enabled) {
-        setDeEsserEnabledInternal(enabled);
-    }
-
-    public void setDeEsserThreshold(float threshold) {
-        setDeEsserThresholdInternal(threshold);
-    }
-
-    public void setDeEsserFrequency(float frequency) {
-        float clampedFrequency = Math.max(2000.0f, Math.min(20000.0f, frequency));
-        setDeEsserFrequencyInternal(clampedFrequency);
-    }
-
-    // ========= Cleanup =========
-    public void release() {
-        if (equalizer != null) equalizer.release();
-        if (bassBoost != null) bassBoost.release();
-        if (virtualizer != null) virtualizer.release();
-        if (loudnessEnhancer != null) loudnessEnhancer.release();
-        if (reverb != null) {
-            reverb.release();
+    public void setLoudnessGain(int gainMb) {
+        loudnessGainMb = gainMb;
+        if (loudnessEnabled) {
+            applyLoudnessToDsp();
         }
     }
 
+    public void enableLoudness(boolean enable) {
+        loudnessEnabled = enable;
+        applyLoudnessToDsp();
+    }
+
+    private void applyLoudnessToDsp() {
+        SoundEngine dsp = getDspEngine();
+        if (dsp == null) return;
+        // Approximate loudness enhancer with a gentle presence lift (500 Hz–4 kHz)
+        float gainDb = loudnessEnabled ? Math.max(-6f, Math.min(12f, loudnessGainMb / 100f)) : 0f;
+        boolean on = loudnessEnabled && Math.abs(gainDb) > 0.01f;
+        for (int band = 3; band <= 7; band++) {
+            if (equalizerEnabled && bandEnabled[band]) {
+                continue; // respect explicit EQ bands
+            }
+            dsp.setEqualizerBand(band, CENTER_FREQS_HZ[band], gainDb, 0.5f, on);
+        }
+        if (on) {
+            dsp.setEqualizerEnabled(true);
+        } else if (equalizerEnabled) {
+            applyAllEqBandsToDsp();
+        }
+    }
+
+    // ========= Reverb (no native reverb yet — state only for UI/presets) =========
+
+    public void setReverbEnabled(boolean enable) {
+        reverbEnabled = enable;
+        // Sound_Engine has no reverb module yet; state kept for preset/UI compatibility.
+    }
+
+    public void setReverbProperties(int roomLevel, int decayTime) {
+        reverbRoomLevel = roomLevel;
+        reverbDecayTime = decayTime;
+    }
+
+    // ========= Stereo Widening =========
+
+    public void setStereoWideningEnabled(boolean enabled) {
+        stereoWideningEnabled = enabled;
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setStereoWideningEnabled(enabled);
+        }
+    }
+
+    public void setStereoWideningWidth(float width) {
+        stereoWideningWidth = Math.max(0.0f, Math.min(1.0f, width));
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setStereoWideningWidth(stereoWideningWidth);
+        }
+    }
+
+    // ========= Exciter =========
+
+    public void setExciterEnabled(boolean enabled) {
+        exciterEnabled = enabled;
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setExciterEnabled(enabled);
+        }
+    }
+
+    public void setExciterAmount(float amount) {
+        exciterAmount = Math.max(0.0f, Math.min(1.0f, amount));
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setExciterAmount(exciterAmount);
+        }
+    }
+
+    public void setExciterFrequency(float frequency) {
+        exciterFrequency = Math.max(20.0f, Math.min(20000.0f, frequency));
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setExciterFrequency(exciterFrequency);
+        }
+    }
+
+    // ========= Compressor =========
+
+    public void setCompressorEnabled(boolean enabled) {
+        compressorEnabled = enabled;
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setCompressorEnabled(enabled);
+        }
+    }
+
+    public void setCompressorThreshold(float threshold) {
+        compressorThreshold = threshold;
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setCompressorThreshold(threshold);
+        }
+    }
+
+    public void setCompressorRatio(float ratio) {
+        compressorRatio = Math.max(1.0f, ratio);
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setCompressorRatio(compressorRatio);
+        }
+    }
+
+    public void setCompressorAttack(float attack) {
+        compressorAttack = Math.max(0.0f, attack);
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setCompressorAttack(compressorAttack);
+        }
+    }
+
+    public void setCompressorRelease(float release) {
+        compressorRelease = Math.max(0.0f, release);
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setCompressorRelease(compressorRelease);
+        }
+    }
+
+    // ========= Limiter =========
+
+    public void setLimiterEnabled(boolean enabled) {
+        limiterEnabled = enabled;
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setLimiterEnabled(enabled);
+        }
+    }
+
+    public void setLimiterThreshold(float threshold) {
+        limiterThreshold = threshold;
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setLimiterThreshold(threshold);
+        }
+    }
+
+    // ========= Noise Gate =========
+
+    public void setNoiseGateEnabled(boolean enabled) {
+        noiseGateEnabled = enabled;
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setNoiseGateEnabled(enabled);
+        }
+    }
+
+    public void setNoiseGateThreshold(float threshold) {
+        noiseGateThreshold = threshold;
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setNoiseGateThreshold(threshold);
+        }
+    }
+
+    // ========= De-esser =========
+
+    public void setDeEsserEnabled(boolean enabled) {
+        deEsserEnabled = enabled;
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setDeEsserEnabled(enabled);
+        }
+    }
+
+    public void setDeEsserThreshold(float threshold) {
+        deEsserThreshold = threshold;
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setDeEsserThreshold(threshold);
+        }
+    }
+
+    public void setDeEsserFrequency(float frequency) {
+        deEsserFrequency = Math.max(2000.0f, Math.min(20000.0f, frequency));
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setDeEsserFrequency(deEsserFrequency);
+        }
+    }
+
+    // ========= Cleanup =========
+
+    public void release() {
+        // Native engine is shared via SoundEngineHolder / DspAudioProcessor; do not destroy here.
+    }
 }

@@ -1,3 +1,5 @@
+> **Note (2026-09-17):** For current engineering status and resolved issues, see **PROJECT_AUDIT.md**. Playback is Media3-only; DSP uses Sound_Engine only (no Android audiofx). Shared playback state: `UIThread.getPlaybackStateRepository()`.
+
 # HeartBeatz - Social Music Player Application
 
 ## Overview

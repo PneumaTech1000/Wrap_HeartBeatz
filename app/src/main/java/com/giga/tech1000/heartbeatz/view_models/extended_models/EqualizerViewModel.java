@@ -13,9 +13,7 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.media3.common.util.UnstableApi;
 
-import com.giga.tech1000.heartbeatz.architecture.PlaybackStateManager;
 import com.giga.tech1000.heartbeatz.architecture.repositories.PlaybackStateRepository;
-import com.giga.tech1000.heartbeatz.ui.MediaPlayerThread;
 import com.giga.tech1000.heartbeatz.ui.UIThread;
 import com.giga.tech1000.media_player.engine.AudioEngine;
 import com.giga.tech1000.media_player.utils.enums.EqPreset;
@@ -91,8 +89,7 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
 
     public EqualizerViewModel(@NonNull Application application) {
         super(application);
-        MediaPlayerThread playerThread = UIThread.getInstance().getMediaPlayerThread();
-        this.playbackState = new PlaybackStateManager(playerThread);
+        this.playbackState = UIThread.getInstance().getPlaybackStateRepository();
         this.presetManager = new PresetManager(application);
         // Initialize with default parametric bands
         initializeParametricBands();
@@ -1058,9 +1055,7 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
         super.onCleared();
         // Save state before clearing
         saveStateToSharedPreferences();
-        if (playbackState instanceof PlaybackStateManager) {
-            ((PlaybackStateManager) playbackState).release();
-        }
+        // Do not release shared PlaybackStateRepository — owned by UIThread for app lifetime
     }
 
 }

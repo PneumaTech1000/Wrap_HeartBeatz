@@ -3,7 +3,7 @@ package com.giga.tech1000.heartbeatz.views.panels;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.net.nsd.NsdServiceInfo;
-import android.support.v4.media.session.PlaybackStateCompat;
+import androidx.media3.session.legacy.PlaybackStateCompat;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -12,6 +12,7 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import androidx.media3.common.util.UnstableApi;
 
@@ -61,14 +62,17 @@ public class RootMediaPlayerPanel extends BasePanelView implements OnBackPressed
 
     @Override
     public void onCreateView() {
-        // The panel will be hidden on start of application
-        this.setPanelState(MultiSlidingUpPanelLayout.HIDDEN);
+        // Allow this panel to fully leave the stack so the bottom nav sits flush
+        this.setUserHiddenMode(true);
 
         // The panel will slide up and down
         this.setSlideDirection(MultiSlidingUpPanelLayout.SLIDE_VERTICAL);
 
         // Sets the panels peak height
         this.setPeakHeight(getResources().getDimensionPixelSize(R.dimen.media_player_bar_height));
+
+        // Must use hidePanel() so isUserHidden=true and nav does not reserve mini-player height
+        this.hidePanel();
     }
 
     @Override
@@ -207,11 +211,40 @@ public class RootMediaPlayerPanel extends BasePanelView implements OnBackPressed
     public void onSongChanged(Song song) {
         this.currentSong = song;
         post(() -> {
-            if (mediaPlayerBarView != null && mediaPlayerView != null && currentSong != null) {
+            if (song == null) {
+                hideMiniPlayer();
+                return;
+            }
+            if (mediaPlayerBarView != null && mediaPlayerView != null) {
                 mediaPlayerBarView.onSongChanged(currentSong);
                 mediaPlayerView.onSongChanged(currentSong);
             }
+            // Ensure mini player is in the stack when a song is active
+            showMiniPlayerCollapsed();
         });
+    }
+
+    /**
+     * Shows the mini player at collapsed peak height (above the bottom navigation).
+     */
+    public void showMiniPlayerCollapsed() {
+        if (isUserHidden() || getPanelState() == MultiSlidingUpPanelLayout.HIDDEN) {
+            collapsePanel();
+        }
+    }
+
+    /**
+     * Fully removes the mini player from the panel stack so the bottom nav is flush.
+     */
+    public void hideMiniPlayer() {
+        if (!isUserHidden() || getPanelState() != MultiSlidingUpPanelLayout.HIDDEN) {
+            hidePanel();
+        }
+    }
+
+    @Nullable
+    public Song getCurrentSong() {
+        return currentSong;
     }
 
     public void setPartyClientMode(boolean enabled) {

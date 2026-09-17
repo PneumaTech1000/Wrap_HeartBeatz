@@ -21,6 +21,7 @@ import com.google.firebase.auth.AuthCredential;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.GoogleAuthProvider;
+import com.google.firebase.auth.UserProfileChangeRequest;
 
 import androidx.credentials.Credential;
 import androidx.credentials.CredentialManager;
@@ -57,8 +58,20 @@ public class SignUpActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        androidx.activity.EdgeToEdge.enable(this);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_sign_up);
+
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(
+                findViewById(android.R.id.content),
+                (v, insets) -> {
+                    androidx.core.graphics.Insets bars =
+                            insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars());
+                    androidx.core.graphics.Insets ime =
+                            insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime());
+                    v.setPadding(bars.left, bars.top, bars.right, Math.max(bars.bottom, ime.bottom));
+                    return androidx.core.view.WindowInsetsCompat.CONSUMED;
+                });
 
         // Initialize Firebase Auth
         mAuth = FirebaseAuth.getInstance();
@@ -99,22 +112,28 @@ public class SignUpActivity extends AppCompatActivity {
         // Sign up button click
         signUpButton.setOnClickListener(v -> {
             if (validateForm()) {
-                // Perform sign-up (email/password)
                 String email = emailInput.getText().toString().trim();
                 String password = passwordInput.getText().toString();
-
+                String displayName = nameInput.getText() != null
+                        ? nameInput.getText().toString().trim() : "";
+                setAuthUiEnabled(false);
                 mAuth.createUserWithEmailAndPassword(email, password)
                         .addOnCompleteListener(this, task -> {
                             if (task.isSuccessful()) {
-                                // Sign in success
                                 FirebaseUser user = mAuth.getCurrentUser();
-                                updateUI(user);
-                                startActivity(new Intent(SignUpActivity.this, MainActivity.class));
-                                finish();
+                                if (user != null && !TextUtils.isEmpty(displayName)) {
+                                    user.updateProfile(new UserProfileChangeRequest.Builder()
+                                                    .setDisplayName(displayName)
+                                                    .build())
+                                            .addOnCompleteListener(profileTask -> finishSignUp(user));
+                                } else {
+                                    finishSignUp(user);
+                                }
                             } else {
-                                // If sign in fails, display a message to the user.
-                                Toast.makeText(SignUpActivity.this, "Authentication failed.",
-                                        Toast.LENGTH_SHORT).show();
+                                String msg = task.getException() != null
+                                        ? task.getException().getLocalizedMessage()
+                                        : "Sign-up failed.";
+                                Toast.makeText(SignUpActivity.this, msg, Toast.LENGTH_LONG).show();
                                 updateUI(null);
                             }
                         });
@@ -243,9 +262,50 @@ public class SignUpActivity extends AppCompatActivity {
                 });
     }
 
+    private void finishSignUp(FirebaseUser user) {
+        updateUI(user);
+        startActivity(new Intent(SignUpActivity.this, MainActivity.class));
+        finish();
+    }
+
+    private void setAuthUiEnabled(boolean enabled) {
+        if (signUpButton != null) {
+            signUpButton.setEnabled(enabled);
+            signUpButton.setText(enabled ? "Sign up" : "Please wait…");
+        }
+        if (googleSignInButton != null) googleSignInButton.setEnabled(enabled);
+        if (loginLink != null) loginLink.setEnabled(enabled);
+        if (nameInput != null) nameInput.setEnabled(enabled);
+        if (emailInput != null) emailInput.setEnabled(enabled);
+        if (passwordInput != null) passwordInput.setEnabled(enabled);
+        if (confirmPasswordInput != null) confirmPasswordInput.setEnabled(enabled);
+    }
+
     private void updateUI(FirebaseUser user) {
-        // TODO: Handle UI updates based on user state
-        // For now, we'll just proceed to MainActivity if user is not null
+        if (user != null) {
+            setAuthUiEnabled(false);
+            if (emailInputLayout != null) emailInputLayout.setError(null);
+            if (passwordInputLayout != null) passwordInputLayout.setError(null);
+            if (confirmPasswordInputLayout != null) confirmPasswordInputLayout.setError(null);
+            String name = user.getDisplayName();
+            if (TextUtils.isEmpty(name)) name = user.getEmail();
+            Toast.makeText(this, "Account created" + (name != null ? ": " + name : ""), Toast.LENGTH_SHORT).show();
+        } else {
+            setAuthUiEnabled(true);
+            if (emailInputLayout != null) {
+                emailInputLayout.setError("Could not create account. Try a different email.");
+            }
+        }
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        FirebaseUser current = mAuth.getCurrentUser();
+        if (current != null) {
+            startActivity(new Intent(this, MainActivity.class));
+            finish();
+        }
     }
 
     @Override

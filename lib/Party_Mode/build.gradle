@@ -39,7 +39,6 @@ dependencies {
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core
 
-    implementation libs.media
     implementation libs.gson
     implementation libs.nanohttpd
     implementation libs.webRTCAndroid

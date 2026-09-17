@@ -220,8 +220,13 @@ public class MultiSlidingUpPanelLayout extends ViewGroup {
         if (mSlidingPanel == null)
             return false;
 
+        if (mSlidingPanel instanceof BasePanelView) {
+            ((BasePanelView) mSlidingPanel).isHidden = false;
+        }
+
         if (isFirstLayout) {
             mSlidingPanel.setPanelState(EXPANDED);
+            requestLayout();
             return true;
         }
 
@@ -238,8 +243,14 @@ public class MultiSlidingUpPanelLayout extends ViewGroup {
         if (mSlidingPanel == null)
             return false;
 
+        // Collapsing means the panel is visible at peak height — clear user-hidden
+        if (mSlidingPanel instanceof BasePanelView) {
+            ((BasePanelView) mSlidingPanel).isHidden = false;
+        }
+
         if (isFirstLayout) {
             mSlidingPanel.setPanelState(COLLAPSED);
+            requestLayout();
             return true;
         }
 
@@ -256,14 +267,23 @@ public class MultiSlidingUpPanelLayout extends ViewGroup {
         if (mSlidingPanel == null)
             return false;
 
+        // Critical: isUserHidden() drives getPrevPanelsHeight() stacking.
+        // Without this flag, higher panels (e.g. bottom nav) still reserve peak height.
+        if (mSlidingPanel instanceof BasePanelView) {
+            ((BasePanelView) mSlidingPanel).isHidden = true;
+        }
+
         if (isFirstLayout) {
             mSlidingPanel.setPanelState(HIDDEN);
+            requestLayout();
             return true;
         }
 
         float offset = this.computeSlidedProgress(mSlidingPanel.getPanelTopByPanelState(HIDDEN));
 
-        return mSlidingPanel.getPanelState() == HIDDEN || isFirstLayout || smoothSlideTo(offset);
+        boolean result = mSlidingPanel.getPanelState() == HIDDEN || isFirstLayout || smoothSlideTo(offset);
+        requestLayout();
+        return result;
     }
 
     public boolean hidePanel(@NonNull IPanel<View> panel) {

@@ -1,4 +1,4 @@
-package com.giga.tech1000.sound_engine;
+package com.giga.tech1000.soundengine;
 
 import android.content.Context;
 

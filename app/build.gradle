@@ -56,7 +56,6 @@ dependencies {
     implementation libs.glide
     implementation libs.core.splashscreen
     implementation libs.palette
-    implementation libs.media
     implementation libs.work.runtime
     implementation libs.work.runtime.ktx
     implementation libs.guava

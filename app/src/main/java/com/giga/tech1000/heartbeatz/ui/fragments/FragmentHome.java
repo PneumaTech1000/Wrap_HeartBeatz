@@ -672,38 +672,49 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
     private void setupEdgeToEdgeInsets(View root) {
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
             Insets statusBars = insets.getInsets(WindowInsetsCompat.Type.statusBars());
+            int statusTop = statusBars.top;
 
-            // Handle Toolbar
             View toolbarWrapper = v.findViewById(R.id.tool_bar_wrapper);
             if (toolbarWrapper != null) {
-                toolbarWrapper.setPadding(toolbarWrapper.getPaddingLeft(), statusBars.top,
-                        toolbarWrapper.getPaddingRight(), toolbarWrapper.getPaddingBottom());
-
-                // Adjust its height to include status bar
+                toolbarWrapper.setPadding(
+                        toolbarWrapper.getPaddingLeft(),
+                        statusTop,
+                        toolbarWrapper.getPaddingRight(),
+                        toolbarWrapper.getPaddingBottom());
                 ViewGroup.LayoutParams params = toolbarWrapper.getLayoutParams();
-                params.height = getResources().getDimensionPixelSize(com.google.android.material.R.dimen.m3_appbar_size_compact) + statusBars.top;
+                params.height = getResources().getDimensionPixelSize(
+                        com.google.android.material.R.dimen.m3_appbar_size_compact) + statusTop;
                 toolbarWrapper.setLayoutParams(params);
             }
 
-            // Handle Drawer Header (if separate) or NavView
             if (navView != null) {
                 View header = navView.getHeaderView(0);
                 if (header != null) {
-                    header.setPadding(header.getPaddingLeft(), statusBars.top,
-                            header.getPaddingRight(), header.getPaddingBottom());
+                    header.setPadding(
+                            header.getPaddingLeft(),
+                            statusTop,
+                            header.getPaddingRight(),
+                            header.getPaddingBottom());
                 }
             }
 
-            // Handle Equalizer Top Padding
-            if (equalizerViewPanel != null && equalizerViewPanel.getView() != null) {
-                View eqHeader = (View) equalizerViewPanel.getView().findViewById(R.id.equalizer_view_close).getParent().getParent();
+            View eqClose = v.findViewById(R.id.equalizer_view_close);
+            if (eqClose != null) {
+                View parent = eqClose.getParent() instanceof View ? (View) eqClose.getParent() : null;
+                View eqHeader = parent != null && parent.getParent() instanceof View
+                        ? (View) parent.getParent() : null;
                 if (eqHeader instanceof AppBarLayout) {
-                    eqHeader.setPadding(eqHeader.getPaddingLeft(), statusBars.top,
-                            eqHeader.getPaddingRight(), eqHeader.getPaddingBottom());
+                    eqHeader.setPadding(
+                            eqHeader.getPaddingLeft(),
+                            statusTop,
+                            eqHeader.getPaddingRight(),
+                            eqHeader.getPaddingBottom());
                 }
             }
 
-            return insets;
+            return new WindowInsetsCompat.Builder(insets)
+                    .setInsets(WindowInsetsCompat.Type.statusBars(), Insets.NONE)
+                    .build();
         });
     }
 

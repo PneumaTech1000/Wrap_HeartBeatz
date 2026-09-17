@@ -6,5 +6,6 @@
 
     <dimen name="pager_bottom_height">32dp</dimen>
 
-    <dimen name="bar_and_navigation_height">138dp</dimen>
+    <!-- Exactly media_player_bar_height + navigation_bar_height (no extra gap) -->
+    <dimen name="bar_and_navigation_height">128dp</dimen>
 </resources>

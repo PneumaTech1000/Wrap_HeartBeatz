@@ -2,13 +2,16 @@ package com.giga.tech1000.heartbeatz;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.InputType;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
+import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.OptIn;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.credentials.Credential;
 import androidx.credentials.CredentialManager;
@@ -52,8 +55,20 @@ public class LoginActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        androidx.activity.EdgeToEdge.enable(this);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
+
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(
+                findViewById(android.R.id.content),
+                (v, insets) -> {
+                    androidx.core.graphics.Insets bars =
+                            insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars());
+                    androidx.core.graphics.Insets ime =
+                            insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime());
+                    v.setPadding(bars.left, bars.top, bars.right, Math.max(bars.bottom, ime.bottom));
+                    return androidx.core.view.WindowInsetsCompat.CONSUMED;
+                });
 
         // Initialize Firebase Auth
         mAuth = FirebaseAuth.getInstance();
@@ -92,22 +107,21 @@ public class LoginActivity extends AppCompatActivity {
         // Login button click
         loginButton.setOnClickListener(v -> {
             if (validateForm()) {
-                // Perform login (email/password)
                 String email = emailInput.getText().toString().trim();
                 String password = passwordInput.getText().toString();
-
+                setAuthUiEnabled(false);
                 mAuth.signInWithEmailAndPassword(email, password)
                         .addOnCompleteListener(this, task -> {
                             if (task.isSuccessful()) {
-                                // Sign in success
                                 FirebaseUser user = mAuth.getCurrentUser();
                                 updateUI(user);
                                 startActivity(new Intent(LoginActivity.this, MainActivity.class));
                                 finish();
                             } else {
-                                // If sign in fails, display a message to the user.
-                                Toast.makeText(LoginActivity.this, "Authentication failed.",
-                                        Toast.LENGTH_SHORT).show();
+                                String msg = task.getException() != null
+                                        ? task.getException().getLocalizedMessage()
+                                        : "Authentication failed.";
+                                Toast.makeText(LoginActivity.this, msg, Toast.LENGTH_LONG).show();
                                 updateUI(null);
                             }
                         });
@@ -115,10 +129,7 @@ public class LoginActivity extends AppCompatActivity {
         });
 
         // Forgot password link click
-        forgotPasswordLink.setOnClickListener(v -> {
-            // TODO: Implement forgot password flow
-            Toast.makeText(this, "Forgot password clicked", Toast.LENGTH_SHORT).show();
-        });
+        forgotPasswordLink.setOnClickListener(v -> showForgotPasswordDialog());
 
         // Sign up link click
         signUpLink.setOnClickListener(v -> {
@@ -222,11 +233,100 @@ public class LoginActivity extends AppCompatActivity {
                 });
     }
 
-    private void updateUI(FirebaseUser user) {
-        // TODO: Handle UI updates based on user state
-        // For now, we'll just proceed to MainActivity if user is not null
+    /**
+     * Production forgot-password flow via Firebase Auth email reset.
+     */
+    private void showForgotPasswordDialog() {
+        final TextInputEditText emailField = new TextInputEditText(this);
+        emailField.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+        emailField.setHint("Email address");
+        String prefill = emailInput != null && emailInput.getText() != null
+                ? emailInput.getText().toString().trim() : "";
+        if (!TextUtils.isEmpty(prefill)) {
+            emailField.setText(prefill);
+        }
+
+        int pad = (int) (20 * getResources().getDisplayMetrics().density);
+        FrameLayout container = new FrameLayout(this);
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+        params.leftMargin = pad;
+        params.rightMargin = pad;
+        emailField.setLayoutParams(params);
+        container.addView(emailField);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Reset password")
+                .setMessage("We will send a password reset link to your email.")
+                .setView(container)
+                .setPositiveButton("Send", (dialog, which) -> {
+                    String email = emailField.getText() != null
+                            ? emailField.getText().toString().trim() : "";
+                    if (TextUtils.isEmpty(email) || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                        Toast.makeText(this, "Enter a valid email address", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    setAuthUiEnabled(false);
+                    mAuth.sendPasswordResetEmail(email)
+                            .addOnCompleteListener(task -> {
+                                setAuthUiEnabled(true);
+                                if (task.isSuccessful()) {
+                                    Toast.makeText(this,
+                                            "Reset email sent. Check your inbox.",
+                                            Toast.LENGTH_LONG).show();
+                                } else {
+                                    String msg = task.getException() != null
+                                            ? task.getException().getLocalizedMessage()
+                                            : "Could not send reset email";
+                                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+                                }
+                            });
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
+    private void setAuthUiEnabled(boolean enabled) {
+        if (loginButton != null) loginButton.setEnabled(enabled);
+        if (googleSignInButton != null) googleSignInButton.setEnabled(enabled);
+        if (forgotPasswordLink != null) forgotPasswordLink.setEnabled(enabled);
+        if (signUpLink != null) signUpLink.setEnabled(enabled);
+        if (emailInput != null) emailInput.setEnabled(enabled);
+        if (passwordInput != null) passwordInput.setEnabled(enabled);
+        if (loginButton != null) {
+            loginButton.setText(enabled ? "Log in" : "Please wait…");
+        }
+    }
+
+    /**
+     * Reflect auth outcome in the form (loading, errors, success path is handled by callers).
+     */
+    private void updateUI(FirebaseUser user) {
+        if (user != null) {
+            setAuthUiEnabled(false);
+            if (emailInputLayout != null) emailInputLayout.setError(null);
+            if (passwordInputLayout != null) passwordInputLayout.setError(null);
+            String name = user.getDisplayName();
+            if (TextUtils.isEmpty(name)) name = user.getEmail();
+            Toast.makeText(this, "Welcome" + (name != null ? ", " + name : ""), Toast.LENGTH_SHORT).show();
+        } else {
+            setAuthUiEnabled(true);
+            if (passwordInputLayout != null) {
+                passwordInputLayout.setError("Sign-in failed. Check email and password.");
+            }
+        }
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        // Already signed in → skip login
+        FirebaseUser current = mAuth.getCurrentUser();
+        if (current != null) {
+            startActivity(new Intent(this, MainActivity.class));
+            finish();
+        }
+    }
 
     @Override
     protected void onDestroy() {

@@ -3,7 +3,6 @@ package com.giga.tech1000.heartbeatz.ui;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
-import android.support.v4.media.session.PlaybackStateCompat;
 import android.view.View;
 
 import androidx.activity.OnBackPressedCallback;
@@ -17,10 +16,13 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.Log;
 import androidx.media3.common.util.UnstableApi;
+import androidx.media3.session.legacy.PlaybackStateCompat;
 import androidx.navigation.NavController;
 
 import com.giga.tech1000.heartbeatz.MainActivity;
 import com.giga.tech1000.heartbeatz.R;
+import com.giga.tech1000.heartbeatz.architecture.PlaybackStateManager;
+import com.giga.tech1000.heartbeatz.architecture.repositories.PlaybackStateRepository;
 import com.giga.tech1000.heartbeatz.observers.LibraryObservers;
 import com.giga.tech1000.heartbeatz.utils.DoubleBackToExitHandler;
 import com.giga.tech1000.heartbeatz.view_models.LibrarySetViewModel;
@@ -55,6 +57,8 @@ public class UIThread implements IPlaybackCallback {
     private MultiSlidingUpPanelLayout panelLayout;
 
     private MediaPlayerThread mediaPlayerThread;
+    /** Single shared playback state repository for the whole app (Media3-backed). */
+    private PlaybackStateRepository playbackStateRepository;
 
     private boolean uiReady = false;
 
@@ -117,6 +121,8 @@ public class UIThread implements IPlaybackCallback {
     public void init() {
         mediaPlayerThread = new MediaPlayerThread(activity, this);
         mediaPlayerThread.onStart();
+        // One shared PlaybackStateRepository for all ViewModels / UI
+        playbackStateRepository = new PlaybackStateManager(mediaPlayerThread);
 
         onCreate();
 
@@ -135,9 +141,15 @@ public class UIThread implements IPlaybackCallback {
     public void onSongChanged(@Nullable Song song) {
         this.lastPosition = 0;
         RootMediaPlayerPanel panel = getMediaPlayerPanel();
-        if (panel != null && song != null) {
+        if (panel != null) {
             panel.onSongChanged(song);
+        }
+        if (song != null) {
             playerCache.cachePlayingSong(song);
+        }
+        RootNavigationBarPanel navPanel = getNavigationPanel();
+        if (navPanel != null) {
+            navPanel.updatePaddingWhenWhenBarChanged(isPlayerBarVisible());
         }
     }
 
@@ -148,6 +160,17 @@ public class UIThread implements IPlaybackCallback {
 
         updatePlaybackUI();
         playerCache.cachePlaybackStateChanged(playbackState);
+
+        RootMediaPlayerPanel mediaPanel = getMediaPlayerPanel();
+        if (mediaPanel != null) {
+            // Idle with no active item → hide mini player so bottom nav is flush
+            if (playbackState == Player.STATE_IDLE && mediaPanel.getCurrentSong() == null) {
+                mediaPanel.hideMiniPlayer();
+            } else if (playbackState != Player.STATE_IDLE) {
+                mediaPanel.showMiniPlayerCollapsed();
+            }
+        }
+
         RootNavigationBarPanel navPanel = getNavigationPanel();
         if (navPanel != null) navPanel.updatePaddingWhenWhenBarChanged(isPlayerBarVisible());
     }
@@ -305,6 +328,18 @@ public class UIThread implements IPlaybackCallback {
 
     public static UIThread getInstance() { return instance; }
     public MediaPlayerThread getMediaPlayerThread() { return mediaPlayerThread; }
+
+    /**
+     * Single shared {@link PlaybackStateRepository} backed by Media3 via CorePlayer.
+     * ViewModels must use this instead of constructing their own PlaybackStateManager.
+     */
+    @NonNull
+    public PlaybackStateRepository getPlaybackStateRepository() {
+        if (playbackStateRepository == null) {
+            throw new IllegalStateException("PlaybackStateRepository not ready — call UIThread.init() first");
+        }
+        return playbackStateRepository;
+    }
 
     public void onCreate() {
         panelLayout = activity.findViewById(R.id.root_multi_sliding_up_panel);

@@ -298,23 +298,30 @@ public class WebRtcPartyManager implements StreamProvider, WebRtcEventListener {
      */
     @Override
     public void onSyncDataReceived(SyncPacket syncPacket) {
+        if (syncPacket == null) {
+            Log.w(TAG, "Ignoring null sync packet");
+            return;
+        }
         Log.d(TAG, "Received sync data: state=" + syncPacket.state +
                 ", positionMs=" + syncPacket.positionMs +
                 ", durationMs=" + syncPacket.durationMs +
                 (isHost ? " [HOST]" : " [GUEST]"));
 
-        // Both host and guest might receive sync data for redundancy
-        // Process the sync data and notify the listener
+        // Propagate to PartyManager.PartyManagerListener (playback / UI layer)
         if (listener != null) {
-            // Pass the sync packet to the PartyManager listener
-            // The PartyManager will need to implement a method to handle this
-            // For now, we'll log the receipt and potentially update UI through existing mechanisms
-            Log.d(TAG, "Processing sync packet: " + syncPacket.state +
-                    ", position: " + syncPacket.positionMs + "ms");
-
-            // TODO: Add proper handling of sync data in PartyManagerListener
-            // This would involve updating the PartyManager to handle sync events
-            // and then propagate to the PartyViewModel/UI layer
+            try {
+                listener.onSyncDataReceived(syncPacket);
+            } catch (Exception e) {
+                Log.e(TAG, "PartyManagerListener.onSyncDataReceived failed", e);
+            }
+        }
+        // Also notify WebRtc-specific listener if bound
+        if (webRtcPartyManagerListener != null) {
+            try {
+                webRtcPartyManagerListener.onSyncDataReceived(syncPacket);
+            } catch (Exception e) {
+                Log.e(TAG, "WebRtcPartyManagerListener.onSyncDataReceived failed", e);
+            }
         }
     }
 

@@ -8,9 +8,7 @@ import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 import androidx.media3.common.util.UnstableApi;
 
-import com.giga.tech1000.heartbeatz.architecture.PlaybackStateManager;
 import com.giga.tech1000.heartbeatz.architecture.repositories.PlaybackStateRepository;
-import com.giga.tech1000.heartbeatz.ui.MediaPlayerThread;
 import com.giga.tech1000.heartbeatz.ui.UIThread;
 import com.giga.tech1000.media_player.models.extended_models.PlayerCacheModel;
 import com.giga.tech1000.media_player.utils.enums.ItemSource;
@@ -36,8 +34,7 @@ public class PlaybackCacheViewModel extends AndroidViewModel {
     
     public PlaybackCacheViewModel(@NonNull Application application) {
         super(application);
-        MediaPlayerThread playerThread = UIThread.getInstance().getMediaPlayerThread();
-        this.playbackState = new PlaybackStateManager(playerThread);
+        this.playbackState = UIThread.getInstance().getPlaybackStateRepository();
     }
     
     /**
@@ -232,8 +229,6 @@ public class PlaybackCacheViewModel extends AndroidViewModel {
     @Override
     protected void onCleared() {
         super.onCleared();
-        if (playbackState instanceof PlaybackStateManager) {
-            ((PlaybackStateManager) playbackState).release();
-        }
+        // Do not release shared PlaybackStateRepository — owned by UIThread for app lifetime
     }
 }

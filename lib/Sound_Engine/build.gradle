@@ -3,9 +3,10 @@ plugins {
 }
 
 android {
-    namespace 'com.giga.tech1000.sound_engine'
+    // Must match Java package com.giga.tech1000.soundengine (JNI)
+    namespace 'com.giga.tech1000.soundengine'
     compileSdk {
-        version = release(37)
+        version = release(36)
     }
 
     defaultConfig {
@@ -23,8 +24,8 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_11
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
     }
     ndkVersion '30.0.16248370'
     buildToolsVersion '36.0.0'

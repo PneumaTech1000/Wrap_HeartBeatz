@@ -37,7 +37,6 @@ dependencies {
 
     implementation libs.room.runtime
     implementation libs.paging.runtime
-    implementation libs.media
 
     // Core ExoPlayer
     implementation libs.media3.session

@@ -13,7 +13,6 @@ import androidx.media3.common.util.UnstableApi;
 
 import com.giga.tech1000.heartbeatz.architecture.repositories.EnhancedFirebasePartyHostRepository;
 import com.giga.tech1000.heartbeatz.architecture.repositories.PartyHostRepository;
-import com.giga.tech1000.heartbeatz.architecture.PlaybackStateManager;
 import com.giga.tech1000.heartbeatz.architecture.repositories.PlaybackStateRepository;
 import com.giga.tech1000.heartbeatz.ui.UIThread;
 import com.giga.tech1000.media_player.models.Song;
@@ -77,8 +76,8 @@ public class PartyViewModel extends AndroidViewModel {
     public PartyViewModel(@NonNull Application application) {
         this(
                 application,
-                new PlaybackStateManager(UIThread.getInstance().getMediaPlayerThread()),
-                new EnhancedFirebasePartyHostRepository(application) // Changed from FirebasePartyHostRepository to EnhancedFirebasePartyHostRepository
+                UIThread.getInstance().getPlaybackStateRepository(),
+                new EnhancedFirebasePartyHostRepository(application)
         );
     }
 
@@ -781,10 +780,7 @@ public class PartyViewModel extends AndroidViewModel {
             stopDiscovery();
         }
 
-        // Clean up repositories
-        if (playbackState instanceof PlaybackStateManager) {
-            ((PlaybackStateManager) playbackState).release();
-        }
+        // Do not release shared PlaybackStateRepository — owned by UIThread for app lifetime
         if (partyHost instanceof EnhancedFirebasePartyHostRepository) {
             ((EnhancedFirebasePartyHostRepository) partyHost).release();
         }

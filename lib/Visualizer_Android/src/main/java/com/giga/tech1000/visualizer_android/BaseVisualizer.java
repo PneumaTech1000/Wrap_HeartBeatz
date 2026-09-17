@@ -125,16 +125,28 @@ abstract public class BaseVisualizer extends View {
     }
 
     /**
-     * Set the density of the visualizer
+     * Set the density of the visualizer.
+     * Safe to call dynamically: clamps value, skips no-op updates, and re-inits under lock.
      *
      * @param density density for visualization
      */
     public void setDensity(float density) {
-        //TODO: Check dynamic density change, may cause crash
+        float clamped = density;
+        if (clamped < 0.1f) clamped = 0.1f;
+        if (clamped > 100f) clamped = 100f;
         synchronized (this) {
-            this.mDensity = density;
-            init();
+            if (Math.abs(this.mDensity - clamped) < 0.001f) {
+                return;
+            }
+            this.mDensity = clamped;
+            try {
+                init();
+            } catch (RuntimeException e) {
+                // Avoid crashing the UI thread if a subclass init is not re-entrant
+                android.util.Log.w("BaseVisualizer", "setDensity re-init failed: " + e.getMessage());
+            }
         }
+        postInvalidateOnAnimation();
     }
 
     /**

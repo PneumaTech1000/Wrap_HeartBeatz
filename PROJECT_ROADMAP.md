@@ -1,3 +1,5 @@
+> **Note (2026-09-17):** Phases related to Media3-only playback, DSP ownership, and auth uid stubs are reflected as completed in **PROJECT_AUDIT.md**. Treat the audit file as the source of truth for done vs remaining work.
+
 # HeartBeatz Project Roadmap
 
 This roadmap converts the project audit into an implementation sequence. Work should proceed in small, verifiable updates. A roadmap item is complete only when its acceptance criteria are met and the relevant tests or build checks pass.

@@ -9,10 +9,7 @@ import android.graphics.ImageDecoder;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Looper;
 import android.provider.MediaStore;
-import android.support.v4.media.MediaDescriptionCompat;
-import android.support.v4.media.MediaMetadataCompat;
 import android.text.TextUtils;
 import android.util.Log;
 import android.util.Size;
@@ -509,36 +506,5 @@ public class LibraryScanner {
         } catch (Exception e) {
             return null;
         }
-    }
-
-    public MediaDescriptionCompat getMediaDescription(Song song) {
-        return new MediaDescriptionCompat.Builder()
-                .setMediaId(String.valueOf(song.getId()))
-                .setTitle(song.getTitle())
-                .setSubtitle(song.getArtist())
-                .setMediaUri(song.getUri())
-                .setIconUri(song.getAlbumArt())
-                .build();
-    }
-
-    public MediaMetadataCompat getMediaMetaData(Song song) {
-        if (song == null) return null;
-        MediaMetadataCompat.Builder builder = new MediaMetadataCompat.Builder()
-                .putString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID, String.valueOf(song.getId()))
-                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, song.getTitle())
-                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, song.getArtist())
-                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, song.getAlbum())
-                .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, song.getDuration())
-                .putString(MediaMetadataCompat.METADATA_KEY_MEDIA_URI, song.getUri().toString())
-                .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_TITLE, song.getDisplayName());
-
-        // Avoid synchronous bitmap decoding on the calling thread if possible.
-        // If this is called from a background thread, it's fine.
-        // However, many callers might expect the bitmap to be there for notifications/lockscreen.
-        if (Looper.myLooper() != Looper.getMainLooper()) {
-            builder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, getAlbumArtBitmap(song.getAlbumArt()));
-        }
-
-        return builder.build();
     }
 }

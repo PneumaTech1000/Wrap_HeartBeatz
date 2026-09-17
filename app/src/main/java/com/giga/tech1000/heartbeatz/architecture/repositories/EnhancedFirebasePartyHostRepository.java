@@ -1171,48 +1171,13 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
     // ============ HELPER METHODS ============
 
     /**
-     * Get the current user ID from Firebase Authentication
-     * @return The current user ID or null if not authenticated
-     */
-    @Nullable
-    protected String getCurrentUserId() {
-        // This would typically be implemented in the FirebaseRepository base class
-        // For now, we'll implement a basic version that checks Firebase Auth
-        // In a real implementation, this would be provided by the parent class
-        try {
-            // Assuming FirebaseAuth is accessible - this would need to be imported
-            // and initialized properly in a real implementation
-            // For now, returning a placeholder - this should be implemented properly
-            // based on how authentication is handled in your app
-            return "current_user_id"; // TODO: Replace with actual FirebaseAuth.getInstance().getCurrentUser().getUid()
-        } catch (Exception e) {
-            Log.w(TAG, "Could not get current user ID: " + e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * Check if the current user is authenticated
-     * @return true if the user is authenticated, false otherwise
-     */
-    protected boolean isAuthenticated() {
-        // This would typically be implemented in the FirebaseRepository base class
-        String userId = getCurrentUserId();
-        return userId != null && !userId.isEmpty();
-    }
-
-    /**
-     * Get a secret port to avoid conflicts with other apps
-     * In a production app, this could be configured remotely or derived from a seed
-     * For now, we'll use a port in the dynamic/private range (49152-65535)
+     * Secret port in the dynamic/private range, derived from the signed-in user id.
+     * Uses {@link FirebaseRepository#getCurrentUserId()} (real Firebase Auth uid).
      */
     private int getSecretPort() {
-        // Using a deterministic but distributed port based on user ID
         String userId = getCurrentUserId();
         int hash = (userId != null) ? userId.hashCode() : 0;
-        // Make sure it's positive and in the private port range
-        int port = 49152 + (Math.abs(hash) % 16383); // 49152 to 65534
-        return port;
+        return 49152 + (Math.abs(hash) % 16383); // 49152–65534
     }
 
     /**

@@ -1,4 +1,4 @@
-package com.giga.tech1000.sound_engine;
+package com.giga.tech1000.soundengine;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 

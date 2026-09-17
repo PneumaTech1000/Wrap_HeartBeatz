@@ -1419,7 +1419,10 @@ public final class EqualizerViewPanel {
             qValueViews[i].setText(qText);
             float qProgress = (float) ((Math.log10(qFactor) - Math.log10(0.1f)) /
                                 (Math.log10(10.0f) - Math.log10(0.1f)) * 100);
-            qSeekBars[i].setProgress(Math.round(qProgress));
+            // Q seek bars are optional in the current layout (may be null)
+            if (qSeekBars[i] != null) {
+                qSeekBars[i].setProgress(Math.round(qProgress));
+            }
 
             // Update parametric band in ViewModel
             if (equalizerViewModel.getEqBands().getValue() != null &&

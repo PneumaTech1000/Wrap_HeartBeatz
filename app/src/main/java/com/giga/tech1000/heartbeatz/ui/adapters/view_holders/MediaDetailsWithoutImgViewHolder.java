@@ -1,6 +1,6 @@
 package com.giga.tech1000.heartbeatz.ui.adapters.view_holders;
 
-import android.support.v4.media.session.PlaybackStateCompat;
+import androidx.media3.session.legacy.PlaybackStateCompat;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;

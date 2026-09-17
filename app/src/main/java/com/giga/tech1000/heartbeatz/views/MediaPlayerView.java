@@ -5,7 +5,7 @@ import android.graphics.Color;
 import android.graphics.PorterDuff;
 import android.graphics.drawable.Icon;
 import android.os.SystemClock;
-import android.support.v4.media.session.PlaybackStateCompat;
+import androidx.media3.session.legacy.PlaybackStateCompat;
 import android.view.View;
 import android.widget.ImageButton;
 import android.widget.SeekBar;

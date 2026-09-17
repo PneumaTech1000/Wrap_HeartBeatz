@@ -41,6 +41,8 @@ public class FirebasePartyHostRepository extends FirebaseRepository implements P
     private final MutableLiveData<Integer> guestCountLiveData = new MutableLiveData<>(0);
     private final MutableLiveData<PartyHost> connectedHostLiveData = new MutableLiveData<>(null);
     private final MutableLiveData<Boolean> guestAuthenticatedLiveData = new MutableLiveData<>(false);
+    /** Error / auth prompts for UI (e.g. "Please sign in to create a party"). */
+    private final MutableLiveData<String> partyErrorLiveData = new MutableLiveData<>(null);
 
     // Event listeners
     private ChildEventListener partiesEventListener;
@@ -181,9 +183,10 @@ public class FirebasePartyHostRepository extends FirebaseRepository implements P
         // Check if user is authenticated
         if (!isAuthenticated()) {
             Log.w(TAG, "Cannot create party: user not authenticated");
-            // TODO: Notify UI to show sign-in prompt
+            partyErrorLiveData.postValue("Please sign in to create a party");
             return;
         }
+        partyErrorLiveData.postValue(null);
 
         Log.d(TAG, "Creating party: " + partyName);
 
@@ -278,10 +281,11 @@ public class FirebasePartyHostRepository extends FirebaseRepository implements P
         // Check if user is authenticated
         if (!isAuthenticated()) {
             Log.w(TAG, "Cannot join party: user not authenticated");
-            // TODO: Notify UI to show sign-in prompt
+            partyErrorLiveData.postValue("Please sign in to join a party");
             guestAuthenticatedLiveData.postValue(false);
             return;
         }
+        partyErrorLiveData.postValue(null);
 
         Log.d(TAG, "Joining party: " + host.getPartyName() + " (ID: " + host.getPartyId() + ")");
 
@@ -497,6 +501,14 @@ public class FirebasePartyHostRepository extends FirebaseRepository implements P
     @Override
     public LiveData<Boolean> isGuestAuthenticated() {
         return guestAuthenticatedLiveData;
+    }
+
+    /**
+     * Observes party operation errors (including auth-required prompts for the UI).
+     */
+    @NonNull
+    public LiveData<String> getPartyError() {
+        return partyErrorLiveData;
     }
 
     // ============ STATE CHECKS ============

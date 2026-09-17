@@ -22,18 +22,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Concrete implementation of PlaybackStateRepository.
- * 
- * Wraps MediaPlayerThread singleton and exposes state through LiveData.
- * Acts as an adapter/bridge between legacy singleton architecture
- * and modern reactive architecture.
- * 
- * IMPORTANT: This is a TEMPORARY implementation during refactoring.
- * Long-term goal is to eliminate MediaPlayerThread dependency entirely
- * and inject MediaSession/Controller directly.
- * 
- * For now, this provides a clean interface that UI can depend on
- * without creating new singleton dependencies.
+ * Concrete implementation of {@link PlaybackStateRepository}.
+ *
+ * Single shared instance is owned by {@link com.giga.tech1000.heartbeatz.ui.UIThread}
+ * and obtained via {@code UIThread.getInstance().getPlaybackStateRepository()}.
+ *
+ * Bridges Media3 (CorePlayer / MediaController / MediaPlayerService) to LiveData
+ * for the UI. Commands go through MediaPlayerThread → CorePlayer → MediaController.
+ *
+ * Do not construct additional instances from ViewModels — use the shared repository.
  */
 @OptIn(markerClass = UnstableApi.class)
 public class PlaybackStateManager implements PlaybackStateRepository {
