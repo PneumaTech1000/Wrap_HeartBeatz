@@ -4,7 +4,9 @@ import android.view.View;
 
 /**
  * Coordinates sibling panels when one expands / collapses / hides.
- * {@link BasePanelView#isHidden} must match visibility so height stacking stays correct.
+ * Sets {@link BasePanelView#isHidden} when forcing HIDDEN so height stacking
+ * does not reserve peak height for invisible panels.
+ * Loop starts at index 1 (original library behavior).
  */
 public class PanelStateListener {
     private final MultiSlidingUpPanelLayout mPanelLayout;
@@ -15,31 +17,20 @@ public class PanelStateListener {
 
     public void onPanelSliding(IPanel<View> panel, float slidingOffset) {}
 
-    /**
-     * Panel returned to collapsed (e.g. full player → mini player).
-     * Re-show siblings that were hidden only for the full expansion.
-     */
     @SuppressWarnings("unchecked")
     void onPanelCollapsed(IPanel<View> panel) {
         int count = this.mPanelLayout.getChildCount();
-        for (int i = 0; i < count; i++) {
+        for (int i = 1; i < count; i++) {
             View child = this.mPanelLayout.getChildAt(i);
             if (!(child instanceof IPanel)) continue;
             IPanel<View> temp_panel = (IPanel<View>) child;
 
-            if (temp_panel == panel) {
-                if (temp_panel instanceof BasePanelView) {
-                    ((BasePanelView) temp_panel).isHidden = false;
-                }
-                temp_panel.getPanelView().setEnabled(true);
-                continue;
-            }
-
-            // Restore bottom nav (and any other siblings) above the mini player
             if (temp_panel instanceof BasePanelView) {
                 ((BasePanelView) temp_panel).isHidden = false;
             }
-            temp_panel.setPanelState(MultiSlidingUpPanelLayout.COLLAPSED);
+            if (!temp_panel.isUserHidden()) {
+                temp_panel.setPanelState(MultiSlidingUpPanelLayout.COLLAPSED);
+            }
             temp_panel.getPanelView().setEnabled(true);
             try {
                 temp_panel.resetPanelRealHeight();
@@ -49,31 +40,23 @@ public class PanelStateListener {
         this.mPanelLayout.requestLayout();
     }
 
-    /**
-     * Full expansion (e.g. full-screen media player).
-     * Fully hide other panels so they neither draw nor reserve peak height.
-     */
     @SuppressWarnings("unchecked")
     void onPanelExpanded(IPanel<View> panel) {
         int count = this.mPanelLayout.getChildCount();
-        for (int i = 0; i < count; i++) {
+        for (int i = 1; i < count; i++) {
             View child = this.mPanelLayout.getChildAt(i);
             if (!(child instanceof IPanel)) continue;
             IPanel<View> temp_panel = (IPanel<View>) child;
 
             if (temp_panel == panel) {
-                if (temp_panel instanceof BasePanelView) {
-                    ((BasePanelView) temp_panel).isHidden = false;
-                }
                 temp_panel.getPanelView().setEnabled(false);
-                continue;
+            } else {
+                if (temp_panel instanceof BasePanelView) {
+                    ((BasePanelView) temp_panel).isHidden = true;
+                }
+                temp_panel.setPanelState(MultiSlidingUpPanelLayout.HIDDEN);
+                temp_panel.getPanelView().setEnabled(false);
             }
-
-            if (temp_panel instanceof BasePanelView) {
-                ((BasePanelView) temp_panel).isHidden = true;
-            }
-            temp_panel.setPanelState(MultiSlidingUpPanelLayout.HIDDEN);
-            temp_panel.getPanelView().setEnabled(false);
         }
         this.mPanelLayout.requestLayout();
     }
@@ -81,11 +64,11 @@ public class PanelStateListener {
     @SuppressWarnings("unchecked")
     void onPanelHidden(IPanel<View> panel) {
         int count = this.mPanelLayout.getChildCount();
-        for (int i = 0; i < count; i++) {
+        for (int i = 1; i < count; i++) {
             View child = this.mPanelLayout.getChildAt(i);
             if (!(child instanceof IPanel)) continue;
             IPanel<View> temp_panel = (IPanel<View>) child;
-            if (panel != temp_panel && panel.isUserHidden()) {
+            if (panel.isUserHidden() && panel != temp_panel) {
                 try {
                     temp_panel.resetPanelRealHeight();
                 } catch (Exception ignored) {

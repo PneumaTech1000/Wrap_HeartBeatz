@@ -71,8 +71,13 @@ public class RootMediaPlayerPanel extends BasePanelView implements OnBackPressed
         // Sets the panels peak height
         this.setPeakHeight(getResources().getDimensionPixelSize(R.dimen.media_player_bar_height));
 
-        // Must use hidePanel() so isUserHidden=true and nav does not reserve mini-player height
-        this.hidePanel();
+        // Mark user-hidden so height stack ignores this panel until a song plays.
+        // Prefer setPanelState+flag over hidePanel() during create to avoid drag-helper races.
+        this.isHidden = true;
+        this.setPanelState(MultiSlidingUpPanelLayout.HIDDEN);
+        if (getMultiSlidingUpPanel() != null) {
+            getMultiSlidingUpPanel().requestLayout();
+        }
     }
 
     @Override
@@ -149,6 +154,9 @@ public class RootMediaPlayerPanel extends BasePanelView implements OnBackPressed
 
     @Override
     public void onPanelStateChanged(int i) {
+        // Never call nav.hidePanel()/collapsePanel() here — those call setSlidingUpPanel()
+        // and steal the active sliding panel, which cancels full-player expand.
+        // Sibling visibility is owned by PanelStateListener + isHidden flags.
         boolean miniVisible = (i == MultiSlidingUpPanelLayout.COLLAPSED) && !isUserHidden();
         boolean fullVisible = (i == MultiSlidingUpPanelLayout.EXPANDED);
 
@@ -160,27 +168,9 @@ public class RootMediaPlayerPanel extends BasePanelView implements OnBackPressed
             }
         } catch (Exception ignored) {
         }
-
         if (nav != null) {
-            if (fullVisible) {
-                // Full player: hide bottom navigation completely (no reserved height)
-                if (!nav.isUserHidden()) {
-                    nav.hidePanel();
-                }
-                nav.updatePaddingWhenWhenBarChanged(false);
-            } else if (miniVisible) {
-                // Mini player: bottom nav sits above mini bar
-                if (nav.isUserHidden() || nav.getPanelState() == MultiSlidingUpPanelLayout.HIDDEN) {
-                    nav.collapsePanel();
-                }
-                nav.updatePaddingWhenWhenBarChanged(true);
-            } else {
-                // Player hidden: nav only
-                if (nav.isUserHidden() || nav.getPanelState() == MultiSlidingUpPanelLayout.HIDDEN) {
-                    nav.collapsePanel();
-                }
-                nav.updatePaddingWhenWhenBarChanged(false);
-            }
+            // Content / drawer bottom inset only (no panel state changes)
+            nav.updatePaddingWhenWhenBarChanged(miniVisible && !fullVisible);
         }
     }
 

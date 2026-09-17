@@ -685,6 +685,12 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
             Insets statusBars = insets.getInsets(WindowInsetsCompat.Type.statusBars());
             int statusTop = statusBars.top;
+            if (statusTop == 0) {
+                int resId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+                if (resId > 0) {
+                    statusTop = getResources().getDimensionPixelSize(resId);
+                }
+            }
 
             View toolbarWrapper = v.findViewById(R.id.tool_bar_wrapper);
             if (toolbarWrapper != null) {

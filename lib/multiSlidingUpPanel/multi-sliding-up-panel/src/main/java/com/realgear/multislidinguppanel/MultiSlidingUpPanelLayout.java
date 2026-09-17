@@ -226,11 +226,34 @@ public class MultiSlidingUpPanelLayout extends ViewGroup {
 
         if (isFirstLayout) {
             mSlidingPanel.setPanelState(EXPANDED);
+            if (mPanelStateListener != null) {
+                mPanelStateListener.onPanelExpanded(mSlidingPanel);
+            }
             requestLayout();
             return true;
         }
 
-        return mSlidingPanel.getPanelState() == EXPANDED || isFirstLayout || smoothSlideTo(1.0F);
+        if (mSlidingPanel.getPanelState() == EXPANDED) {
+            return true;
+        }
+
+        // Programmatic expand must work even if gesture sliding was disabled
+        // (e.g. by nested bottom-sheet). Temporarily allow the drag helper path.
+        boolean wasEnabled = isSlidingEnabled;
+        isSlidingEnabled = true;
+        boolean moved = smoothSlideTo(1.0F);
+        if (!moved) {
+            // Fallback: snap state if animation could not start
+            mSlidingPanel.setPanelState(EXPANDED);
+            if (mPanelStateListener != null) {
+                mPanelStateListener.onPanelExpanded(mSlidingPanel);
+            }
+            requestLayout();
+            isSlidingEnabled = wasEnabled;
+            return true;
+        }
+        isSlidingEnabled = wasEnabled;
+        return true;
     }
 
     public boolean expandPanel(@NonNull IPanel<View> panel) {
@@ -250,11 +273,29 @@ public class MultiSlidingUpPanelLayout extends ViewGroup {
 
         if (isFirstLayout) {
             mSlidingPanel.setPanelState(COLLAPSED);
+            if (mPanelStateListener != null) {
+                mPanelStateListener.onPanelCollapsed(mSlidingPanel);
+            }
             requestLayout();
             return true;
         }
 
-        return mSlidingPanel.getPanelState() == COLLAPSED || isFirstLayout || smoothSlideTo(0.0F);
+        if (mSlidingPanel.getPanelState() == COLLAPSED) {
+            return true;
+        }
+
+        boolean wasEnabled = isSlidingEnabled;
+        isSlidingEnabled = true;
+        boolean moved = smoothSlideTo(0.0F);
+        if (!moved) {
+            mSlidingPanel.setPanelState(COLLAPSED);
+            if (mPanelStateListener != null) {
+                mPanelStateListener.onPanelCollapsed(mSlidingPanel);
+            }
+            requestLayout();
+        }
+        isSlidingEnabled = wasEnabled;
+        return true;
     }
 
     public boolean collapsePanel(@NonNull IPanel<View> panel) {
