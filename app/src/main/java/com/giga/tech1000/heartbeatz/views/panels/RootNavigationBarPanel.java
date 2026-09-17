@@ -43,13 +43,15 @@ public class RootNavigationBarPanel extends BasePanelView {
 
     @Override
     public void onCreateView() {
-        // The panel will be collapsed on start of application
-        this.setPanelState(MultiSlidingUpPanelLayout.COLLAPSED);
+        // Allow full hide when media player is expanded
+        this.setUserHiddenMode(true);
 
-        // The panel will slide up and down
+        // Visible at peak height on start
+        this.setPanelState(MultiSlidingUpPanelLayout.COLLAPSED);
+        this.isHidden = false;
+
         this.setSlideDirection(MultiSlidingUpPanelLayout.SLIDE_VERTICAL);
 
-        // Sets the panels peak height
         this.setPeakHeight(getResources().getDimensionPixelSize(R.dimen.navigation_bar_height));
 
         getSupportFragmentManager().registerFragmentLifecycleCallbacks(

@@ -302,7 +302,19 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
         pagerWrapper.setPadding(0, 0, 0, paddingHeight);
 
         if (navDrawerScrollContent != null) {
-            navDrawerScrollContent.setPadding(0, navDrawerScrollContent.getPaddingTop(), 0, paddingHeight);
+            navDrawerScrollContent.setPadding(
+                    navDrawerScrollContent.getPaddingLeft(),
+                    navDrawerScrollContent.getPaddingTop(),
+                    navDrawerScrollContent.getPaddingRight(),
+                    paddingHeight);
+        }
+        View drawerFooter = getView() != null ? getView().findViewById(R.id.drawer_footer) : null;
+        if (drawerFooter != null) {
+            drawerFooter.setPadding(
+                    drawerFooter.getPaddingLeft(),
+                    drawerFooter.getPaddingTop(),
+                    drawerFooter.getPaddingRight(),
+                    Math.max(drawerFooter.getPaddingBottom(), 16) + (paddingHeight > 0 ? 8 : 0));
         }
 
         if (getSongInfoPanel().getIsVisible().get())
@@ -687,12 +699,23 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
                 toolbarWrapper.setLayoutParams(params);
             }
 
+            // Drawer panel should not draw under the status bar (unlike full media player)
+            View drawerContainer = v.findViewById(R.id.nav_drawer_container);
+            if (drawerContainer != null) {
+                drawerContainer.setPadding(
+                        drawerContainer.getPaddingLeft(),
+                        statusTop,
+                        drawerContainer.getPaddingRight(),
+                        drawerContainer.getPaddingBottom());
+            }
+
             if (navView != null) {
                 View header = navView.getHeaderView(0);
                 if (header != null) {
+                    // Header already sits below container padding; only add small internal top if needed
                     header.setPadding(
                             header.getPaddingLeft(),
-                            statusTop,
+                            header.getPaddingTop(),
                             header.getPaddingRight(),
                             header.getPaddingBottom());
                 }

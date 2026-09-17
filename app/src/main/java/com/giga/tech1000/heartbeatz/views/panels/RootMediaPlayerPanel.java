@@ -149,6 +149,39 @@ public class RootMediaPlayerPanel extends BasePanelView implements OnBackPressed
 
     @Override
     public void onPanelStateChanged(int i) {
+        boolean miniVisible = (i == MultiSlidingUpPanelLayout.COLLAPSED) && !isUserHidden();
+        boolean fullVisible = (i == MultiSlidingUpPanelLayout.EXPANDED);
+
+        RootNavigationBarPanel nav = null;
+        try {
+            if (getMultiSlidingUpPanel() != null
+                    && getMultiSlidingUpPanel().getAdapter() != null) {
+                nav = getMultiSlidingUpPanel().getAdapter().getItem(RootNavigationBarPanel.class);
+            }
+        } catch (Exception ignored) {
+        }
+
+        if (nav != null) {
+            if (fullVisible) {
+                // Full player: hide bottom navigation completely (no reserved height)
+                if (!nav.isUserHidden()) {
+                    nav.hidePanel();
+                }
+                nav.updatePaddingWhenWhenBarChanged(false);
+            } else if (miniVisible) {
+                // Mini player: bottom nav sits above mini bar
+                if (nav.isUserHidden() || nav.getPanelState() == MultiSlidingUpPanelLayout.HIDDEN) {
+                    nav.collapsePanel();
+                }
+                nav.updatePaddingWhenWhenBarChanged(true);
+            } else {
+                // Player hidden: nav only
+                if (nav.isUserHidden() || nav.getPanelState() == MultiSlidingUpPanelLayout.HIDDEN) {
+                    nav.collapsePanel();
+                }
+                nav.updatePaddingWhenWhenBarChanged(false);
+            }
+        }
     }
 
     @Override
