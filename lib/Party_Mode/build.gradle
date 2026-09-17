@@ -4,7 +4,7 @@ plugins {
 
 android {
     namespace 'com.giga.tech1000.party_mode'
-    compileSdk 37
+    compileSdk 36
 
     defaultConfig {
         minSdk 26
@@ -28,7 +28,6 @@ android {
             pickFirsts += ['**/libjingle_peerconnection_so.so']
         }
     }
-    compileSdkMinor 0
     buildToolsVersion '36.0.0'
 }
 

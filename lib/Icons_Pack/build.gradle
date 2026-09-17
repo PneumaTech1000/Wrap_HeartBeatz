@@ -4,7 +4,7 @@ plugins {
 
 android {
     namespace 'com.giga.tech1000.icons_pack'
-    compileSdk 37
+    compileSdk 36
 
     defaultConfig {
         minSdk 26
@@ -23,7 +23,6 @@ android {
         sourceCompatibility JavaVersion.VERSION_21
         targetCompatibility JavaVersion.VERSION_21
     }
-    compileSdkMinor 0
     buildToolsVersion '36.0.0'
 }
 

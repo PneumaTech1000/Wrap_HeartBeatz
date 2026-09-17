@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace 'com.giga.tech1000.heartbeatz'
-    compileSdk 37
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.giga.tech1000.heartbeatz"
@@ -24,9 +24,10 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
     }
+    buildToolsVersion '36.0.0'
 }
 
 dependencies {
