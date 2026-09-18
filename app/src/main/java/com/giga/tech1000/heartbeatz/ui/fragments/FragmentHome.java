@@ -253,6 +253,15 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
                 viewPager2.setCurrentItem(pos, false);
             }
         });
+
+        // Re-apply bottom padding now that MediaNavigationManager exists
+        boolean barVisible = false;
+        try {
+            barVisible = UIThread.getInstance() != null
+                    && UIThread.getInstance().isPlayerBarVisible();
+        } catch (Exception ignored) {
+        }
+        onDisplayBarPlayerChanged(barVisible);
     }
 
     public final ActivityResultLauncher<IntentSenderRequest> updateLauncher = registerForActivityResult(
