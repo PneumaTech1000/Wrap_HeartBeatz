@@ -203,9 +203,9 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
         return song;
     }
 
+    /*
     // Optional: Set up panel slide listeners if needed
         // multiSlidingUpPanelLayout.addPanelSlideListener(new PanelSlideListener() { ... });
-    }
     */
 
     private void initCoreComponents() {
