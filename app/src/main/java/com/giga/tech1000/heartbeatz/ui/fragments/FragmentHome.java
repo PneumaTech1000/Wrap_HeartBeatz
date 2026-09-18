@@ -87,6 +87,9 @@ import com.giga.tech1000.heartbeatz.SignUpActivity;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @OptIn(markerClass = UnstableApi.class)
 public class FragmentHome extends Fragment implements DisplayMarginCallback, OnBackPressedHandler, DrawerController.DrawerListener {
@@ -131,6 +134,12 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
     private Observer<String> searchQueryObserver;
     private LibraryState lastState;
     private String lastQuery;
+    private final ExecutorService pageBuildExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "library-page-build");
+        t.setPriority(Thread.NORM_PRIORITY - 1);
+        return t;
+    });
+    private final AtomicInteger pageBuildGeneration = new AtomicInteger(0);
 
     private MediaNavigationManager mediaNavigationManager;
     public final ActivityResultLauncher<PickVisualMediaRequest> imagePickerLauncher =
@@ -158,7 +167,10 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
             @Nullable ViewGroup container,
             @Nullable Bundle savedInstanceState
     ) {
+        long t0 = android.os.SystemClock.elapsedRealtime();
         View view = inflater.inflate(R.layout.fragment_home, container, false);
+        UIInfoLog.d("FragmentHome.onCreateView", "inflate ms="
+                + (android.os.SystemClock.elapsedRealtime() - t0));
 
         // Initialize all views here
         motionLayout = view.findViewById(R.id.library_root);
@@ -180,7 +192,8 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
         mediaDetailsWithoutImgPanelView = view.findViewById(R.id.media_details_without_img_container);
 
         // Drawer is owned by MainActivity (DrawerController)
-
+        UIInfoLog.d("FragmentHome.onCreateView", "findViews total ms="
+                + (android.os.SystemClock.elapsedRealtime() - t0));
         return view;
     }
 
@@ -190,6 +203,8 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
             @Nullable Bundle savedInstanceState
     ) {
         super.onViewCreated(view, savedInstanceState);
+        long t0 = android.os.SystemClock.elapsedRealtime();
+        UIInfoLog.d("FragmentHome.onViewCreated", "START savedState=" + (savedInstanceState != null));
 
         libraryObservers = UIThread.getInstance().getLibraryObservers();
         search = UIThread.getInstance().getSearchController();
@@ -209,17 +224,25 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
                     }
                 });
 
+        long t1 = android.os.SystemClock.elapsedRealtime();
         setupViewPager();
+        UIInfoLog.d("FragmentHome.onViewCreated", "setupViewPager ms="
+                + (android.os.SystemClock.elapsedRealtime() - t1));
         setupMenu();
         setupDrawerAuth();
         setupEdgeToEdgeInsets(view);
         setupMotionLayoutTransitions();
+        UIInfoLog.d("FragmentHome.onViewCreated", "setup* total ms="
+                + (android.os.SystemClock.elapsedRealtime() - t0));
 
         view.getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
             @Override
             public boolean onPreDraw() {
                 view.getViewTreeObserver().removeOnPreDrawListener(this);
+                long t = android.os.SystemClock.elapsedRealtime();
                 observeData();
+                UIInfoLog.d("FragmentHome.onPreDraw", "observeData ms="
+                        + (android.os.SystemClock.elapsedRealtime() - t));
                 return true;
             }
         });
@@ -272,6 +295,8 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
 
     @Override
     public void onResume() {
+        UIInfoLog.d("FragmentHome.onResume", "enter");
+
         super.onResume();
         observeData();
     }
@@ -575,26 +600,71 @@ if (getSongInfoPanel().getIsVisible().get())
             @Nullable String query
     ) {
         if (state == null) return;
+        if (pagerAdapter == null) return;
 
-        // Force rebuild if view was just recreated
+        // Skip if same data already applied and adapter is populated
         if (state == lastState && Objects.equals(query, lastQuery)) {
-            // If we already have pages in the adapter, don't submit again
             if (!pages.isEmpty() && pagerAdapter.getItemCount() > 0) return;
         }
 
         lastState = state;
         lastQuery = query;
 
-        List<LibraryLayoutItem> newPages = List.of(LibraryLayoutItem.filtered(BaseLayoutItem.LayoutType.ALL_SONGS, state.getSongs(), query, search),
-                LibraryLayoutItem.filtered(BaseLayoutItem.LayoutType.ALBUMS, state.getAlbums(), query, search),
-                LibraryLayoutItem.filtered(BaseLayoutItem.LayoutType.ARTISTS, state.getArtists(), query, search),
-                LibraryLayoutItem.filtered(BaseLayoutItem.LayoutType.GENRES, state.getGenres(), query, search),
-                LibraryLayoutItem.filtered(BaseLayoutItem.LayoutType.PLAYLISTS, state.getPlaylists(), query, search),
-                LibraryLayoutItem.filtered(BaseLayoutItem.LayoutType.FOLDERS, state.getFolders(), query, search)
-        );
+        final int generation = pageBuildGeneration.incrementAndGet();
+        final LibraryState stateSnapshot = state;
+        final String querySnapshot = query != null ? query : "";
+        final SearchController searchRef = search;
 
-        pages = new ArrayList<>(newPages);
-        pagerAdapter.submitList(pages, this::setupTabs);
+        int songCount = state.getSongs() != null ? state.getSongs().size() : 0;
+        int albumCount = state.getAlbums() != null ? state.getAlbums().size() : 0;
+        int artistCount = state.getArtists() != null ? state.getArtists().size() : 0;
+        UIInfoLog.d("FragmentHome.rebuildPages", "SCHEDULE gen=" + generation
+                + " songs=" + songCount + " albums=" + albumCount
+                + " artists=" + artistCount
+                + " queryEmpty=" + querySnapshot.isEmpty());
+
+        final long t0 = android.os.SystemClock.elapsedRealtime();
+        pageBuildExecutor.execute(() -> {
+            try {
+                List<LibraryLayoutItem> built = List.of(
+                        LibraryLayoutItem.filtered(BaseLayoutItem.LayoutType.ALL_SONGS, stateSnapshot.getSongs(), querySnapshot, searchRef),
+                        LibraryLayoutItem.filtered(BaseLayoutItem.LayoutType.ALBUMS, stateSnapshot.getAlbums(), querySnapshot, searchRef),
+                        LibraryLayoutItem.filtered(BaseLayoutItem.LayoutType.ARTISTS, stateSnapshot.getArtists(), querySnapshot, searchRef),
+                        LibraryLayoutItem.filtered(BaseLayoutItem.LayoutType.GENRES, stateSnapshot.getGenres(), querySnapshot, searchRef),
+                        LibraryLayoutItem.filtered(BaseLayoutItem.LayoutType.PLAYLISTS, stateSnapshot.getPlaylists(), querySnapshot, searchRef),
+                        LibraryLayoutItem.filtered(BaseLayoutItem.LayoutType.FOLDERS, stateSnapshot.getFolders(), querySnapshot, searchRef)
+                );
+                long filterMs = android.os.SystemClock.elapsedRealtime() - t0;
+                UIInfoLog.d("FragmentHome.rebuildPages", "BG filter done gen=" + generation
+                        + " filterMs=" + filterMs);
+
+                if (generation != pageBuildGeneration.get()) {
+                    UIInfoLog.d("FragmentHome.rebuildPages", "STALE drop gen=" + generation);
+                    return;
+                }
+
+                List<LibraryLayoutItem> pagesCopy = new ArrayList<>(built);
+                // Apply on main thread only
+                if (getView() == null) return;
+                getView().post(() -> {
+                    if (generation != pageBuildGeneration.get()) {
+                        UIInfoLog.d("FragmentHome.rebuildPages", "STALE drop on UI gen=" + generation);
+                        return;
+                    }
+                    if (!isAdded() || pagerAdapter == null) return;
+                    pages = pagesCopy;
+                    long tUi = android.os.SystemClock.elapsedRealtime();
+                    pagerAdapter.submitList(pages, () -> {
+                        setupTabs();
+                        UIInfoLog.d("FragmentHome.rebuildPages", "UI submit+tabs gen=" + generation
+                                + " uiMs=" + (android.os.SystemClock.elapsedRealtime() - tUi)
+                                + " totalMs=" + (android.os.SystemClock.elapsedRealtime() - t0));
+                    });
+                });
+            } catch (Exception e) {
+                UIInfoLog.d("FragmentHome.rebuildPages", "ERROR gen=" + generation + " " + e.getMessage());
+            }
+        });
     }
 
 
@@ -606,7 +676,7 @@ if (getSongInfoPanel().getIsVisible().get())
         );
 
         viewPager2.setAdapter(pagerAdapter);
-        viewPager2.setOffscreenPageLimit(6); // Keep all pages in memory to prevent disappearing
+        viewPager2.setOffscreenPageLimit(2); // 6 forced all tabs at once (lag on recreate)
 
         setupTabs();
     }
@@ -802,6 +872,10 @@ if (getSongInfoPanel().getIsVisible().get())
 
     @Override
     public void onDestroyView() {
+        UIInfoLog.d("FragmentHome.onDestroyView", "DESTROY (fragment may be recreated on next home nav)");
+        pageBuildGeneration.incrementAndGet(); // cancel pending builds
+
+
         if (drawerController != null) {
             drawerController.setDrawerListener(null);
             drawerController = null;
@@ -832,6 +906,12 @@ if (getSongInfoPanel().getIsVisible().get())
         // DO NOT reset lastState and lastQuery here if you want to preserve UI state
         // across fragment switches within the same activity lifecycle.
         super.onDestroyView();
+    }
+
+    @Override
+    public void onDestroy() {
+        pageBuildExecutor.shutdownNow();
+        super.onDestroy();
     }
 
 
