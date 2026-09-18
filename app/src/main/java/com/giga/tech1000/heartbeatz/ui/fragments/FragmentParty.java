@@ -58,7 +58,6 @@ import com.journeyapps.barcodescanner.ScanContract;
 import com.journeyapps.barcodescanner.ScanOptions;
 
 import java.util.List;
-import java.util.Locale;
 
 public class FragmentParty extends Fragment implements PartyModeUICallback, OnBackPressedHandler, DisplayMarginCallback {
 
@@ -173,7 +172,7 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
         guestsRecycler.setAdapter(guestListAdapter);
 
         guestListAdapter.setOnGuestClickListener(name -> {
-            if (viewModel.getUiState().getValue() == PartyState.HOSTING) {
+            if (viewModel.getPartyState().getValue() == PartyState.HOSTING) {
                 showHostActionDialog(name);
             }
         });
@@ -227,15 +226,15 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
         View btnCloseParty = view.findViewById(R.id.btnCloseParty);
         if (btnCloseParty != null) {
             btnCloseParty.setOnClickListener(v -> {
-                String title = viewModel.getUiState().getValue() == PartyState.HOSTING ? "End Party?" : "Leave Party?";
-                String message = viewModel.getUiState().getValue() == PartyState.HOSTING ?
+                String title = viewModel.getPartyState().getValue() == PartyState.HOSTING ? "End Party?" : "Leave Party?";
+                String message = viewModel.getPartyState().getValue() == PartyState.HOSTING ?
                         "This will disconnect all guests and stop the stream." :
                         "You will stop receiving the audio stream.";
 
                 new MaterialAlertDialogBuilder(requireContext())
                         .setTitle(title)
                         .setMessage(message)
-                        .setPositiveButton("Confirm", (dialog, which) -> viewModel.leaveOrStopParty())
+                        .setPositiveButton("Confirm", (dialog, which) -> viewModel.leaveParty())
                         .setNegativeButton("Cancel", null)
                         .show();
             });
@@ -263,18 +262,18 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
 
         View btnSetupBack = view.findViewById(R.id.btn_setup_back);
         if (btnSetupBack != null) {
-            btnSetupBack.setOnClickListener(v -> viewModel.leaveOrStopParty());
+            btnSetupBack.setOnClickListener(v -> viewModel.leaveParty());
         }
 
         observeViewModel();
         viewModel.setUiCallback(this);
 
         // Initial State
-        renderState(viewModel.getUiState().getValue() != null ? viewModel.getUiState().getValue() : PartyState.IDLE);
+        renderState(viewModel.getPartyState().getValue() != null ? viewModel.getPartyState().getValue() : PartyState.IDLE);
     }
 
     private void observeViewModel() {
-        viewModel.getUiState().observe(getViewLifecycleOwner(), state -> {
+        viewModel.getPartyState().observe(getViewLifecycleOwner(), state -> {
             if (state == PartyState.IDLE && currentState == PartyState.CONNECTING) {
                 Toast.makeText(requireContext(), "Connection failed or host disconnected", Toast.LENGTH_SHORT).show();
             }
@@ -297,9 +296,9 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
             }
         });
 
-        viewModel.getDiscoveredHosts().observe(getViewLifecycleOwner(), hosts -> {
+        viewModel.getDiscoveredParties().observe(getViewLifecycleOwner(), hosts -> {
             if (hosts != null && !hosts.isEmpty()) {
-                PartyState state = viewModel.getUiState().getValue();
+                PartyState state = viewModel.getPartyState().getValue();
                 if (state == PartyState.SEARCHING || state == PartyState.FOUND) {
                     showPartySelectionDialog(hosts);
                 }
@@ -320,14 +319,14 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
             }
         });
 
-        viewModel.getIsPlaying().observe(getViewLifecycleOwner(), playing -> {
+        viewModel.isPlaying().observe(getViewLifecycleOwner(), playing -> {
             updatePlaybackStatus();
         });
 
         viewModel.getCurrentPosition().observe(getViewLifecycleOwner(), position -> updatePlaybackProgress());
         viewModel.getCurrentDuration().observe(getViewLifecycleOwner(), duration -> updatePlaybackProgress());
 
-        viewModel.getIsAuthenticated().observe(getViewLifecycleOwner(), authenticated -> {
+        viewModel.isGuestAuthenticated().observe(getViewLifecycleOwner(), authenticated -> {
             if (authenticated != null && (currentState == PartyState.JOINED || currentState == PartyState.HOSTING)) {
                 updateUiContent(currentState);
             }
@@ -343,7 +342,7 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
             }
         });
 
-        viewModel.getGuestNames().observe(getViewLifecycleOwner(), names -> {
+        viewModel.getGuestList().observe(getViewLifecycleOwner(), names -> {
             if (guestListAdapter != null) {
                 guestListAdapter.setGuests(names);
             }
@@ -494,7 +493,7 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
                     host.partyName = name;
                     host.partyId = name + "_" + ip; // Simple ID generation
 
-                    viewModel.connectToHost(host, pin);
+                    viewModel.joinParty(host, pin);
                 }
             } catch (Exception e) {
                 Toast.makeText(requireContext(), "Invalid or malformed Party QR code", Toast.LENGTH_SHORT).show();
@@ -578,7 +577,7 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
                 .setItems(names, (dialog, which) -> {
                     showPinEntryDialog(hosts.get(which));
                 })
-                .setNegativeButton("Cancel", (dialog, which) -> viewModel.leaveOrStopParty())
+                .setNegativeButton("Cancel", (dialog, which) -> viewModel.leaveParty())
                 .setCancelable(false)
                 .show();
     }
@@ -594,7 +593,7 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
                 .setView(dialogView)
                 .setPositiveButton("Join", (dialog, which) -> {
                     String pin = pinEditText.getText().toString();
-                    viewModel.connectToHost(host, pin);
+                    viewModel.joinParty(host, pin);
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
@@ -646,7 +645,7 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
                     if (partyTitle != null) partyTitle.setText(R.string.party_joined);
                     if (tvPartySongTitle != null) tvPartySongTitle.setText(R.string.streaming_audio);
 
-                    Boolean authenticated = viewModel.getIsAuthenticated().getValue();
+                    Boolean authenticated = viewModel.isGuestAuthenticated().getValue();
                     if (tvPartyArtist != null) {
                         if (authenticated != null && authenticated) {
                             tvPartyArtist.setText(R.string.waiting_for_music);
@@ -722,7 +721,7 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
             switch (state) {
                 case HOSTING -> partyStatus.setText(R.string.party_status_hosting);
                 case JOINED -> {
-                    Boolean playing = viewModel.getIsPlaying().getValue();
+                    Boolean playing = viewModel.isPlaying().getValue();
                     if (Boolean.TRUE.equals(playing)) {
                         partyStatus.setText(R.string.party_status_playing);
                     } else {
@@ -743,7 +742,7 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
 
     private void updatePlaybackStatus() {
         if (tvPartyArtist == null || progressSync == null || tvTrackProgress == null) return;
-        Boolean playing = viewModel.getIsPlaying().getValue();
+        Boolean playing = viewModel.isPlaying().getValue();
         PartyState state = currentState;
         if (state == PartyState.JOINED) {
             if (Boolean.TRUE.equals(playing)) {
@@ -909,8 +908,8 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
     }
 
     public boolean onBackPressed() {
-        if (viewModel.getUiState().getValue() != PartyState.IDLE) {
-            viewModel.leaveOrStopParty();
+        if (viewModel.getPartyState().getValue() != PartyState.IDLE) {
+            viewModel.leaveParty();
             return true;
         }
         return false;

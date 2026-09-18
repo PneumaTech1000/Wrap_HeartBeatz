@@ -16,6 +16,7 @@ import com.google.android.material.navigation.NavigationView;
 import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.NavController;
 
 import com.realgear.multislidinguppanel.MultiSlidingUpPanelLayout;
@@ -130,8 +131,8 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
 
 
         // Observe Party state to update UI
-        PartyViewModel partyViewModel = new androidx.lifecycle.ViewModelProvider(this).get(PartyViewModel.class);
-        partyViewModel.getUiState().observe(this, state -> {
+        PartyViewModel partyViewModel = new ViewModelProvider(this).get(PartyViewModel.class);
+        partyViewModel.getPartyState().observe(this, state -> {
             boolean isClient = (state == PartyState.JOINED);
             if (uiThread != null && uiThread.getMediaPlayerPanel() != null) {
                 uiThread.getMediaPlayerPanel().setPartyClientMode(isClient);
@@ -140,7 +141,7 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
 
         // Update UI with metadata from Party Mode when in client mode
         partyViewModel.getCurrentSync().observe(this, sync -> {
-            if (sync != null && partyViewModel.getUiState().getValue() == PartyState.JOINED) {
+            if (sync != null && partyViewModel.getPartyState().getValue() == PartyState.JOINED) {
                 Song song = convertSyncToSong(sync);
                 if (uiThread != null && uiThread.getMediaPlayerPanel() != null) {
                     uiThread.getMediaPlayerPanel().onSongChanged(song);
