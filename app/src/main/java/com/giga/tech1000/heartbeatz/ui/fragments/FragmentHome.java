@@ -301,27 +301,35 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
 
     @Override
     public void onDisplayBarPlayerChanged(boolean isDisplaying) {
-        paddingHeight = (isDisplaying) ? getResources().getDimensionPixelSize(R.dimen.bar_and_navigation_height) : getResources().getDimensionPixelSize(R.dimen.navigation_bar_height);
+        paddingHeight = (isDisplaying)
+                ? getResources().getDimensionPixelSize(R.dimen.bar_and_navigation_height)
+                : getResources().getDimensionPixelSize(R.dimen.navigation_bar_height);
         UIInfoLog.d("FragmentHome.onDisplayBarPlayerChanged",
                 "isDisplaying=" + isDisplaying + " paddingHeightPx=" + paddingHeight
                 + " barAndNavDimen=" + getResources().getDimensionPixelSize(R.dimen.bar_and_navigation_height)
                 + " navDimen=" + getResources().getDimensionPixelSize(R.dimen.navigation_bar_height));
 
+        // Can run from RootNav before onViewCreated finishes (show/hide tab attach).
+        if (mediaNavigationManager == null || pagerWrapper == null || getView() == null) {
+            UIInfoLog.d("FragmentHome.onDisplayBarPlayerChanged", "skip — view not ready yet");
+            return;
+        }
+
         mediaNavigationManager.setBottomPadding(paddingHeight);
         pagerWrapper.setPadding(0, 0, 0, paddingHeight);
-if (getSongInfoPanel().getIsVisible().get())
-            getSongInfoPanel().setBottomPadding(paddingHeight);
-        if (getEqualizerViewPanel().getIsVisible().get())
-            getEqualizerViewPanel().setBottomPadding(paddingHeight);
-        if (getMediaDetailsWithImgPanel().getIsVisible().get())
-            getMediaDetailsWithImgPanel().setBottomPadding(paddingHeight);
-        if (getMediaDetailsWithoutImgPanel().getIsVisible().get())
-            getMediaDetailsWithoutImgPanel().setBottomPadding(paddingHeight);
-        if (getSongSelectionPanel().getIsVisible().get())
-            getSongSelectionPanel().setBottomPadding(paddingHeight);
-        if (getEditSongInfoPanel().getIsVisible().get())
-            getEditSongInfoPanel().setBottomPadding(paddingHeight);
 
+        if (songInfoPanel != null && getSongInfoPanel().getIsVisible().get())
+            getSongInfoPanel().setBottomPadding(paddingHeight);
+        if (equalizerViewPanel != null && getEqualizerViewPanel().getIsVisible().get())
+            getEqualizerViewPanel().setBottomPadding(paddingHeight);
+        if (mediaDetailsWithImgPanel != null && getMediaDetailsWithImgPanel().getIsVisible().get())
+            getMediaDetailsWithImgPanel().setBottomPadding(paddingHeight);
+        if (mediaDetailsWithoutImgPanel != null && getMediaDetailsWithoutImgPanel().getIsVisible().get())
+            getMediaDetailsWithoutImgPanel().setBottomPadding(paddingHeight);
+        if (songSelectionPanel != null && getSongSelectionPanel().getIsVisible().get())
+            getSongSelectionPanel().setBottomPadding(paddingHeight);
+        if (editSongInfoPanel != null && getEditSongInfoPanel().getIsVisible().get())
+            getEditSongInfoPanel().setBottomPadding(paddingHeight);
     }
 
     private void setupDrawerAuth() {
