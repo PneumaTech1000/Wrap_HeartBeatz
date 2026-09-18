@@ -47,6 +47,7 @@ import androidx.viewpager2.widget.ViewPager2;
 
 import com.bumptech.glide.Glide;
 import com.giga.tech1000.heartbeatz.R;
+import com.giga.tech1000.heartbeatz.ui.DrawerController;
 import com.giga.tech1000.heartbeatz.ui.UIInfoLog;
 import com.giga.tech1000.heartbeatz.layouts.adapters.LibraryLayoutAdapter;
 import com.giga.tech1000.heartbeatz.layouts.models.BaseLayoutItem;
@@ -88,7 +89,7 @@ import java.util.List;
 import java.util.Objects;
 
 @OptIn(markerClass = UnstableApi.class)
-public class FragmentHome extends Fragment implements DisplayMarginCallback, OnBackPressedHandler {
+public class FragmentHome extends Fragment implements DisplayMarginCallback, OnBackPressedHandler, DrawerController.DrawerListener {
 
     private MotionLayout motionLayout;
     private FrameLayout pagerWrapper;
@@ -109,8 +110,6 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
 
     private FrameLayout equalizerPanelView, songSelectionPanelView, songInfoPanelView, editSongInfoPanelView, mediaDetailsWithImgPanelView, mediaDetailsWithoutImgPanelView;
 
-    private View navDrawerScrollContent;
-
     private LibraryObservers libraryObservers;
     private SearchController search;
 
@@ -124,14 +123,9 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
     private ViewGroup container;
 
 
-    private DrawerLayout drawerLayout;
-    private NavigationView navView;
+    private DrawerController drawerController;
 
     // Drawer Auth UI
-    private View authButtonsContainer;
-    private MaterialButton btnLogin;
-    private MaterialButton btnSignup;
-    private MaterialButton btnLogout;
 
     private Observer<LibraryState> libraryStateObserver;
     private Observer<String> searchQueryObserver;
@@ -185,30 +179,7 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
         mediaDetailsWithImgPanelView = view.findViewById(R.id.media_details_with_img_container);
         mediaDetailsWithoutImgPanelView = view.findViewById(R.id.media_details_without_img_container);
 
-        drawerLayout = view.findViewById(R.id.drawer_layout);
-        navView = view.findViewById(R.id.nav_view);
-        // Drawer must draw above bottom nav + mini player when open
-        View drawerContainer = view.findViewById(R.id.nav_drawer_container);
-        if (drawerContainer != null) {
-            float e = 24f * getResources().getDisplayMetrics().density;
-            drawerContainer.setElevation(e);
-            drawerContainer.setTranslationZ(e);
-            UIInfoLog.d("FragmentHome.drawer", "container elev/tz=" + e
-                    + " w=" + drawerContainer.getWidth() + " h=" + drawerContainer.getHeight());
-        }
-        drawerLayout.addDrawerListener(new DrawerLayout.SimpleDrawerListener() {
-            @Override
-            public void onDrawerOpened(View drawerView) {
-                drawerView.setElevation(24f * getResources().getDisplayMetrics().density);
-                drawerView.setTranslationZ(24f * getResources().getDisplayMetrics().density);
-            }
-        });
-        navDrawerScrollContent = view.findViewById(R.id.nav_drawer_scroll_content);
-
-        authButtonsContainer = view.findViewById(R.id.auth_buttons_container);
-        btnLogin = view.findViewById(R.id.btn_login);
-        btnSignup = view.findViewById(R.id.btn_signup);
-        btnLogout = view.findViewById(R.id.btn_logout);
+        // Drawer is owned by MainActivity (DrawerController)
 
         return view;
     }
@@ -321,24 +292,7 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
 
         mediaNavigationManager.setBottomPadding(paddingHeight);
         pagerWrapper.setPadding(0, 0, 0, paddingHeight);
-
-        if (navDrawerScrollContent != null) {
-            navDrawerScrollContent.setPadding(
-                    navDrawerScrollContent.getPaddingLeft(),
-                    navDrawerScrollContent.getPaddingTop(),
-                    navDrawerScrollContent.getPaddingRight(),
-                    paddingHeight);
-        }
-        View drawerFooter = getView() != null ? getView().findViewById(R.id.drawer_footer) : null;
-        if (drawerFooter != null) {
-            drawerFooter.setPadding(
-                    drawerFooter.getPaddingLeft(),
-                    drawerFooter.getPaddingTop(),
-                    drawerFooter.getPaddingRight(),
-                    Math.max(drawerFooter.getPaddingBottom(), 16) + (paddingHeight > 0 ? 8 : 0));
-        }
-
-        if (getSongInfoPanel().getIsVisible().get())
+if (getSongInfoPanel().getIsVisible().get())
             getSongInfoPanel().setBottomPadding(paddingHeight);
         if (getEqualizerViewPanel().getIsVisible().get())
             getEqualizerViewPanel().setBottomPadding(paddingHeight);
@@ -354,95 +308,70 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
     }
 
     private void setupDrawerAuth() {
-        // Set up drawer toggle with btn_panel (hamburger icon)
+        if (!(requireActivity() instanceof DrawerController)) {
+            UIInfoLog.d("FragmentHome.setupDrawerAuth", "Activity is not DrawerController");
+            return;
+        }
+        drawerController = (DrawerController) requireActivity();
+        drawerController.setDrawerListener(this);
+
         if (btnPanel != null) {
             btnPanel.setOnClickListener(v -> {
-                if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
-                    drawerLayout.closeDrawer(GravityCompat.START);
+                if (drawerController.isDrawerOpen()) {
+                    drawerController.closeDrawer();
                 } else {
-                    drawerLayout.openDrawer(GravityCompat.START);
+                    drawerController.openDrawer();
                 }
             });
         }
 
-        // Navigation item selection
-        navView.setNavigationItemSelectedListener(menuItem -> {
-            int id = menuItem.getItemId();
-            NavController navController = Navigation.findNavController(requireActivity(), R.id.root_container_view);
-            if (id == R.id.nav_home) {
-                // Already here
-            } else if (id == R.id.nav_party) {
-                navController.navigate(R.id.nav_party);
-            } else if (id == R.id.nav_settings) {
-                Toast.makeText(requireContext(), "Settings clicked", Toast.LENGTH_SHORT).show();
-            }
-            drawerLayout.closeDrawer(GravityCompat.START);
-            return true;
-        });
-
-        if (btnLogin != null) {
-            btnLogin.setOnClickListener(v -> {
-                startActivity(new Intent(requireContext(), LoginActivity.class));
-                drawerLayout.closeDrawer(GravityCompat.START);
-            });
-        }
-
-        //if (btnSignup != null) {
-        btnSignup.setOnClickListener(v -> {
-            startActivity(new Intent(requireContext(), SignUpActivity.class));
-            drawerLayout.closeDrawer(GravityCompat.START);
-        });
-        // }
-
-        if (btnLogout != null) {
-            btnLogout.setOnClickListener(v -> {
-                FirebaseAuth.getInstance().signOut();
-                drawerLayout.closeDrawer(GravityCompat.START);
-                Toast.makeText(requireContext(), "Logged out", Toast.LENGTH_SHORT).show();
-            });
-        }
-
-        // Observe Firebase Auth user to update header and buttons
         FirebaseAuth.getInstance().addAuthStateListener(authState -> {
             FirebaseUser user = authState.getCurrentUser();
             boolean isLoggedIn = user != null;
-
-            // Update Header
-            View headerView = navView.getHeaderView(0);
-            if (headerView != null) {
-                ImageView imgHeader = headerView.findViewById(R.id.nav_header_photo);
-                TextView txtName = headerView.findViewById(R.id.nav_header_name);
-                TextView txtEmail = headerView.findViewById(R.id.nav_header_email);
-
-                if (isLoggedIn) {
-                    txtName.setText(user.getDisplayName() != null ? user.getDisplayName() : "User");
-                    txtEmail.setText(user.getEmail() != null ? user.getEmail() : "");
-                    if (user.getPhotoUrl() != null) {
-                        Glide.with(this)
-                                .load(user.getPhotoUrl())
-                                .circleCrop()
-                                .placeholder(com.giga.tech1000.icons_pack.R.drawable.person_4_24px)
-                                .into(imgHeader);
-                    } else {
-                        imgHeader.setImageResource(R.drawable.profile_pic);
-                    }
-                } else {
-                    txtName.setText(R.string.placeholder_guest);
-                    txtEmail.setText(R.string.not_signed_in);
-                    imgHeader.setImageResource(R.drawable.profile_pic);
-                }
-            }
-
-            // Update Button Visibility
-            if (authButtonsContainer != null) {
-                authButtonsContainer.setVisibility(isLoggedIn ? View.GONE : View.VISIBLE);
-            }
-
-            if (btnLogout != null) {
-                btnLogout.setVisibility(isLoggedIn ? View.VISIBLE : View.GONE);
+            if (drawerController != null) {
+                drawerController.updateDrawerAccount(
+                        isLoggedIn && user.getDisplayName() != null ? user.getDisplayName() : null,
+                        isLoggedIn && user.getEmail() != null ? user.getEmail() : null,
+                        isLoggedIn ? user.getPhotoUrl() : null,
+                        !isLoggedIn
+                );
             }
         });
+        UIInfoLog.d("FragmentHome.setupDrawerAuth", "registered with MainActivity drawer");
     }
+
+    @Override
+    public boolean onDrawerNavigationItem(int itemId) {
+        NavController navController = Navigation.findNavController(requireActivity(), R.id.root_container_view);
+        if (itemId == R.id.nav_party) {
+            navController.navigate(R.id.nav_party);
+            return true;
+        } else if (itemId == R.id.nav_settings) {
+            Toast.makeText(requireContext(), "Settings clicked", Toast.LENGTH_SHORT).show();
+            return true;
+        } else if (itemId == R.id.nav_equalizer) {
+            // Equalizer is opened from library chrome if available
+            return true;
+        }
+        return true;
+    }
+
+    @Override
+    public void onDrawerLoginClicked() {
+        startActivity(new Intent(requireContext(), LoginActivity.class));
+    }
+
+    @Override
+    public void onDrawerSignupClicked() {
+        startActivity(new Intent(requireContext(), SignUpActivity.class));
+    }
+
+    @Override
+    public void onDrawerLogoutClicked() {
+        FirebaseAuth.getInstance().signOut();
+        Toast.makeText(requireContext(), "Logged out", Toast.LENGTH_SHORT).show();
+    }
+
 
     private void setupMenu() {
         searchButton.setOnClickListener(v -> toggleSearchView(true));
@@ -730,28 +659,6 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
                 toolbarWrapper.setLayoutParams(params);
             }
 
-            // Drawer panel should not draw under the status bar (unlike full media player)
-            View drawerContainer = v.findViewById(R.id.nav_drawer_container);
-            if (drawerContainer != null) {
-                drawerContainer.setPadding(
-                        drawerContainer.getPaddingLeft(),
-                        statusTop,
-                        drawerContainer.getPaddingRight(),
-                        drawerContainer.getPaddingBottom());
-            }
-
-            if (navView != null) {
-                View header = navView.getHeaderView(0);
-                if (header != null) {
-                    // Header already sits below container padding; only add small internal top if needed
-                    header.setPadding(
-                            header.getPaddingLeft(),
-                            header.getPaddingTop(),
-                            header.getPaddingRight(),
-                            header.getPaddingBottom());
-                }
-            }
-
             View eqClose = v.findViewById(R.id.equalizer_view_close);
             if (eqClose != null) {
                 View parent = eqClose.getParent() instanceof View ? (View) eqClose.getParent() : null;
@@ -895,6 +802,11 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
 
     @Override
     public void onDestroyView() {
+        if (drawerController != null) {
+            drawerController.setDrawerListener(null);
+            drawerController = null;
+        }
+
         if (equalizerViewPanel != null) equalizerViewPanel.onDestroy();
         equalizerViewPanel = null;
         mediaDetailsWithImgPanel = null;
@@ -917,8 +829,6 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
         toolbarTitle = null;
         searchView = null;
         container = null;
-        drawerLayout = null;
-        navView = null;
         // DO NOT reset lastState and lastQuery here if you want to preserve UI state
         // across fragment switches within the same activity lifecycle.
         super.onDestroyView();
@@ -927,9 +837,9 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
 
     @Override
     public boolean onBackPressed() {
-        // Close drawer if open
-        if (drawerLayout != null && drawerLayout.isDrawerOpen(GravityCompat.START)) {
-            drawerLayout.closeDrawer(GravityCompat.START);
+        // Close drawer if open (owned by MainActivity)
+        if (drawerController != null && drawerController.isDrawerOpen()) {
+            drawerController.closeDrawer();
             return true;
         }
 

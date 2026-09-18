@@ -3,6 +3,7 @@ package com.giga.tech1000.heartbeatz;
 import android.content.Intent;
 import android.util.Log;
 import android.os.Bundle;
+import android.view.View;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -10,6 +11,10 @@ import androidx.annotation.OptIn;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
+import com.giga.tech1000.heartbeatz.ui.DrawerController;
+import com.google.android.material.navigation.NavigationView;
+import androidx.core.view.GravityCompat;
+import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
@@ -48,7 +53,7 @@ import java.util.TreeMap;
  */
 
 @OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements DrawerController {
 
     private PermissionManager permissionManager;
     private UIThread uiThread;
@@ -71,6 +76,15 @@ public class MainActivity extends AppCompatActivity {
     private MultiSlidingUpPanelLayout multiSlidingUpPanelLayout;
     private NavController navController;
 
+    // App-level drawer (above MultiSlidingUpPanel)
+    private DrawerLayout drawerLayout;
+    private NavigationView navView;
+    private View authButtonsContainer;
+    private View btnLogin;
+    private View btnSignup;
+    private View btnLogout;
+    private DrawerListener drawerListener;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         // --- STEP 1: INSTALL SPLASH SCREEN ---
@@ -91,6 +105,7 @@ public class MainActivity extends AppCompatActivity {
         splashScreen.setKeepOnScreenCondition(() -> !isDataReady);
 
         setContentView(R.layout.activity_main);
+        setupAppDrawer();
 
         // Edge-to-edge: pad content for nav/gesture bars; leave status-bar insets for toolbars.
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(android.R.id.content), (v, insets) -> {
@@ -374,4 +389,128 @@ public class MainActivity extends AppCompatActivity {
             */
         };
     }
+
+    // region DrawerController
+    private void setupAppDrawer() {
+        drawerLayout = findViewById(R.id.drawer_layout);
+        navView = findViewById(R.id.nav_view);
+        authButtonsContainer = findViewById(R.id.auth_buttons_container);
+        btnLogin = findViewById(R.id.btn_login);
+        btnSignup = findViewById(R.id.btn_signup);
+        btnLogout = findViewById(R.id.btn_logout);
+
+        if (navView != null) {
+            navView.setNavigationItemSelectedListener(item -> {
+                boolean handled = drawerListener != null
+                        && drawerListener.onDrawerNavigationItem(item.getItemId());
+                closeDrawer();
+                return handled || true;
+            });
+        }
+        if (btnLogin != null) {
+            btnLogin.setOnClickListener(v -> {
+                if (drawerListener != null) drawerListener.onDrawerLoginClicked();
+                closeDrawer();
+            });
+        }
+        if (btnSignup != null) {
+            btnSignup.setOnClickListener(v -> {
+                if (drawerListener != null) drawerListener.onDrawerSignupClicked();
+                closeDrawer();
+            });
+        }
+        if (btnLogout != null) {
+            btnLogout.setOnClickListener(v -> {
+                if (drawerListener != null) drawerListener.onDrawerLogoutClicked();
+                closeDrawer();
+            });
+        }
+
+        // Status bar padding on drawer panel
+        View drawerContainer = findViewById(R.id.nav_drawer_container);
+        if (drawerContainer != null && drawerLayout != null) {
+            ViewCompat.setOnApplyWindowInsetsListener(drawerContainer, (v, insets) -> {
+                int top = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
+                if (top == 0) {
+                    int resId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+                    if (resId > 0) top = getResources().getDimensionPixelSize(resId);
+                }
+                v.setPadding(v.getPaddingLeft(), top, v.getPaddingRight(), v.getPaddingBottom());
+                return insets;
+            });
+        }
+        android.util.Log.d("UIInfo", "[MainActivity.setupAppDrawer] drawer ready");
+    }
+
+    @Override
+    public void openDrawer() {
+        if (drawerLayout != null) {
+            drawerLayout.openDrawer(GravityCompat.START);
+        }
+    }
+
+    @Override
+    public void closeDrawer() {
+        if (drawerLayout != null && drawerLayout.isDrawerOpen(GravityCompat.START)) {
+            drawerLayout.closeDrawer(GravityCompat.START);
+        }
+    }
+
+    @Override
+    public boolean isDrawerOpen() {
+        return drawerLayout != null && drawerLayout.isDrawerOpen(GravityCompat.START);
+    }
+
+    @Override
+    public void setDrawerListener(DrawerListener listener) {
+        this.drawerListener = listener;
+    }
+
+    @Override
+    public void updateDrawerAccount(String displayName, String email, android.net.Uri photoUri, boolean isGuest) {
+        if (navView != null && navView.getHeaderView(0) != null) {
+            View header = navView.getHeaderView(0);
+            android.widget.TextView txtName = header.findViewById(R.id.nav_header_name);
+            android.widget.TextView txtEmail = header.findViewById(R.id.nav_header_email);
+            android.widget.ImageView img = header.findViewById(R.id.nav_header_photo);
+            if (txtName != null) {
+                txtName.setText(isGuest
+                        ? getString(R.string.placeholder_guest)
+                        : (displayName != null ? displayName : "User"));
+            }
+            if (txtEmail != null) {
+                txtEmail.setText(isGuest
+                        ? getString(R.string.not_signed_in)
+                        : (email != null ? email : ""));
+            }
+            if (img != null) {
+                if (!isGuest && photoUri != null) {
+                    com.bumptech.glide.Glide.with(this)
+                            .load(photoUri)
+                            .circleCrop()
+                            .placeholder(R.drawable.profile_pic)
+                            .into(img);
+                } else {
+                    img.setImageResource(R.drawable.profile_pic);
+                }
+            }
+        }
+        if (authButtonsContainer != null) {
+            authButtonsContainer.setVisibility(isGuest ? View.VISIBLE : View.GONE);
+        }
+        if (btnLogout != null) {
+            btnLogout.setVisibility(isGuest ? View.GONE : View.VISIBLE);
+        }
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (isDrawerOpen()) {
+            closeDrawer();
+            return;
+        }
+        super.onBackPressed();
+    }
+    // endregion
+
 }

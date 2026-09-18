@@ -336,7 +336,7 @@ public class UIThread implements IPlaybackCallback {
     }
 
     @Nullable
-    private RootNavigationBarPanel getNavigationPanel() {
+    public RootNavigationBarPanel getNavigationPanel() {
         if (!uiReady || panelLayout == null || panelLayout.getAdapter() == null) return null;
         return panelLayout.getAdapter().getItem(RootNavigationBarPanel.class);
     }
