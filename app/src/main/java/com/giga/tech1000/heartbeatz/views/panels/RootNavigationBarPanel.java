@@ -13,6 +13,7 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.media3.common.util.UnstableApi;
 import androidx.navigation.NavController;
+import androidx.navigation.NavOptions;
 import androidx.navigation.fragment.NavHostFragment;
 import androidx.navigation.ui.NavigationUI;
 
@@ -103,8 +104,35 @@ public class RootNavigationBarPanel extends BasePanelView {
         navigationBar = findViewById(R.id.root_navigation_bar);
         NavigationUI.setupWithNavController(navigationBar, navController);
 
+        // saveState/restoreState: avoid destroying FragmentHome on every tab switch
+        // (full recreate = ViewPager + library filter on main thread = lag)
         navigationBar.setOnItemSelectedListener(item -> {
-            return NavigationUI.onNavDestinationSelected(item, navController);
+            long t0 = android.os.SystemClock.elapsedRealtime();
+            int destId = item.getItemId();
+            if (navController.getCurrentDestination() != null
+                    && navController.getCurrentDestination().getId() == destId) {
+                UIInfoLog.d("RootNav.nav", "already on dest=" + destId);
+                return true;
+            }
+            NavOptions options = new NavOptions.Builder()
+                    .setLaunchSingleTop(true)
+                    .setRestoreState(true)
+                    .setPopUpTo(
+                            navController.getGraph().getStartDestinationId(),
+                            false,
+                            true /* saveState */)
+                    .build();
+            boolean ok;
+            try {
+                navController.navigate(destId, null, options);
+                ok = true;
+            } catch (IllegalArgumentException e) {
+                ok = NavigationUI.onNavDestinationSelected(item, navController);
+            }
+            UIInfoLog.d("RootNav.nav", "navigate dest=" + destId
+                    + " ok=" + ok
+                    + " ms=" + (android.os.SystemClock.elapsedRealtime() - t0));
+            return ok;
         });
 
         // Initial sync
