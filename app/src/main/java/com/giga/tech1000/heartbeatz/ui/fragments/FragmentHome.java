@@ -13,7 +13,6 @@ import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.FrameLayout;
-import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -30,12 +29,10 @@ import androidx.annotation.OptIn;
 import androidx.appcompat.widget.AppCompatImageButton;
 import androidx.appcompat.widget.SearchView;
 import androidx.constraintlayout.motion.widget.MotionLayout;
-import androidx.core.view.GravityCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
-import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
@@ -45,9 +42,8 @@ import androidx.navigation.Navigation;
 import androidx.transition.TransitionManager;
 import androidx.viewpager2.widget.ViewPager2;
 
-import com.bumptech.glide.Glide;
 import com.giga.tech1000.heartbeatz.R;
-import com.giga.tech1000.heartbeatz.ui.DrawerController;
+import com.giga.tech1000.heartbeatz.interfaces.DrawerController;
 import com.giga.tech1000.heartbeatz.ui.UIInfoLog;
 import com.giga.tech1000.heartbeatz.layouts.adapters.LibraryLayoutAdapter;
 import com.giga.tech1000.heartbeatz.layouts.models.BaseLayoutItem;
@@ -74,10 +70,8 @@ import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.tabs.TabLayout;
 import com.google.android.material.tabs.TabLayoutMediator;
-import com.google.android.material.navigation.NavigationView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.android.material.button.MaterialButton;
 
 import android.content.Intent;
 

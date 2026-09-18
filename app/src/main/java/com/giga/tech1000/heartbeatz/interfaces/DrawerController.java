@@ -1,4 +1,4 @@
-package com.giga.tech1000.heartbeatz.ui;
+package com.giga.tech1000.heartbeatz.interfaces;
 
 import android.net.Uri;
 

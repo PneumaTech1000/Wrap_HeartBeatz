@@ -11,17 +11,12 @@ import androidx.annotation.OptIn;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
-import com.giga.tech1000.heartbeatz.ui.DrawerController;
+import com.giga.tech1000.heartbeatz.interfaces.DrawerController;
 import com.google.android.material.navigation.NavigationView;
 import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.core.view.WindowInsetsCompat;
-import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentManager;
-import androidx.lifecycle.Lifecycle;
 import androidx.navigation.NavController;
-import androidx.navigation.fragment.NavHostFragment;
-import androidx.navigation.ui.NavigationUI;
 
 import com.realgear.multislidinguppanel.MultiSlidingUpPanelLayout;
 
@@ -41,11 +36,8 @@ import com.giga.tech1000.heartbeatz.view_models.SongsViewModel;
 import com.giga.tech1000.party_mode.core.PartyState;
 import com.giga.tech1000.media_player.models.Song;
 import com.giga.tech1000.party_mode.model.SyncPacket;
-import com.google.android.material.snackbar.Snackbar;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-
-import java.util.TreeMap;
 
 /**
  * Main Activity implementing MultiSlidingUpPanelLayout for a multi-pane slide-up interface.
