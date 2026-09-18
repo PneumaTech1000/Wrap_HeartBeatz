@@ -130,6 +130,7 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
 
 
 
+<<<<<<< HEAD
         // Observe Party state to update UI
         PartyViewModel partyViewModel = new ViewModelProvider(this).get(PartyViewModel.class);
         partyViewModel.getPartyState().observe(this, state -> {
@@ -149,6 +150,9 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
             }
         });
 
+=======
+        // PartyViewModel needs UIThread.init() first — wired in setupPartyObservers()
+>>>>>>> b59e724b4afe6670a5956fec332c7060ee461182
         // Set up Firebase Auth listener to check if user is signed in
         setupFirebaseAuthListener();
     }
@@ -308,6 +312,30 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
         scannerManager.init();
 
         uiThread.init();
+        setupPartyObservers();
+    }
+
+    private void setupPartyObservers() {
+        PartyViewModel partyViewModel =
+                new androidx.lifecycle.ViewModelProvider(this).get(PartyViewModel.class);
+        // Bind shared Media3 playback repo now that UIThread.init() has run
+        partyViewModel.attachPlaybackRepository(uiThread.getPlaybackStateRepository());
+
+        partyViewModel.getUiState().observe(this, state -> {
+            boolean isClient = (state == PartyState.JOINED);
+            if (uiThread != null && uiThread.getMediaPlayerPanel() != null) {
+                uiThread.getMediaPlayerPanel().setPartyClientMode(isClient);
+            }
+        });
+
+        partyViewModel.getCurrentSync().observe(this, sync -> {
+            if (sync != null && partyViewModel.getUiState().getValue() == PartyState.JOINED) {
+                Song song = convertSyncToSong(sync);
+                if (uiThread != null && uiThread.getMediaPlayerPanel() != null) {
+                    uiThread.getMediaPlayerPanel().onSongChanged(song);
+                }
+            }
+        });
     }
 
 

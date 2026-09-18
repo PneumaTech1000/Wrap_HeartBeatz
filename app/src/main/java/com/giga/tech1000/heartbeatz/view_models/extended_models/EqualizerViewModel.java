@@ -89,7 +89,14 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
 
     public EqualizerViewModel(@NonNull Application application) {
         super(application);
-        this.playbackState = UIThread.getInstance().getPlaybackStateRepository();
+        PlaybackStateRepository repo = null;
+        try {
+            if (UIThread.getInstance() != null) {
+                repo = UIThread.getInstance().getPlaybackStateRepository();
+            }
+        } catch (Exception ignored) {
+        }
+        this.playbackState = repo;
         this.presetManager = new PresetManager(application);
         // Initialize with default parametric bands
         initializeParametricBands();
