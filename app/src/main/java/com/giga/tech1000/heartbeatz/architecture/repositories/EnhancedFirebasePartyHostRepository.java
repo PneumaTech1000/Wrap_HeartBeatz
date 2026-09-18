@@ -423,7 +423,17 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
      * @param isOnline Whether the user is online
      */
     public void updateUserPresence(String userId, boolean isOnline) {
-        if (!isNetworkConnected || userId == null) {
+        if (!isNetworkConnected || userId == null || userId.isEmpty()) {
+            return;
+        }
+        if (!isAuthenticated()) {
+            Log.w(TAG, "Skip presence: user not authenticated");
+            return;
+        }
+        // Only the signed-in user may write their own presence node
+        String authUid = getCurrentUserId();
+        if (authUid == null || !authUid.equals(userId)) {
+            Log.w(TAG, "Skip presence: uid mismatch auth=" + authUid + " userId=" + userId);
             return;
         }
 
@@ -436,9 +446,21 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
         presenceData.put("lastSeen", ServerValue.TIMESTAMP);
         presenceData.put("version", Build.VERSION.SDK_INT);
 
+        // Clear presence automatically if the client disconnects
+        if (isOnline) {
+            Map<String, Object> offline = new HashMap<>();
+            offline.put("online", false);
+            offline.put("lastSeen", ServerValue.TIMESTAMP);
+            presenceRef.onDisconnect().setValue(offline);
+        }
+
         presenceRef.setValue(presenceData)
                 .addOnSuccessListener(aVoid -> Log.d(TAG, "Presence updated for user: " + userId))
-                .addOnFailureListener(e -> Log.e(TAG, "Failed to update presence", e));
+                .addOnFailureListener(e -> {
+                    // Presence is non-critical for hosting; log and continue
+                    Log.w(TAG, "Failed to update presence (deploy firebase.rules presence node if Permission denied): "
+                            + e.getMessage());
+                });
     }
 
     /**

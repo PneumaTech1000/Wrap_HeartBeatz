@@ -2,23 +2,28 @@
   "rules": {
     ".read": "false",
     ".write": "false",
+
     "parties": {
       ".read": "auth != null",
-      ".write": "auth != null",
+      ".indexOn": ["timestamp", "ownerId"],
       "$partyId": {
         ".read": "auth != null",
-        ".write": "auth != null && (data.child('ownerId').val() == auth.uid || !data.exists())",
+        ".write": "auth != null && (!data.exists() || data.child('ownerId').val() == auth.uid)",
         "members": {
-          ".read": "auth != null",
-          ".write": "auth != null && (data.parent().child('ownerId').val() == auth.uid || $uid == auth.uid)"
+          "$memberId": {
+            ".read": "auth != null",
+            ".write": "auth != null && (data.parent().parent().child('ownerId').val() == auth.uid || $memberId == auth.uid)"
+          }
         },
         "sync": {
           ".read": "auth != null",
           ".write": "auth != null && data.parent().child('ownerId').val() == auth.uid"
         },
         "authenticatedUsers": {
-          ".read": "auth != null",
-          ".write": "auth != null && data.parent().child('ownerId').val() == auth.uid"
+          "$uid": {
+            ".read": "auth != null",
+            ".write": "auth != null && (data.parent().parent().child('ownerId').val() == auth.uid || $uid == auth.uid)"
+          }
         },
         "webrtc_signaling": {
           ".read": "auth != null",
@@ -30,6 +35,16 @@
         }
       }
     },
+
+    "presence": {
+      ".read": "auth != null",
+      "$userId": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid == $userId",
+        ".validate": "newData.hasChildren(['online', 'lastSeen'])"
+      }
+    },
+
     "users": {
       "$userId": {
         ".read": "auth != null && auth.uid == $userId",
