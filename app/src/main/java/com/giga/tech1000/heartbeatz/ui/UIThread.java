@@ -19,7 +19,6 @@ import androidx.media3.common.Player;
 import androidx.media3.common.util.Log;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.session.legacy.PlaybackStateCompat;
-import androidx.navigation.NavController;
 
 import com.giga.tech1000.heartbeatz.MainActivity;
 import com.giga.tech1000.heartbeatz.R;
@@ -106,10 +105,9 @@ public class UIThread implements IPlaybackCallback {
                     if (handler.onBackPressed()) return;
                 }
 
-                // If fragment didn't handle it, check if NavController can pop back
-                NavController navController = getNavigationPanel().getNavController();
-                if (navController != null && navController.getPreviousBackStackEntry() != null) {
-                    navController.popBackStack();
+                // Party tab → Home tab (show/hide, no fragment destroy)
+                if (getNavigationPanel().getCurrentTabId() == R.id.nav_party) {
+                    getNavigationPanel().selectTab(R.id.nav_home);
                     return;
                 }
 

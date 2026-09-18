@@ -37,8 +37,6 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.media3.common.util.UnstableApi;
-import androidx.navigation.NavController;
-import androidx.navigation.Navigation;
 import androidx.transition.TransitionManager;
 import androidx.viewpager2.widget.ViewPager2;
 
@@ -361,9 +359,10 @@ if (getSongInfoPanel().getIsVisible().get())
 
     @Override
     public boolean onDrawerNavigationItem(int itemId) {
-        NavController navController = Navigation.findNavController(requireActivity(), R.id.root_container_view);
         if (itemId == R.id.nav_party) {
-            navController.navigate(R.id.nav_party);
+            if (UIThread.getInstance() != null && UIThread.getInstance().getNavigationPanel() != null) {
+                UIThread.getInstance().getNavigationPanel().selectTab(R.id.nav_party);
+            }
             return true;
         } else if (itemId == R.id.nav_settings) {
             Toast.makeText(requireContext(), "Settings clicked", Toast.LENGTH_SHORT).show();

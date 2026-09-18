@@ -13,15 +13,15 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentTransaction;
+import androidx.lifecycle.Lifecycle;
 import androidx.media3.common.util.UnstableApi;
-import androidx.navigation.NavController;
-import androidx.navigation.NavOptions;
-import androidx.navigation.fragment.NavHostFragment;
-import androidx.navigation.ui.NavigationUI;
 
 import com.giga.tech1000.heartbeatz.R;
 import com.giga.tech1000.heartbeatz.ui.UIInfoLog;
 import com.giga.tech1000.heartbeatz.ui.UIThread;
+import com.giga.tech1000.heartbeatz.ui.fragments.FragmentHome;
+import com.giga.tech1000.heartbeatz.ui.fragments.FragmentParty;
 import com.giga.tech1000.utils.interfaces.DisplayMarginCallback;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.realgear.multislidinguppanel.BasePanelView;
@@ -32,7 +32,7 @@ import com.realgear.multislidinguppanel.MultiSlidingUpPanelLayout;
 public class RootNavigationBarPanel extends BasePanelView {
 
     private BottomNavigationView navigationBar;
-    private NavController navController;
+    private int currentTabId = R.id.nav_home;
     private Fragment activeFragment;
     private final Context context;
 
@@ -64,7 +64,6 @@ public class RootNavigationBarPanel extends BasePanelView {
 
         getSupportFragmentManager().registerFragmentLifecycleCallbacks(
                 new FragmentManager.FragmentLifecycleCallbacks() {
-
                     @Override
                     public void onFragmentViewCreated(
                             @NonNull FragmentManager fm,
@@ -72,76 +71,45 @@ public class RootNavigationBarPanel extends BasePanelView {
                             @NonNull View v,
                             @Nullable Bundle savedInstanceState
                     ) {
-                        // Only care about fragments inside NavHost
-                        Fragment navHost = getSupportFragmentManager().findFragmentById(R.id.root_container_view);
-
-                        if (!(navHost instanceof NavHostFragment host)) return;
-
-                        Fragment current = host.getChildFragmentManager().getPrimaryNavigationFragment();
-
-                        if (f == current) {
-                            activeFragment = f;
-                            // Sync padding state with the actual current player state from UIThread
-                            updatePaddingWhenWhenBarChanged(UIThread.getInstance().isPlayerBarVisible());
+                        String tag = f.getTag();
+                        if (TAG_HOME.equals(tag) || TAG_PARTY.equals(tag)) {
+                            if (!f.isHidden()) {
+                                activeFragment = f;
+                                updatePaddingWhenWhenBarChanged(
+                                        UIThread.getInstance().isPlayerBarVisible());
+                            }
                         }
                     }
                 },
-                true
+                false
         );
 
     }
 
     @Override
     public void onBindView() {
-        // 1. Find the NavHostFragment safely
-        Fragment fragment = getSupportFragmentManager().findFragmentById(R.id.root_container_view);
-        if (!(fragment instanceof NavHostFragment navHostFragment)) {
-            throw new IllegalStateException("NavHostFragment not found. Check your XML layout.");
-        }
-
-        // 2. Get NavController
-        navController = navHostFragment.getNavController();
-
-        // 3. Hook up BottomNavigationView with NavController
         navigationBar = findViewById(R.id.root_navigation_bar);
-        // NavigationUI.setupWithNavController uses saveState/restoreState (Nav 2.4+).
-        // Do NOT replace the item listener with a custom navigate() that breaks back-stack save.
-        NavigationUI.setupWithNavController(navigationBar, navController);
+
+        // Show/hide tabs: keep FragmentHome & FragmentParty alive (no destroy on switch).
+        ensureTabsAttached();
+        selectTab(R.id.nav_home, false);
 
         navigationBar.setOnItemSelectedListener(item -> {
             long t0 = android.os.SystemClock.elapsedRealtime();
             int destId = item.getItemId();
-            if (navController.getCurrentDestination() != null
-                    && navController.getCurrentDestination().getId() == destId) {
-                UIInfoLog.d("RootNav.nav", "already on dest=" + destId);
+            if (destId == currentTabId) {
+                UIInfoLog.d("RootNav.nav", "already on tab=" + destId);
                 return true;
             }
-            // Official API: launchSingleTop + restoreState + popUpTo(start, saveState)
-            boolean ok = NavigationUI.onNavDestinationSelected(item, navController);
-            UIInfoLog.d("RootNav.nav", "onNavDestinationSelected dest=" + destId
-                    + " ok=" + ok
-                    + " ms=" + (android.os.SystemClock.elapsedRealtime() - t0)
-                    + " current=" + (navController.getCurrentDestination() != null
-                        ? navController.getCurrentDestination().getId() : -1));
-            return ok;
-        });
-
-        // Keep selected item in sync when back stack changes
-        navController.addOnDestinationChangedListener((controller, destination, arguments) -> {
-            UIInfoLog.d("RootNav.destChanged", "id=" + destination.getId()
-                    + " label=" + destination.getLabel());
-            Menu menu = navigationBar.getMenu();
-            for (int i = 0; i < menu.size(); i++) {
-                MenuItem mi = menu.getItem(i);
-                if (mi.getItemId() == destination.getId()) {
-                    mi.setChecked(true);
-                    break;
-                }
-            }
+            selectTab(destId, true);
+            UIInfoLog.d("RootNav.nav", "showHide tab=" + destId
+                    + " ms=" + (android.os.SystemClock.elapsedRealtime() - t0));
+            return true;
         });
 
         // Initial sync
         updatePaddingWhenWhenBarChanged(UIThread.getInstance().isPlayerBarVisible());
+
     }
 
     @Override
@@ -167,6 +135,79 @@ public class RootNavigationBarPanel extends BasePanelView {
 
     public Fragment getActiveFragment() { return activeFragment; }
 
-    public NavController getNavController() { return navController; }
+    /** @deprecated Tabs no longer use NavController; prefer {@link #selectTab(int)}. */
+    @Nullable
+    public Object getNavController() { return null; }
+
+    public int getCurrentTabId() { return currentTabId; }
+
+    public void selectTab(int tabId) {
+        selectTab(tabId, true);
+    }
+
+    private void ensureTabsAttached() {
+        FragmentManager fm = getSupportFragmentManager();
+        Fragment home = fm.findFragmentByTag(TAG_HOME);
+        Fragment party = fm.findFragmentByTag(TAG_PARTY);
+        FragmentTransaction ft = fm.beginTransaction();
+        boolean changed = false;
+        if (home == null) {
+            home = new FragmentHome();
+            ft.add(R.id.root_container_view, home, TAG_HOME);
+            changed = true;
+        }
+        if (party == null) {
+            party = new FragmentParty();
+            ft.add(R.id.root_container_view, party, TAG_PARTY);
+            ft.hide(party);
+            changed = true;
+        }
+        if (changed) {
+            ft.setReorderingAllowed(true);
+            ft.commitNowAllowingStateLoss();
+            UIInfoLog.d("RootNav.tabs", "attached home+party (show/hide)");
+        }
+    }
+
+    private void selectTab(int tabId, boolean updateMenu) {
+        FragmentManager fm = getSupportFragmentManager();
+        Fragment home = fm.findFragmentByTag(TAG_HOME);
+        Fragment party = fm.findFragmentByTag(TAG_PARTY);
+        if (home == null || party == null) {
+            ensureTabsAttached();
+            home = fm.findFragmentByTag(TAG_HOME);
+            party = fm.findFragmentByTag(TAG_PARTY);
+        }
+        if (home == null || party == null) return;
+
+        FragmentTransaction ft = fm.beginTransaction().setReorderingAllowed(true);
+        if (tabId == R.id.nav_party) {
+            ft.hide(home).setMaxLifecycle(home, Lifecycle.State.STARTED);
+            ft.show(party).setMaxLifecycle(party, Lifecycle.State.RESUMED);
+            activeFragment = party;
+        } else {
+            ft.hide(party).setMaxLifecycle(party, Lifecycle.State.STARTED);
+            ft.show(home).setMaxLifecycle(home, Lifecycle.State.RESUMED);
+            activeFragment = home;
+            tabId = R.id.nav_home;
+        }
+        ft.commitNowAllowingStateLoss();
+        currentTabId = tabId;
+        if (updateMenu && navigationBar != null) {
+            Menu menu = navigationBar.getMenu();
+            for (int i = 0; i < menu.size(); i++) {
+                MenuItem mi = menu.getItem(i);
+                mi.setChecked(mi.getItemId() == currentTabId);
+            }
+        }
+        updatePaddingWhenWhenBarChanged(UIThread.getInstance().isPlayerBarVisible());
+        UIInfoLog.d("RootNav.selectTab", "tab=" + currentTabId
+                + " active=" + activeFragment.getClass().getSimpleName()
+                + " (no destroy)");
+    }
+
+    private static final String TAG_HOME = "tab_home";
+    private static final String TAG_PARTY = "tab_party";
+
 
 }

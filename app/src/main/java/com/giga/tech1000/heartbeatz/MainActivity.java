@@ -16,7 +16,6 @@ import com.google.android.material.navigation.NavigationView;
 import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.core.view.WindowInsetsCompat;
-import androidx.navigation.NavController;
 
 import com.realgear.multislidinguppanel.MultiSlidingUpPanelLayout;
 
@@ -66,7 +65,6 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
 
     // UI Components
     private MultiSlidingUpPanelLayout multiSlidingUpPanelLayout;
-    private NavController navController;
 
     // App-level drawer (above MultiSlidingUpPanel)
     private DrawerLayout drawerLayout;
@@ -183,19 +181,7 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
         return song;
     }
 
-    /*
-    private void initUIComponents() {
-        // Initialize MultiSlidingUpPanelLayout
-        multiSlidingUpPanelLayout = findViewById(R.id.multiSlidingUpPanel);
-
-        // Get NavController from the NavHostFragment (first child of MultiSlidingUpPanelLayout)
-        FragmentManager fm = getSupportFragmentManager();
-        Fragment fragment = fm.findFragmentById(R.id.nav_host_fragment);
-        if (fragment instanceof NavHostFragment) {
-            navController = ((NavHostFragment) fragment).getNavController();
-        }
-
-        // Optional: Set up panel slide listeners if needed
+    // Optional: Set up panel slide listeners if needed
         // multiSlidingUpPanelLayout.addPanelSlideListener(new PanelSlideListener() { ... });
     }
     */
@@ -337,8 +323,8 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
     private void handleIntent(Intent intent) {
         if ("com.heartbeatz.party.SHOW_PARTY".equals(intent.getAction())) {
             // Navigate to Party fragment when intent is received
-            if (navController != null) {
-                navController.navigate(R.id.nav_party);
+            if (uiThread != null && uiThread.getNavigationPanel() != null) {
+                uiThread.getNavigationPanel().selectTab(R.id.nav_party);
             }
             Toast.makeText(this, "Party Intent Received", Toast.LENGTH_SHORT).show();
         }

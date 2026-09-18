@@ -6,7 +6,6 @@
     android:layout_height="match_parent"
     android:fitsSystemWindows="false">
 
-    <!-- Main content: existing sliding panel + nav host -->
     <androidx.coordinatorlayout.widget.CoordinatorLayout
         android:id="@+id/root_container"
         android:layout_width="match_parent"
@@ -18,19 +17,16 @@
             android:layout_height="match_parent"
             app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
+            <!-- Plain container: tabs use show/hide (no Nav destroy/recreate) -->
             <androidx.fragment.app.FragmentContainerView
                 android:id="@+id/root_container_view"
-                android:name="androidx.navigation.fragment.NavHostFragment"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                app:defaultNavHost="true"
-                app:navGraph="@navigation/root_nav_view" />
+                android:layout_height="match_parent" />
 
         </com.realgear.multislidinguppanel.MultiSlidingUpPanelLayout>
 
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
-    <!-- Drawer draws as sibling ABOVE MultiSlidingUpPanel content tree -->
     <include layout="@layout/drawer_side_panel" />
 
 </androidx.drawerlayout.widget.DrawerLayout>
