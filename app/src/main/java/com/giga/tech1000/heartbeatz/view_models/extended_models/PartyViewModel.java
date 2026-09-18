@@ -1,5 +1,6 @@
 package com.giga.tech1000.heartbeatz.view_models.extended_models;
 
+import android.annotation.SuppressLint;
 import android.app.Application;
 import android.util.Log;
 
@@ -19,6 +20,7 @@ import com.giga.tech1000.media_player.models.Song;
 import com.giga.tech1000.party_mode.core.PartyState;
 import com.giga.tech1000.party_mode.model.PartyHost;
 import com.giga.tech1000.party_mode.model.SyncPacket;
+import com.giga.tech1000.utils.interfaces.PartyModeUICallback;
 
 /**
  * PartyViewModel - Modernized MVVM Architecture
@@ -200,14 +202,6 @@ public class PartyViewModel extends AndroidViewModel {
         return requirePlayback();
     }
 
-    /**
-     * @deprecated Use getPartyState() instead. Legacy name for backward compatibility.
-     */
-    @Deprecated
-    @NonNull
-    public LiveData<PartyState> getUiState() {
-        return partyState;
-    }
 
     /**
      * Current sync packet from host (guest only)
@@ -222,15 +216,6 @@ public class PartyViewModel extends AndroidViewModel {
      */
     @NonNull
     public LiveData<java.util.List<PartyHost>> getDiscoveredParties() {
-        return partyHost.getDiscoveredHosts();
-    }
-
-    /**
-     * @deprecated Use getDiscoveredParties() instead. Legacy name for backward compatibility.
-     */
-    @Deprecated
-    @NonNull
-    public LiveData<java.util.List<PartyHost>> getDiscoveredHosts() {
         return partyHost.getDiscoveredHosts();
     }
 
@@ -268,15 +253,6 @@ public class PartyViewModel extends AndroidViewModel {
     }
 
     /**
-     * @deprecated Use getGuestList() instead. Legacy name for backward compatibility.
-     */
-    @Deprecated
-    @NonNull
-    public LiveData<java.util.List<String>> getGuestNames() {
-        return partyHost.getConnectedGuests();
-    }
-
-    /**
      * Number of connected guests
      */
     @NonNull
@@ -293,15 +269,6 @@ public class PartyViewModel extends AndroidViewModel {
     }
 
     /**
-     * @deprecated Use isGuestAuthenticated() instead. Legacy name for backward compatibility.
-     */
-    @Deprecated
-    @NonNull
-    public LiveData<Boolean> getIsAuthenticated() {
-        return partyHost.isGuestAuthenticated();
-    }
-
-    /**
      * Last error message (null if no error)
      */
     @NonNull
@@ -310,7 +277,7 @@ public class PartyViewModel extends AndroidViewModel {
     }
 
     /**
-     * Whether WiFi setup is required
+     * Whether Wi-Fi setup is required
      */
     @NonNull
     public LiveData<Boolean> isSetupRequired() {
@@ -349,15 +316,6 @@ public class PartyViewModel extends AndroidViewModel {
      */
     @NonNull
     public LiveData<Boolean> isPlaying() {
-        return playbackState.isPlaying();
-    }
-
-    /**
-     * @deprecated Use isPlaying() instead. Legacy name for backward compatibility.
-     */
-    @Deprecated
-    @NonNull
-    public LiveData<Boolean> getIsPlaying() {
         return playbackState.isPlaying();
     }
 
@@ -456,14 +414,6 @@ public class PartyViewModel extends AndroidViewModel {
     }
 
     /**
-     * @deprecated Use joinParty() instead. Legacy name for backward compatibility.
-     */
-    @Deprecated
-    public void connectToHost(@Nullable PartyHost host, @NonNull String pin) {
-        joinParty(host, pin);
-    }
-
-    /**
      * Leave current party (host or guest)
      */
     public void leaveParty() {
@@ -476,14 +426,6 @@ public class PartyViewModel extends AndroidViewModel {
         } else if (partyHost.isGuest()) {
             partyHost.leaveParty();
         }
-    }
-
-    /**
-     * @deprecated Use leaveParty() instead. Legacy name for backward compatibility.
-     */
-    @Deprecated
-    public void leaveOrStopParty() {
-        leaveParty();
     }
 
     // ============ PLAYBACK COMMANDS ============
@@ -661,7 +603,7 @@ public class PartyViewModel extends AndroidViewModel {
     }
 
     /**
-     * Check if currently guest in a party
+     * Check if currently guest are at a party
      */
     public boolean isGuest() {
         return partyHost.isGuest();
@@ -687,7 +629,7 @@ public class PartyViewModel extends AndroidViewModel {
      * @deprecated UI callbacks are no longer supported. Use LiveData observers instead.
      */
     @Deprecated
-    public void setUiCallback(com.giga.tech1000.utils.interfaces.PartyModeUICallback callback) {
+    public void setUiCallback(PartyModeUICallback callback) {
         // Legacy support - no-op, callbacks are handled by repositories
         Log.w(TAG, "setUiCallback() is deprecated. Use LiveData observers instead.");
     }
@@ -751,7 +693,7 @@ public class PartyViewModel extends AndroidViewModel {
     }
 
     /**
-     * Start presence listening (requires enhanced repository)
+     * Start presence listening (require enhanced repository)
      * @param listener Callback for presence updates
      */
     public void startPresenceListener(EnhancedFirebasePartyHostRepository.PresenceListener listener) {
@@ -803,6 +745,7 @@ public class PartyViewModel extends AndroidViewModel {
     }
 
     // ============ LIFECYCLE ============
+
 
     @Override
     protected void onCleared() {

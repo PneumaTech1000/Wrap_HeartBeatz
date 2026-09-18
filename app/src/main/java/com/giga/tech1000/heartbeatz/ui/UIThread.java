@@ -58,7 +58,9 @@ public class UIThread implements IPlaybackCallback {
     private MultiSlidingUpPanelLayout panelLayout;
 
     private MediaPlayerThread mediaPlayerThread;
-    /** Single shared playback state repository for the whole app (Media3-backed). */
+    /**
+     * Single shared playback state repository for the whole app (Media3-backed).
+     */
     private PlaybackStateRepository playbackStateRepository;
 
     private boolean uiReady = false;
@@ -86,9 +88,13 @@ public class UIThread implements IPlaybackCallback {
         act.getOnBackPressedDispatcher().addCallback(act, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                if (!uiReady || getNavigationPanel() == null || getMediaPlayerPanel() == null) return;
+                if (act.isDrawerOpen()) {
+                    act.closeDrawer();
+                    return;
+                }
 
-
+                if (!uiReady || getNavigationPanel() == null || getMediaPlayerPanel() == null)
+                    return;
 
                 if (Boolean.TRUE.equals(getMediaPlayerPanel().getBottomSheetView().isViewVisibility().getValue())) {
                     getMediaPlayerPanel().getBottomSheetView().closeBottomSheet();
@@ -166,8 +172,8 @@ public class UIThread implements IPlaybackCallback {
         RootMediaPlayerPanel mediaPanel = getMediaPlayerPanel();
         UIInfoLog.d("UIThread.onPlaybackStateChanged",
                 "isPlaying=" + isPlaying + " playbackState=" + playbackState
-                + " mediaPanel=" + (mediaPanel != null)
-                + " song=" + (mediaPanel != null && mediaPanel.getCurrentSong() != null));
+                        + " mediaPanel=" + (mediaPanel != null)
+                        + " song=" + (mediaPanel != null && mediaPanel.getCurrentSong() != null));
         if (mediaPanel != null) {
             // Idle with no active item → hide mini player so bottom nav is flush
             if (playbackState == Player.STATE_IDLE && mediaPanel.getCurrentSong() == null) {
@@ -316,16 +322,45 @@ public class UIThread implements IPlaybackCallback {
         return SongRepository.getInstance().getCachedSongs();
     }
 
-    public MainActivity getActivity() { return activity; }
-    public LocalMediaScannerManager getScannerManager() { return activity.getScannerManager(); }
-    public SearchController getSearchController() { return searchController; }
-    public SessionIdViewModel getSessionIdViewModel() { return sessionIdViewModel; }
-    public LibraryObservers getLibraryObservers() { return activity.getLibraryObservers(); }
-    public LibrarySetViewModel getLibrarySetViewModel() { return activity.getLibrarySetViewModel(); }
-    public SettingViewModel getSettingViewModel() { return activity.getSettingViewModel(); }
-    public CurrentItemPlayerCache getPlayingCache() { return playerCache; }
-    public LifecycleOwner getLifecycleOwner() { return activity; }
-    public PermissionManager getPermissionManager() { return activity.getPermissionManager(); }
+    public MainActivity getActivity() {
+        return activity;
+    }
+
+    public LocalMediaScannerManager getScannerManager() {
+        return activity.getScannerManager();
+    }
+
+    public SearchController getSearchController() {
+        return searchController;
+    }
+
+    public SessionIdViewModel getSessionIdViewModel() {
+        return sessionIdViewModel;
+    }
+
+    public LibraryObservers getLibraryObservers() {
+        return activity.getLibraryObservers();
+    }
+
+    public LibrarySetViewModel getLibrarySetViewModel() {
+        return activity.getLibrarySetViewModel();
+    }
+
+    public SettingViewModel getSettingViewModel() {
+        return activity.getSettingViewModel();
+    }
+
+    public CurrentItemPlayerCache getPlayingCache() {
+        return playerCache;
+    }
+
+    public LifecycleOwner getLifecycleOwner() {
+        return activity;
+    }
+
+    public PermissionManager getPermissionManager() {
+        return activity.getPermissionManager();
+    }
 
     @Nullable
     public RootMediaPlayerPanel getMediaPlayerPanel() {
@@ -339,8 +374,13 @@ public class UIThread implements IPlaybackCallback {
         return panelLayout.getAdapter().getItem(RootNavigationBarPanel.class);
     }
 
-    public static UIThread getInstance() { return instance; }
-    public MediaPlayerThread getMediaPlayerThread() { return mediaPlayerThread; }
+    public static UIThread getInstance() {
+        return instance;
+    }
+
+    public MediaPlayerThread getMediaPlayerThread() {
+        return mediaPlayerThread;
+    }
 
     /**
      * Single shared {@link PlaybackStateRepository} backed by Media3 via CorePlayer.
@@ -365,5 +405,7 @@ public class UIThread implements IPlaybackCallback {
         panelLayout.post(() -> UIInfoLog.layoutChildren("UIThread.onCreate.posted", panelLayout));
     }
 
-    public <T extends View> T findViewById(@IdRes int id) { return activity.findViewById(id); }
+    public <T extends View> T findViewById(@IdRes int id) {
+        return activity.findViewById(id);
+    }
 }

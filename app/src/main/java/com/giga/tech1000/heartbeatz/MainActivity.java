@@ -11,11 +11,14 @@ import androidx.annotation.OptIn;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
+
 import com.giga.tech1000.heartbeatz.interfaces.DrawerController;
 import com.google.android.material.navigation.NavigationView;
+
 import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.lifecycle.ViewModelProvider;
 
 import com.realgear.multislidinguppanel.MultiSlidingUpPanelLayout;
 
@@ -126,8 +129,27 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
         checkAndRequestPermissions();
 
 
+        // Observe Party state to update UI
+        PartyViewModel partyViewModel = new ViewModelProvider(this).get(PartyViewModel.class);
+        partyViewModel.getPartyState().observe(this, state -> {
+            boolean isClient = (state == PartyState.JOINED);
+            if (uiThread != null && uiThread.getMediaPlayerPanel() != null) {
+                uiThread.getMediaPlayerPanel().setPartyClientMode(isClient);
+            }
+        });
+
+        // Update UI with metadata from Party Mode when in client mode
+        partyViewModel.getCurrentSync().observe(this, sync -> {
+            if (sync != null && partyViewModel.getPartyState().getValue() == PartyState.JOINED) {
+                Song song = convertSyncToSong(sync);
+                if (uiThread != null && uiThread.getMediaPlayerPanel() != null) {
+                    uiThread.getMediaPlayerPanel().onSongChanged(song);
+                }
+            }
+        });
 
         // PartyViewModel needs UIThread.init() first — wired in setupPartyObservers()
+
         // Set up Firebase Auth listener to check if user is signed in
         setupFirebaseAuthListener();
     }
@@ -284,7 +306,7 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
         // Bind shared Media3 playback repo now that UIThread.init() has run
         partyViewModel.attachPlaybackRepository(uiThread.getPlaybackStateRepository());
 
-        partyViewModel.getUiState().observe(this, state -> {
+        partyViewModel.getPartyState().observe(this, state -> {
             boolean isClient = (state == PartyState.JOINED);
             if (uiThread != null && uiThread.getMediaPlayerPanel() != null) {
                 uiThread.getMediaPlayerPanel().setPartyClientMode(isClient);
@@ -292,7 +314,7 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
         });
 
         partyViewModel.getCurrentSync().observe(this, sync -> {
-            if (sync != null && partyViewModel.getUiState().getValue() == PartyState.JOINED) {
+            if (sync != null && partyViewModel.getPartyState().getValue() == PartyState.JOINED) {
                 Song song = convertSyncToSong(sync);
                 if (uiThread != null && uiThread.getMediaPlayerPanel() != null) {
                     uiThread.getMediaPlayerPanel().onSongChanged(song);
@@ -416,7 +438,7 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
             ViewCompat.setOnApplyWindowInsetsListener(drawerContainer, (v, insets) -> {
                 int top = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
                 if (top == 0) {
-                    int resId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+                    int resId = this.getResources().getIdentifier("status_bar_height", "dimen", "android");
                     if (resId > 0) top = getResources().getDimensionPixelSize(resId);
                 }
                 v.setPadding(v.getPaddingLeft(), top, v.getPaddingRight(), v.getPaddingBottom());
@@ -486,15 +508,5 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
             btnLogout.setVisibility(isGuest ? View.GONE : View.VISIBLE);
         }
     }
-
-    @Override
-    public void onBackPressed() {
-        if (isDrawerOpen()) {
-            closeDrawer();
-            return;
-        }
-        super.onBackPressed();
-    }
-    // endregion
 
 }
