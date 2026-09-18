@@ -5,6 +5,8 @@ import android.content.Context;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 
 import androidx.annotation.NonNull;
@@ -102,10 +104,10 @@ public class RootNavigationBarPanel extends BasePanelView {
 
         // 3. Hook up BottomNavigationView with NavController
         navigationBar = findViewById(R.id.root_navigation_bar);
+        // NavigationUI.setupWithNavController uses saveState/restoreState (Nav 2.4+).
+        // Do NOT replace the item listener with a custom navigate() that breaks back-stack save.
         NavigationUI.setupWithNavController(navigationBar, navController);
 
-        // saveState/restoreState: avoid destroying FragmentHome on every tab switch
-        // (full recreate = ViewPager + library filter on main thread = lag)
         navigationBar.setOnItemSelectedListener(item -> {
             long t0 = android.os.SystemClock.elapsedRealtime();
             int destId = item.getItemId();
@@ -114,25 +116,28 @@ public class RootNavigationBarPanel extends BasePanelView {
                 UIInfoLog.d("RootNav.nav", "already on dest=" + destId);
                 return true;
             }
-            NavOptions options = new NavOptions.Builder()
-                    .setLaunchSingleTop(true)
-                    .setRestoreState(true)
-                    .setPopUpTo(
-                            navController.getGraph().getStartDestinationId(),
-                            false,
-                            true /* saveState */)
-                    .build();
-            boolean ok;
-            try {
-                navController.navigate(destId, null, options);
-                ok = true;
-            } catch (IllegalArgumentException e) {
-                ok = NavigationUI.onNavDestinationSelected(item, navController);
-            }
-            UIInfoLog.d("RootNav.nav", "navigate dest=" + destId
+            // Official API: launchSingleTop + restoreState + popUpTo(start, saveState)
+            boolean ok = NavigationUI.onNavDestinationSelected(item, navController);
+            UIInfoLog.d("RootNav.nav", "onNavDestinationSelected dest=" + destId
                     + " ok=" + ok
-                    + " ms=" + (android.os.SystemClock.elapsedRealtime() - t0));
+                    + " ms=" + (android.os.SystemClock.elapsedRealtime() - t0)
+                    + " current=" + (navController.getCurrentDestination() != null
+                        ? navController.getCurrentDestination().getId() : -1));
             return ok;
+        });
+
+        // Keep selected item in sync when back stack changes
+        navController.addOnDestinationChangedListener((controller, destination, arguments) -> {
+            UIInfoLog.d("RootNav.destChanged", "id=" + destination.getId()
+                    + " label=" + destination.getLabel());
+            Menu menu = navigationBar.getMenu();
+            for (int i = 0; i < menu.size(); i++) {
+                MenuItem mi = menu.getItem(i);
+                if (mi.getItemId() == destination.getId()) {
+                    mi.setChecked(true);
+                    break;
+                }
+            }
         });
 
         // Initial sync

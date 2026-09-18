@@ -47,7 +47,8 @@ public class PartyViewModel extends AndroidViewModel {
 
     // ============ INJECTED REPOSITORIES ============
 
-    private final PlaybackStateRepository playbackState;
+    /** May be null until UIThread.init(); resolved lazily. */
+    private PlaybackStateRepository playbackState;
     private final PartyHostRepository partyHost;
 
     // ============ PARTY STATE (Local) ============
@@ -74,40 +75,73 @@ public class PartyViewModel extends AndroidViewModel {
      * Uses Firebase-based repositories for party management
      */
     public PartyViewModel(@NonNull Application application) {
-        this(
-                application,
-                UIThread.getInstance().getPlaybackStateRepository(),
-                new EnhancedFirebasePartyHostRepository(application)
-        );
+        // Do NOT touch UIThread here — MainActivity may create this ViewModel
+        // before UIThread.init() (permissions path). Playback repo is attached lazily.
+        this(application, null, new EnhancedFirebasePartyHostRepository(application));
     }
 
     /**
-     * Constructor with dependency injection (for testing)
+     * Constructor with dependency injection (for testing / after UIThread.init)
      */
     public PartyViewModel(
             @NonNull Application application,
-            @NonNull PlaybackStateRepository playbackStateRepo,
+            @Nullable PlaybackStateRepository playbackStateRepo,
             @NonNull PartyHostRepository partyHostRepo) {
         super(application);
 
         this.playbackState = playbackStateRepo;
         this.partyHost = partyHostRepo;
 
-        Log.d(TAG, "PartyViewModel created with injected dependencies");
+        Log.d(TAG, "PartyViewModel created playbackReady=" + (playbackStateRepo != null));
         initializeStateObservers();
+    }
+
+    /**
+     * Bind shared Media3 playback repository once UIThread.init() has run.
+     */
+    public void attachPlaybackRepository(@NonNull PlaybackStateRepository repo) {
+        if (this.playbackState == repo) return;
+        this.playbackState = repo;
+        Log.d(TAG, "PlaybackStateRepository attached");
+        initializePlaybackObservers();
+    }
+
+    @NonNull
+    private PlaybackStateRepository requirePlayback() {
+        if (playbackState == null) {
+            try {
+                if (UIThread.getInstance() != null) {
+                    playbackState = UIThread.getInstance().getPlaybackStateRepository();
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "PlaybackStateRepository not ready: " + e.getMessage());
+            }
+        }
+        if (playbackState == null) {
+            throw new IllegalStateException(
+                    "PlaybackStateRepository not ready — call UIThread.init() then attachPlaybackRepository()");
+        }
+        return playbackState;
     }
 
     /**
      * Set up observers to sync repository state
      */
-    private void initializeStateObservers() {
+    private void initializePlaybackObservers() {
+        if (playbackState == null) return;
         // Listen for party creation events from PlaybackState
         playbackState.getPartyHost().observeForever(host -> {
             if (host != null) {
-                // Bridge domain host metadata to UI-facing hosting state
                 partyState.postValue(PartyState.HOSTING);
             }
         });
+    }
+
+    private void initializeStateObservers() {
+        // Playback observers only when repo is available
+        if (playbackState != null) {
+            initializePlaybackObservers();
+        }
 
         // Listen to party host updates
         partyHost.getHostedParty().observeForever(host -> {
@@ -163,7 +197,7 @@ public class PartyViewModel extends AndroidViewModel {
 
     @NonNull
     public PlaybackStateRepository getPlaybackState() {
-        return playbackState;
+        return requirePlayback();
     }
 
     /**

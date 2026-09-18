@@ -137,25 +137,7 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
 
 
 
-        // Observe Party state to update UI
-        PartyViewModel partyViewModel = new androidx.lifecycle.ViewModelProvider(this).get(PartyViewModel.class);
-        partyViewModel.getUiState().observe(this, state -> {
-            boolean isClient = (state == PartyState.JOINED);
-            if (uiThread != null && uiThread.getMediaPlayerPanel() != null) {
-                uiThread.getMediaPlayerPanel().setPartyClientMode(isClient);
-            }
-        });
-
-        // Update UI with metadata from Party Mode when in client mode
-        partyViewModel.getCurrentSync().observe(this, sync -> {
-            if (sync != null && partyViewModel.getUiState().getValue() == PartyState.JOINED) {
-                Song song = convertSyncToSong(sync);
-                if (uiThread != null && uiThread.getMediaPlayerPanel() != null) {
-                    uiThread.getMediaPlayerPanel().onSongChanged(song);
-                }
-            }
-        });
-
+        // PartyViewModel needs UIThread.init() first — wired in setupPartyObservers()
         // Set up Firebase Auth listener to check if user is signed in
         setupFirebaseAuthListener();
     }
@@ -315,6 +297,30 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
         scannerManager.init();
 
         uiThread.init();
+        setupPartyObservers();
+    }
+
+    private void setupPartyObservers() {
+        PartyViewModel partyViewModel =
+                new androidx.lifecycle.ViewModelProvider(this).get(PartyViewModel.class);
+        // Bind shared Media3 playback repo now that UIThread.init() has run
+        partyViewModel.attachPlaybackRepository(uiThread.getPlaybackStateRepository());
+
+        partyViewModel.getUiState().observe(this, state -> {
+            boolean isClient = (state == PartyState.JOINED);
+            if (uiThread != null && uiThread.getMediaPlayerPanel() != null) {
+                uiThread.getMediaPlayerPanel().setPartyClientMode(isClient);
+            }
+        });
+
+        partyViewModel.getCurrentSync().observe(this, sync -> {
+            if (sync != null && partyViewModel.getUiState().getValue() == PartyState.JOINED) {
+                Song song = convertSyncToSong(sync);
+                if (uiThread != null && uiThread.getMediaPlayerPanel() != null) {
+                    uiThread.getMediaPlayerPanel().onSongChanged(song);
+                }
+            }
+        });
     }
 
 

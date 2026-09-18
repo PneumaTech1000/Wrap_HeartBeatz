@@ -40,6 +40,7 @@ public class RootMediaPlayerPanel extends BasePanelView implements OnBackPressed
     private MediaPlayerView mediaPlayerView;
     private BottomSheetView bottomSheetView;
 
+    private long lastPlaybackUiLogMs;
     private boolean isFirstPlay = true;
     private boolean isStarted = false;
 
@@ -253,13 +254,18 @@ public class RootMediaPlayerPanel extends BasePanelView implements OnBackPressed
     }
 
     private void updatePlaybackViews(PlaybackStateCompat state) {
-        UIInfoLog.d("RootMediaPlayer.updatePlaybackViews",
-                "pbState=" + state.getState()
-                + " isFirstPlay=" + isFirstPlay
-                + " isStarted=" + isStarted
-                + " song=" + (currentSong != null)
-                + " panelState=" + UIInfoLog.stateName(getPanelState())
-                + " isHidden=" + isUserHidden());
+        long now = android.os.SystemClock.elapsedRealtime();
+        // Throttle UIInfo spam (was ~2 logs/sec while playing)
+        if (now - lastPlaybackUiLogMs > 2000) {
+            lastPlaybackUiLogMs = now;
+            UIInfoLog.d("RootMediaPlayer.updatePlaybackViews",
+                    "pbState=" + state.getState()
+                    + " isFirstPlay=" + isFirstPlay
+                    + " isStarted=" + isStarted
+                    + " song=" + (currentSong != null)
+                    + " panelState=" + UIInfoLog.stateName(getPanelState())
+                    + " isHidden=" + isUserHidden());
+        }
         if (isFirstPlay) {
             if (isStarted && state.getState() == PlaybackStateCompat.STATE_PLAYING) {
                 UIInfoLog.d("RootMediaPlayer.updatePlaybackViews", "-> expandPanel()");
