@@ -189,7 +189,9 @@ public class UIThread implements IPlaybackCallback {
 
         RootNavigationBarPanel navPanel = getNavigationPanel();
         if (navPanel != null) {
-            UIInfoLog.panelSnapshot("UIThread.nav", navPanel);
+            UIInfoLog.d("UIThread.nav", "tab=" + navPanel.getCurrentTabId()
+                    + " active=" + (navPanel.getActiveFragment() != null
+                    ? navPanel.getActiveFragment().getClass().getSimpleName() : "null"));
             navPanel.updatePaddingWhenWhenBarChanged(isPlayerBarVisible());
         }
         UIInfoLog.d("UIThread.onPlaybackStateChanged", "sheet state done");
