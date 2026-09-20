@@ -160,18 +160,30 @@ public class MediaPlayerBarView {
         }
     }
 
-    public void onSongChanged(Song song) {
-        titleText.setText(song.getTitle());
-        ((TextView) findViewById(R.id.bar_song_artist)).setText(song.getArtist());
+    public void onSongChanged(@androidx.annotation.Nullable Song song) {
+        if (song == null) {
+            titleText.setText("");
+            TextView artist = findViewById(R.id.bar_song_artist);
+            if (artist != null) artist.setText("");
+            albumImageView.setImageDrawable(ResourcesCompat.getDrawable(
+                    rootView.getResources(), R.drawable.album_launcher, rootView.getContext().getTheme()));
+            progressIndicator.setProgressCompat(0, false);
+            return;
+        }
+        titleText.setText(song.getTitle() != null ? song.getTitle() : "");
+        TextView artist = findViewById(R.id.bar_song_artist);
+        if (artist != null) {
+            artist.setText(song.getArtist() != null ? song.getArtist() : "");
+        }
 
         Uri album_art = song.getAlbumArt();
-
         if (album_art != null) {
             ImageLoader.load(albumImageView, album_art);
         } else {
-            albumImageView.setImageDrawable(ResourcesCompat.getDrawable(rootView.getResources(), R.drawable.album_launcher, rootView.getContext().getTheme()));
+            albumImageView.setImageDrawable(ResourcesCompat.getDrawable(
+                    rootView.getResources(), R.drawable.album_launcher, rootView.getContext().getTheme()));
         }
-        progressIndicator.setMax((int) song.getDuration());
+        progressIndicator.setMax((int) Math.max(0, song.getDuration()));
     }
 
     public void setPartyClientMode(boolean enabled) {

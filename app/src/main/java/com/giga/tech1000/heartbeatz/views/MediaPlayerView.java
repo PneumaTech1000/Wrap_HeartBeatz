@@ -251,8 +251,9 @@ public class MediaPlayerView {
         currentTimeText.setText(TimeConverter.formatTime(position));
     }
 
-    public void onSongChanged(Song song) {
-        songName.setText(song.getTitle());
+    public void onSongChanged(@androidx.annotation.Nullable Song song) {
+        if (song == null) return;
+        songName.setText(song.getTitle() != null ? song.getTitle() : "");
         artistName.setText(song.getArtist());
 
         ImageLoader.load(albumImageView, song.getAlbumArt());

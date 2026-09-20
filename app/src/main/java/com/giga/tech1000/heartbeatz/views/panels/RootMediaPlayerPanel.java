@@ -225,8 +225,12 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
         if (mediaPlayerView != null) mediaPlayerView.onPlaybackStateChanged(isPlaying, playbackState, positionMs);
     }
 
-    public void onSongChanged(Song song) {
+    public void onSongChanged(@Nullable Song song) {
         this.currentSong = song;
+        // Fresh install / idle: no media item — do not touch title/art with null Song
+        if (song == null) {
+            return;
+        }
         post(() -> {
             if (mediaPlayerBarView != null) mediaPlayerBarView.onSongChanged(song);
             if (mediaPlayerView != null) mediaPlayerView.onSongChanged(song);
