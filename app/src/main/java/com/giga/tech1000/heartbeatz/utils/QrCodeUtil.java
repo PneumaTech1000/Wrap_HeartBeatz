@@ -23,7 +23,7 @@ public class QrCodeUtil {
 
     /**
      * Generates a Wi-Fi connection QR code.
-     * Format: WIFI:S:SSID;T:WPA;P:PASSWORD;;
+     * Format: WI-FI:S:SSID;T:WPA;P:PASSWORD;;
      */
     public static String formatWifiQr(String ssid, String password, String type) {
         return "WIFI:S:" + ssid + ";T:" + type + ";P:" + password + ";;";

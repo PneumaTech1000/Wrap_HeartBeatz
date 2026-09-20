@@ -12,6 +12,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -477,6 +478,8 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
 
     private void handleScannedData(String data) {
         if (data == null) return;
+
+        Log.i("Party", "Scanned Data: " + data);
 
         if (data.startsWith("HB_PARTY:")) {
             try {
