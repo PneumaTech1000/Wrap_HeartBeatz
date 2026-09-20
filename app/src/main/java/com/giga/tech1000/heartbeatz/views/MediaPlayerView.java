@@ -122,8 +122,7 @@ public class MediaPlayerView {
 
         this.audioVisualizer = findViewById(R.id.audio_visualizer);
 
-        this.rootView.setAlpha(0.0F);
-        this.rootView.setVisibility(View.GONE);
+        // Alpha/visibility owned by RootMediaPlayerPanel.applySlideOffset
 
         this.settingViewModel = HeartBeatzApp.container(rootView.getContext()).requireUiThread().getSettingViewModel();
         this.playbackViewModel = new ViewModelProvider(HeartBeatzApp.container(rootView.getContext()).requireUiThread().getActivity()).get(PlaybackCacheViewModel.class);
@@ -206,33 +205,12 @@ public class MediaPlayerView {
      * @param slidingOffset 0 = collapsed, 1 = expanded.
      * Keeps content visible during drag so collapse does not leave a blank surface.
      */
-    public void onSliding(float slidingOffset, int state) {
-        float alpha = MathUtils.clamp(slidingOffset, 0F, 1F);
-        // Floor alpha so mid-drag never fully blanks the UI
-        float visual = Math.max(0.15F, alpha);
-        this.rootView.setAlpha(visual);
-        this.rootView.setVisibility(View.VISIBLE);
-        if (constraintLayout != null) {
-            this.constraintLayout.setAlpha(1F);
-        }
-    }
+    public void onSliding(float slidingOffset, int state) { }
 
-    /** Hide full player (sheet COLLAPSED / mini only). */
-    public void hideAsFull() {
-        if (rootView == null) return;
-        rootView.setAlpha(1F); // keep ready for next expand
-        rootView.setVisibility(View.VISIBLE);
-    }
+    public void hideAsFull() { }
 
-    /** Show full player (sheet EXPANDED). */
-    public void showAsFull() {
-        if (rootView == null) return;
-        rootView.setAlpha(1F);
-        rootView.setVisibility(View.VISIBLE);
-        if (constraintLayout != null) constraintLayout.setAlpha(1F);
-        com.giga.tech1000.heartbeatz.ui.UIInfoLog.d("MediaPlayerView.showAsFull",
-                "alpha=1 vis=VISIBLE root=" + rootView.getClass().getSimpleName());
-    }
+    public void showAsFull() { }
+
 
     public <T extends View> T findViewById(@IdRes int id) {
         return this.rootView.findViewById(id);

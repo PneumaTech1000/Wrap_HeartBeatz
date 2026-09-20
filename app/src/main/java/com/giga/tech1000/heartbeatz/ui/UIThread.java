@@ -406,18 +406,17 @@ public class UIThread implements IPlaybackCallback {
 
     public void onCreate() {
         BottomNavigationView bottomNav = activity.findViewById(R.id.root_navigation_bar);
-        FrameLayout miniHost = activity.findViewById(R.id.mini_player_host);
-        FrameLayout fullHost = activity.findViewById(R.id.full_player_host);
+        View playerSheet = activity.findViewById(R.id.player_bottom_sheet);
 
         PlayerChromeController.bindBottomNav(bottomNav);
         navigationPanel = new RootNavigationBarPanel(activity, bottomNav);
         UIThreadBridge.setNav(navigationPanel);
 
         mediaPlayerPanel = new RootMediaPlayerPanel(activity);
-        if (miniHost != null && fullHost != null) {
-            mediaPlayerPanel.attachToHosts(miniHost, fullHost);
+        if (playerSheet != null) {
+            mediaPlayerPanel.attachToSheet(playerSheet);
         }
-        UIInfoLog.d("UIThread.onCreate", "fixed mini host + full overlay player");
+        UIInfoLog.d("UIThread.onCreate", "single player BottomSheet + coordinated slide");
     }
 
     public <T extends View> T findViewById(@IdRes int id) {

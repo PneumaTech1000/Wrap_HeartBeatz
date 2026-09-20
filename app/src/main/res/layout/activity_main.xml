@@ -16,19 +16,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
 
-        <!-- Fixed mini player ABOVE bottom nav (not BottomSheet peek — that was off-screen) -->
-        <FrameLayout
-            android:id="@+id/mini_player_host"
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/media_player_bar_height"
-            android:layout_gravity="bottom"
-            android:layout_marginBottom="@dimen/navigation_bar_height"
-            android:elevation="12dp"
-            android:translationZ="12dp"
-            android:visibility="gone"
-            android:clickable="true"
-            android:focusable="true" />
-
+        <!-- Bottom nav under player sheet; sheet peek leaves room via content padding in mini -->
         <com.google.android.material.bottomnavigation.BottomNavigationView
             android:id="@+id/root_navigation_bar"
             android:layout_width="match_parent"
@@ -43,22 +31,23 @@
             app:itemRippleColor="?attr/colorPrimary"
             app:itemActiveIndicatorStyle="@style/Widget.HeartBeatz.BottomNav.ActiveIndicator" />
 
-        <!-- Full player: Material bottom sheet (drag down → mini) -->
+        <!--
+          Single player sheet: COLLAPSED = mini, EXPANDED = full.
+          peekHeight = mini + nav so mini sits above nav; bottom of sheet is transparent over nav.
+        -->
         <FrameLayout
-            android:id="@+id/full_player_host"
+            android:id="@+id/player_bottom_sheet"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:elevation="24dp"
-            android:translationZ="24dp"
-            android:visibility="gone"
+            android:elevation="16dp"
+            android:translationZ="16dp"
             android:clickable="true"
             android:focusable="true"
-            android:background="?attr/colorSurface"
             app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior"
             app:behavior_hideable="true"
-            app:behavior_skipCollapsed="true"
+            app:behavior_skipCollapsed="false"
             app:behavior_fitToContents="false"
-            app:behavior_peekHeight="0dp" />
+            app:behavior_peekHeight="@dimen/bar_and_navigation_height" />
 
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 

@@ -112,29 +112,10 @@ public class MediaPlayerBarView {
     }
 
 
-    /**
-     * @param slidingOffset 0 = collapsed (mini fully visible), 1 = expanded (mini hidden)
-     */
-    public void onSliding(float slidingOffset, int state) {
-        // Mini bar inverse of expand progress
-        float barAlpha = 1F - MathUtils.clamp(slidingOffset, 0F, 1F);
-        if (state == STATE_NORMAL) {
-            barAlpha = 1F - MathUtils.clamp(slidingOffset, 0F, 1F);
-        }
-        this.rootView.setAlpha(barAlpha);
-        this.rootView.setVisibility(barAlpha > 0.02F ? View.VISIBLE : View.GONE);
-        if (backgroundView != null) this.backgroundView.setAlpha(barAlpha);
-        if (progressIndicator != null) this.progressIndicator.setAlpha(1F);
-        if (constraintLayout != null) this.constraintLayout.setAlpha(1F);
-    }
+    /** Panel owns cross-fade alpha — leave root alpha alone. */
+    public void onSliding(float slidingOffset, int state) { }
 
-    /** Force mini bar fully visible (sheet COLLAPSED). */
-    public void showAsMini() {
-        rootView.setAlpha(1F);
-        rootView.setVisibility(View.VISIBLE);
-        if (backgroundView != null) backgroundView.setAlpha(1F);
-        if (constraintLayout != null) constraintLayout.setAlpha(1F);
-    }
+    public void showAsMini() { }
 
     public <T extends View> T findViewById(@IdRes int id) {
         return this.rootView.findViewById(id);
