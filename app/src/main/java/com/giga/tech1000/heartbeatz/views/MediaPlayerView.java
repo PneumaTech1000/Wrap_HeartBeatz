@@ -8,7 +8,7 @@ import android.graphics.PorterDuff;
 import android.graphics.drawable.Icon;
 import android.os.SystemClock;
 
-import androidx.media3.session.legacy.PlaybackStateCompat;
+import androidx.media3.common.Player;
 
 import android.view.View;
 import android.widget.ImageButton;
@@ -68,7 +68,10 @@ public class MediaPlayerView {
     private final ImageButton btnRepeat;
     private final GradientImageView albumImageView;
     private final AppCompatSeekBar seekBar;
-    private PlaybackStateCompat prevPlaybackState;
+    private boolean lastIsPlaying;
+    private int lastPlaybackState = Player.STATE_IDLE;
+    private long lastPositionMs;
+    private long lastPositionUpdateElapsed;
 
     private final WaveVisualizer audioVisualizer;
 
@@ -82,13 +85,10 @@ public class MediaPlayerView {
     private final Runnable progressUpdater = new Runnable() {
         @Override
         public void run() {
-            if (prevPlaybackState != null && (prevPlaybackState.getState() == PlaybackStateCompat.STATE_PLAYING || prevPlaybackState.getState() == PlaybackStateCompat.STATE_BUFFERING)) {
-                long currentPos = prevPlaybackState.getPosition();
-                long timeDiff = SystemClock.elapsedRealtime() - prevPlaybackState.getLastPositionUpdateTime();
-                long playbackPos = currentPos + (long) (timeDiff * prevPlaybackState.getPlaybackSpeed());
-
+            if (lastIsPlaying || lastPlaybackState == Player.STATE_BUFFERING) {
+                long timeDiff = SystemClock.elapsedRealtime() - lastPositionUpdateElapsed;
+                long playbackPos = lastPositionMs + timeDiff;
                 updateProgressUI(playbackPos);
-
                 rootView.postDelayed(this, 1000);
             }
         }
@@ -123,8 +123,8 @@ public class MediaPlayerView {
         this.rootView.setAlpha(0.0F);
         this.rootView.setVisibility(View.GONE);
 
-        this.settingViewModel = HeartBeatzApp.container(getContext()).requireUiThread().getSettingViewModel();
-        this.playbackViewModel = new ViewModelProvider(HeartBeatzApp.container(getContext()).requireUiThread().getActivity()).get(PlaybackCacheViewModel.class);
+        this.settingViewModel = HeartBeatzApp.container(rootView.getContext()).requireUiThread().getSettingViewModel();
+        this.playbackViewModel = new ViewModelProvider(HeartBeatzApp.container(rootView.getContext()).requireUiThread().getActivity()).get(PlaybackCacheViewModel.class);
         SettingEntity setting = settingViewModel.getCached();
         if (setting == null) setting = new SettingEntity();
 
@@ -192,7 +192,7 @@ public class MediaPlayerView {
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
                 isMediaSeeking = false;
-                if (prevPlaybackState != null && (prevPlaybackState.getState() == PlaybackStateCompat.STATE_PLAYING || prevPlaybackState.getState() == PlaybackStateCompat.STATE_BUFFERING)) {
+                if (lastIsPlaying || lastPlaybackState == Player.STATE_BUFFERING) {
                     rootView.post(progressUpdater);
                 }
             }
@@ -219,31 +219,29 @@ public class MediaPlayerView {
     }
 
     @SuppressLint("WrongConstant")
-    public void onPlaybackStateChanged(PlaybackStateCompat state) {
-        int oldState = (prevPlaybackState != null) ? prevPlaybackState.getState() : -1;
-        prevPlaybackState = state;
+    public void onPlaybackStateChanged(boolean isPlaying, int playbackState, long positionMs) {
+        lastIsPlaying = isPlaying;
+        lastPlaybackState = playbackState;
+        lastPositionMs = positionMs;
+        lastPositionUpdateElapsed = SystemClock.elapsedRealtime();
 
-        updateProgressUI(state.getPosition());
+        updateProgressUI(positionMs);
 
         rootView.removeCallbacks(progressUpdater);
-        if (state.getState() == PlaybackStateCompat.STATE_PLAYING || state.getState() == PlaybackStateCompat.STATE_BUFFERING) {
+        if (isPlaying || playbackState == Player.STATE_BUFFERING) {
             rootView.post(progressUpdater);
         }
 
-        if (state.getState() == PlaybackStateCompat.STATE_BUFFERING) {
+        if (playbackState == Player.STATE_BUFFERING) {
             playPauseProgressIndicator.setVisibility(View.VISIBLE);
             playPauseButtonView.setVisibility(View.INVISIBLE);
         } else {
             playPauseProgressIndicator.setVisibility(View.GONE);
             playPauseButtonView.setVisibility(View.VISIBLE);
-
-            if (oldState != state.getState()) {
-                switch (state.getState()) {
-                    case PlaybackStateCompat.STATE_PLAYING ->
-                            playPauseButtonView.setImageIcon(Icon.createWithResource(rootView.getContext(), com.giga.tech1000.icons_pack.R.drawable.pause_24px));
-                    case PlaybackStateCompat.STATE_PAUSED, PlaybackStateCompat.STATE_STOPPED ->
-                            playPauseButtonView.setImageIcon(Icon.createWithResource(rootView.getContext(), com.giga.tech1000.icons_pack.R.drawable.play_arrow_fill));
-                }
+            if (isPlaying) {
+                playPauseButtonView.setImageIcon(Icon.createWithResource(rootView.getContext(), com.giga.tech1000.icons_pack.R.drawable.pause_24px));
+            } else {
+                playPauseButtonView.setImageIcon(Icon.createWithResource(rootView.getContext(), com.giga.tech1000.icons_pack.R.drawable.play_arrow_fill));
             }
         }
     }
@@ -264,10 +262,10 @@ public class MediaPlayerView {
         seekBar.setMax((int) duration);
         totalTimeText.setText(TimeConverter.formatTime(duration));
 
-        LibraryRepository repository = HeartBeatzApp.container(getContext()).requireUiThread().getLibrarySetViewModel().getRepo();
+        LibraryRepository repository = HeartBeatzApp.container(rootView.getContext()).requireUiThread().getLibrarySetViewModel().getRepo();
         String songId = String.valueOf(song.getId());
         repository.isFavoriteSync(songId, FavoriteType.SONG)
-                .observe(HeartBeatzApp.container(getContext()).requireUiThread().getLifecycleOwner(), isFav -> {
+                .observe(HeartBeatzApp.container(rootView.getContext()).requireUiThread().getLifecycleOwner(), isFav -> {
                     if (isFav) {
                         btnFavorite.setImageResource(com.giga.tech1000.icons_pack.R.drawable.favorite_outline_24px);
                         btnFavorite.setColorFilter(
@@ -329,9 +327,9 @@ public class MediaPlayerView {
 
     private int setImageByCheckingMode(int repeatMode) {
         return switch (repeatMode) {
-            case PlaybackStateCompat.REPEAT_MODE_NONE ->
+            case Player.REPEAT_MODE_OFF ->
                     com.giga.tech1000.icons_pack.R.drawable.repeat_off_24px;
-            case PlaybackStateCompat.REPEAT_MODE_ONE ->
+            case Player.REPEAT_MODE_ONE ->
                     com.giga.tech1000.icons_pack.R.drawable.repeat_one_24px;
             default -> com.giga.tech1000.icons_pack.R.drawable.repeat_24px;
         };

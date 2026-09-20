@@ -109,6 +109,7 @@ public class PartyViewModel extends AndroidViewModel {
     }
 
     /** @deprecated prefer PartySession constructor */
+    @Deprecated
     public PartyViewModel(
             @NonNull Application application,
             @Nullable PlaybackStateRepository playbackStateRepo,

@@ -1,6 +1,5 @@
 package com.giga.tech1000.heartbeatz.ui.adapters.view_holders;
 
-import androidx.media3.session.legacy.PlaybackStateCompat;
 import android.view.View;
 import android.widget.TextView;
 
@@ -43,7 +42,7 @@ public class MediaDetailsWithImgViewHolder extends BaseRecyclerViewHolder {
         DummyBarVisualizer visualizer = findViewById(R.id.item_library_visualizer);
         MediaDetailsWithImgViewItem item = (MediaDetailsWithImgViewItem) viewItem;
         boolean isItemPlaying = false;
-        boolean isPlaybackPlaying = cacheModel.getState() == PlaybackStateCompat.STATE_PLAYING;
+        boolean isPlaybackPlaying = cacheModel.isPlaying();
         if (cacheModel.getCurrentSong() != null) isItemPlaying = cacheModel.getCurrentSong().id == item.getId();
 
         if (cacheModel.getSource() == ItemSource.MEDIA_DETAILS_WITH_IMG) {

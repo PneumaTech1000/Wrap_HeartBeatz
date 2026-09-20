@@ -75,7 +75,7 @@ public class PlaylistViewHolder extends BaseRecyclerViewHolder {
     public void onPlayingStateViewHolder(PlayerCacheModel playingCache, BaseRecyclerViewItem viewItem) {
 //        DummyBarVisualizer visualizer = findViewById(R.id.item_library_visualizer);
 //        PlaylistViewItem item = (PlaylistViewItem) viewItem;
-//        boolean isPlaybackPlaying = playingCache.getState() == PlaybackStateCompat.STATE_PLAYING;
+//        boolean isPlaybackPlaying = playingCache.getState() == isPlaying();
 //        boolean isItemPlaying = playingCache.getItemId() == item.getId();
 //
 //        if (playingCache.getSource() == ItemSource.PLAYLISTS) {

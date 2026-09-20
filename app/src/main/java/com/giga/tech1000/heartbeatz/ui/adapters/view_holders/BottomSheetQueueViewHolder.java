@@ -1,6 +1,5 @@
 package com.giga.tech1000.heartbeatz.ui.adapters.view_holders;
 
-import androidx.media3.session.legacy.PlaybackStateCompat;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -52,7 +51,7 @@ public class BottomSheetQueueViewHolder extends BaseRecyclerViewHolder {
 //        visualizer.setPlaying(false);
         BottomSheetQueueViewItem item = (BottomSheetQueueViewItem) viewItem;
         boolean isItemPlaying = false;
-        boolean isPlaybackPlaying = cacheModel.getState() == PlaybackStateCompat.STATE_PLAYING;
+        boolean isPlaybackPlaying = cacheModel.isPlaying();
         if (cacheModel.getCurrentSong() != null) isItemPlaying = cacheModel.getCurrentSong().id == item.getId();
 
 

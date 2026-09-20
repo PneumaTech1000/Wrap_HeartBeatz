@@ -14,7 +14,6 @@ import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.session.MediaController;
 import androidx.media3.session.SessionCommand;
-import androidx.media3.session.legacy.PlaybackStateCompat;
 
 import com.giga.tech1000.media_player.interfaces.IPlaybackCallback;
 import com.giga.tech1000.media_player.interfaces.IPlayerCallback;

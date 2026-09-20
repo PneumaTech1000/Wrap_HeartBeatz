@@ -114,7 +114,7 @@ public class SongInfoPanel {
                     FileUtils.deleteAudio(fragmentHome, root, currentSong.uri, new FileUtils.OnDeleteListener() {
                         @Override
                         public void onDeleteSuccess() {
-                            HeartBeatzApp.container(getContext()).requireUiThread().getScannerManager().runIncrementalMediaRefresh();
+                            HeartBeatzApp.container(context).requireUiThread().getScannerManager().runIncrementalMediaRefresh();
                         }
 
                         @Override

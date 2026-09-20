@@ -13,7 +13,7 @@ import androidx.fragment.app.FragmentActivity;
 import androidx.fragment.app.FragmentManager;
 import androidx.lifecycle.Lifecycle;
 import androidx.media3.common.util.UnstableApi;
-import androidx.media3.session.legacy.PlaybackStateCompat;
+import androidx.media3.common.Player;
 
 import com.giga.tech1000.extensions.bottom_sheet.CustomBottomSheetBehavior;
 import com.giga.tech1000.heartbeatz.R;
@@ -55,7 +55,9 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
     private boolean isStarted = false;
 
     private Song currentSong;
-    private PlaybackStateCompat currentPlaybackState;
+    private boolean currentIsPlaying;
+    private int currentPlaybackState = Player.STATE_IDLE;
+    private long currentPositionMs;
     private boolean isPartyClient = false;
 
     @Nullable
@@ -162,9 +164,7 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
             mediaPlayerBarView.onSongChanged(currentSong);
             mediaPlayerView.onSongChanged(currentSong);
         }
-        if (currentPlaybackState != null) {
-            updatePlaybackViews(currentPlaybackState);
-        }
+        updatePlaybackViews(currentIsPlaying, currentPlaybackState, currentPositionMs);
     }
 
     public int getPanelState() {
@@ -202,25 +202,27 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
         return bottomSheetView;
     }
 
-    public void onPlaybackStateChanged(PlaybackStateCompat state) {
-        this.currentPlaybackState = state;
-        updatePlaybackViews(state);
+    public void onPlaybackStateChanged(boolean isPlaying, int playbackState, long positionMs) {
+        this.currentIsPlaying = isPlaying;
+        this.currentPlaybackState = playbackState;
+        this.currentPositionMs = positionMs;
+        updatePlaybackViews(isPlaying, playbackState, positionMs);
     }
 
-    private void updatePlaybackViews(PlaybackStateCompat state) {
-        if (state == null) return;
+    private void updatePlaybackViews(boolean isPlaying, int playbackState, long positionMs) {
         long now = android.os.SystemClock.elapsedRealtime();
         if (now - lastPlaybackUiLogMs > 2000) {
             lastPlaybackUiLogMs = now;
             UIInfoLog.d("RootMediaPlayer.updatePlaybackViews",
-                    "pbState=" + state.getState()
+                    "isPlaying=" + isPlaying
+                            + " state=" + playbackState
                             + " isFirstPlay=" + isFirstPlay
                             + " isStarted=" + isStarted
                             + " song=" + (currentSong != null)
                             + " panelState=" + getPanelState());
         }
-        if (mediaPlayerBarView != null) mediaPlayerBarView.onPlaybackStateChanged(state);
-        if (mediaPlayerView != null) mediaPlayerView.onPlaybackStateChanged(state);
+        if (mediaPlayerBarView != null) mediaPlayerBarView.onPlaybackStateChanged(isPlaying, playbackState, positionMs);
+        if (mediaPlayerView != null) mediaPlayerView.onPlaybackStateChanged(isPlaying, playbackState, positionMs);
     }
 
     public void onSongChanged(Song song) {

@@ -7,7 +7,7 @@ import android.graphics.drawable.Icon;
 import android.net.Uri;
 import android.os.SystemClock;
 
-import androidx.media3.session.legacy.PlaybackStateCompat;
+import androidx.media3.common.Player;
 
 import android.view.View;
 import android.widget.LinearLayout;
@@ -40,7 +40,10 @@ public class MediaPlayerBarView {
     public static final int STATE_NORMAL = 0;
     public static final int STATE_PARTIAL = 1;
 
-    private PlaybackStateCompat prevPlaybackState;
+    private boolean lastIsPlaying;
+    private int lastPlaybackState = Player.STATE_IDLE;
+    private long lastPositionMs;
+    private long lastPositionUpdateElapsed;
 
     private final LinearLayout backgroundView;
     private final LinearProgressIndicator progressIndicator;
@@ -62,13 +65,10 @@ public class MediaPlayerBarView {
     private final Runnable progressUpdater = new Runnable() {
         @Override
         public void run() {
-            if (prevPlaybackState != null && (prevPlaybackState.getState() == PlaybackStateCompat.STATE_PLAYING || prevPlaybackState.getState() == PlaybackStateCompat.STATE_BUFFERING)) {
-                long currentPos = prevPlaybackState.getPosition();
-                long timeDiff = SystemClock.elapsedRealtime() - prevPlaybackState.getLastPositionUpdateTime();
-                long playbackPos = currentPos + (long) (timeDiff * prevPlaybackState.getPlaybackSpeed());
-
+            if (lastIsPlaying || lastPlaybackState == Player.STATE_BUFFERING) {
+                long timeDiff = SystemClock.elapsedRealtime() - lastPositionUpdateElapsed;
+                long playbackPos = lastPositionMs + timeDiff;
                 progressIndicator.setProgressCompat((int) playbackPos, true);
-
                 rootView.postDelayed(this, 1000);
             }
         }
@@ -92,7 +92,7 @@ public class MediaPlayerBarView {
         this.rootView.setAlpha(1.0F);
         this.rootView.setVisibility(View.VISIBLE);
 
-        this.playbackViewModel = new ViewModelProvider(HeartBeatzApp.container(getContext()).requireUiThread().getActivity()).get(PlaybackCacheViewModel.class);
+        this.playbackViewModel = new ViewModelProvider(HeartBeatzApp.container(rootView.getContext()).requireUiThread().getActivity()).get(PlaybackCacheViewModel.class);
 
         onInitView();
     }
@@ -133,28 +133,29 @@ public class MediaPlayerBarView {
         return this.rootView.findViewById(id);
     }
 
-    public void onPlaybackStateChanged(PlaybackStateCompat state) {
-        prevPlaybackState = state;
-        progressIndicator.setProgressCompat((int) state.getPosition(), true);
+    public void onPlaybackStateChanged(boolean isPlaying, int playbackState, long positionMs) {
+        lastIsPlaying = isPlaying;
+        lastPlaybackState = playbackState;
+        lastPositionMs = positionMs;
+        lastPositionUpdateElapsed = SystemClock.elapsedRealtime();
+
+        progressIndicator.setProgressCompat((int) positionMs, true);
 
         rootView.removeCallbacks(progressUpdater);
-        if (state.getState() == PlaybackStateCompat.STATE_PLAYING || state.getState() == PlaybackStateCompat.STATE_BUFFERING) {
+        if (isPlaying || playbackState == Player.STATE_BUFFERING) {
             rootView.post(progressUpdater);
         }
 
-        if (state.getState() == PlaybackStateCompat.STATE_BUFFERING) {
+        if (playbackState == Player.STATE_BUFFERING) {
             playPauseProgressIndicator.setVisibility(View.VISIBLE);
             playPauseButton.setVisibility(View.INVISIBLE);
         } else {
             playPauseProgressIndicator.setVisibility(View.GONE);
             playPauseButton.setVisibility(View.VISIBLE);
-
-            if (state.getState() == PlaybackStateCompat.STATE_PLAYING) {
+            if (isPlaying) {
                 playPauseButton.setImageIcon(Icon.createWithResource(rootView.getContext(), com.giga.tech1000.icons_pack.R.drawable.pause_24px));
-                titleText.setSelected(true);
             } else {
                 playPauseButton.setImageIcon(Icon.createWithResource(rootView.getContext(), com.giga.tech1000.icons_pack.R.drawable.play_arrow_fill));
-                titleText.setSelected(false);
             }
         }
     }

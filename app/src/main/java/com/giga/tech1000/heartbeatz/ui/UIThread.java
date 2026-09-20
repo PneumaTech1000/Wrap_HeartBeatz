@@ -20,7 +20,6 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.Log;
 import androidx.media3.common.util.UnstableApi;
-import androidx.media3.session.legacy.PlaybackStateCompat;
 
 import com.giga.tech1000.heartbeatz.MainActivity;
 import com.giga.tech1000.heartbeatz.R;
@@ -169,7 +168,7 @@ public class UIThread implements IPlaybackCallback {
         this.lastPlaybackState = playbackState;
 
         updatePlaybackUI();
-        playerCache.cachePlaybackStateChanged(playbackState);
+        playerCache.cachePlaybackStateChanged(isPlaying, playbackState);
 
         RootMediaPlayerPanel mediaPanel = getMediaPlayerPanel();
         UIInfoLog.d("UIThread.onPlaybackStateChanged",
@@ -284,18 +283,8 @@ public class UIThread implements IPlaybackCallback {
         RootMediaPlayerPanel panel = getMediaPlayerPanel();
         if (panel == null) return;
 
-        int state;
-        if (lastPlaybackState == Player.STATE_BUFFERING) {
-            state = PlaybackStateCompat.STATE_BUFFERING;
-        } else {
-            state = lastIsPlaying ? PlaybackStateCompat.STATE_PLAYING : PlaybackStateCompat.STATE_PAUSED;
-        }
-
-        PlaybackStateCompat compatState = new PlaybackStateCompat.Builder()
-                .setState(state, lastPosition, 1.0f, SystemClock.elapsedRealtime())
-                .build();
-
-        panel.onPlaybackStateChanged(compatState);
+        // Media3-native state path (no PlaybackStateCompat bridge)
+        panel.onPlaybackStateChanged(lastIsPlaying, lastPlaybackState, lastPosition);
     }
 
     // --- Rest of the class helpers ---
@@ -317,7 +306,7 @@ public class UIThread implements IPlaybackCallback {
             observer.stop();
         }
         uiReady = false;
-        instance = null;
+        // no static instance — AppContainer holds UIThread
     }
 
     public TreeMap<Integer, Song> getTreeMapOfSongs() {

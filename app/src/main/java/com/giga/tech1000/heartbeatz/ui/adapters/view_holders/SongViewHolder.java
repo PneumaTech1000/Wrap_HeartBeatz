@@ -1,6 +1,5 @@
 package com.giga.tech1000.heartbeatz.ui.adapters.view_holders;
 
-import androidx.media3.session.legacy.PlaybackStateCompat;
 import android.view.View;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -52,7 +51,7 @@ public class SongViewHolder extends BaseRecyclerViewHolder {
         DummyBarVisualizer visualizer = findViewById(R.id.item_library_visualizer);
         SongViewItem item = (SongViewItem) viewItem;
         boolean isItemPlaying = false;
-        boolean isPlaybackPlaying = playingCache.getState() == PlaybackStateCompat.STATE_PLAYING;
+        boolean isPlaybackPlaying = playingCache.isPlaying();
         if (playingCache.getCurrentSong() != null) isItemPlaying = playingCache.getCurrentSong().id == item.getId();
 
         if (playingCache.getSource() == ItemSource.ALL_SONGS) {
