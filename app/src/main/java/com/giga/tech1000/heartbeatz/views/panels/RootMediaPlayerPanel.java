@@ -99,16 +99,19 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
             @Override
             public void onStateChanged(@NonNull View bottomSheet, int newState) {
                 UIInfoLog.d("RootMediaPlayer.sheet", "state=" + newState);
+                applyChromeForSheetState(newState);
                 PlayerChromeController.onSheetStateChanged(newState);
             }
 
             @Override
             public void onSlide(@NonNull View bottomSheet, float slideOffset) {
+                // Material: -1 hidden, 0 collapsed, 1 expanded — only use 0..1 for cross-fade
+                float expand = Math.max(0f, slideOffset);
                 if (mediaPlayerView != null) {
-                    mediaPlayerView.onSliding(slideOffset, MediaPlayerView.STATE_PARTIAL);
+                    mediaPlayerView.onSliding(expand, MediaPlayerView.STATE_PARTIAL);
                 }
                 if (mediaPlayerBarView != null) {
-                    mediaPlayerBarView.onSliding(slideOffset, MediaPlayerBarView.STATE_PARTIAL);
+                    mediaPlayerBarView.onSliding(expand, MediaPlayerBarView.STATE_PARTIAL);
                 }
             }
         });

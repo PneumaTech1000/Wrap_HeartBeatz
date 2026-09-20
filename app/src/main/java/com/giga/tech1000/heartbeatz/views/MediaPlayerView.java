@@ -94,8 +94,10 @@ public class MediaPlayerView {
         }
     };
 
-    public MediaPlayerView(View mRoot, RootMediaPlayerPanel g) {
-        this.rootView = mRoot;
+    public MediaPlayerView(View panelRoot, RootMediaPlayerPanel g) {
+        // Scope to full player only — never hide the whole sheet / mini bar
+        View full = panelRoot.findViewById(R.id.media_player_view);
+        this.rootView = full != null ? full : panelRoot;
         this.constraintLayout = findViewById(R.id.media_player_controls_container);
 
         this.songName = findViewById(R.id.tv_song_name);
@@ -200,18 +202,28 @@ public class MediaPlayerView {
 
     }
 
+    /**
+     * @param slidingOffset 0 = collapsed (full player hidden), 1 = expanded (full player visible)
+     */
     public void onSliding(float slidingOffset, int state) {
-        float fadeStart = 0.25F;
-        float alpha = (slidingOffset - fadeStart) * (1F / (1F - fadeStart));
-        alpha = MathUtils.clamp(alpha, 0.0F, 1.0F);
-
-        if (state == STATE_NORMAL) {
-            this.rootView.setAlpha(alpha);
-            this.rootView.setVisibility(alpha > 0 ? View.VISIBLE : View.GONE);
+        float alpha = MathUtils.clamp(slidingOffset, 0F, 1F);
+        this.rootView.setAlpha(alpha);
+        this.rootView.setVisibility(alpha > 0.02F ? View.VISIBLE : View.GONE);
+        if (constraintLayout != null) {
             this.constraintLayout.setAlpha(1F);
-        } else {
-            this.constraintLayout.setAlpha(1F - alpha);
         }
+    }
+
+    /** Hide full player (sheet COLLAPSED / mini only). */
+    public void hideAsFull() {
+        rootView.setAlpha(0F);
+        rootView.setVisibility(View.GONE);
+    }
+
+    /** Show full player (sheet EXPANDED). */
+    public void showAsFull() {
+        rootView.setAlpha(1F);
+        rootView.setVisibility(View.VISIBLE);
     }
 
     public <T extends View> T findViewById(@IdRes int id) {

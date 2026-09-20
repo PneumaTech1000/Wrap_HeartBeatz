@@ -1,17 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+  Bottom sheet content. Peek shows the BOTTOM of this layout, so the mini bar
+  must sit at layout_gravity=bottom. Full player fills the sheet above it.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/media_player_root_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:elevation="12dp"
-    android:translationZ="12dp">
+    android:clickable="true"
+    android:focusable="true">
 
+    <!-- Full player (visible when sheet expanded) -->
     <include
-        layout="@layout/media_player_bar_bottom_sheet" />
+        layout="@layout/media_player_full_sheet"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
 
+    <!-- Mini player — bottom of sheet so peekHeight shows this bar -->
     <include
-        layout="@layout/media_player_full_sheet" />
+        layout="@layout/media_player_bar_bottom_sheet"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/media_player_bar_height"
+        android:layout_gravity="bottom" />
 
-
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+</FrameLayout>

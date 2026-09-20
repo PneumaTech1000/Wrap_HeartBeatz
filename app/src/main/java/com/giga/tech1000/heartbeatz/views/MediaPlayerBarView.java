@@ -74,8 +74,10 @@ public class MediaPlayerBarView {
         }
     };
 
-    public MediaPlayerBarView(View mRoot, RootMediaPlayerPanel p) {
-        this.rootView = mRoot;
+    public MediaPlayerBarView(View panelRoot, RootMediaPlayerPanel p) {
+        // Scope to mini bar only — never alpha the whole sheet
+        View mini = panelRoot.findViewById(R.id.mini_player_view);
+        this.rootView = mini != null ? mini : panelRoot;
         this.panel = p;
 
         this.backgroundView = findViewById(R.id.background_view);
@@ -106,27 +108,28 @@ public class MediaPlayerBarView {
     }
 
 
+    /**
+     * @param slidingOffset 0 = collapsed (mini fully visible), 1 = expanded (mini hidden)
+     */
     public void onSliding(float slidingOffset, int state) {
-        float fadeStart = 0.25F;
-        float alpha = (slidingOffset / fadeStart);
-        alpha = MathUtils.clamp(alpha, 0.0F, 1.0F);
-
+        // Mini bar inverse of expand progress
+        float barAlpha = 1F - MathUtils.clamp(slidingOffset, 0F, 1F);
         if (state == STATE_NORMAL) {
-            float barAlpha = 1F - alpha;
-            this.rootView.setAlpha(barAlpha);
-            this.rootView.setVisibility(barAlpha > 0 ? View.VISIBLE : View.GONE);
-
-            this.backgroundView.setAlpha(barAlpha);
-            this.progressIndicator.setAlpha(1F);
-            this.constraintLayout.setAlpha(1F);
-        } else {
-            this.rootView.setAlpha(alpha);
-            this.rootView.setVisibility(alpha > 0 ? View.VISIBLE : View.GONE);
-
-            this.backgroundView.setAlpha(alpha);
-            this.progressIndicator.setAlpha(alpha);
-            this.constraintLayout.setAlpha(alpha);
+            barAlpha = 1F - MathUtils.clamp(slidingOffset, 0F, 1F);
         }
+        this.rootView.setAlpha(barAlpha);
+        this.rootView.setVisibility(barAlpha > 0.02F ? View.VISIBLE : View.GONE);
+        if (backgroundView != null) this.backgroundView.setAlpha(barAlpha);
+        if (progressIndicator != null) this.progressIndicator.setAlpha(1F);
+        if (constraintLayout != null) this.constraintLayout.setAlpha(1F);
+    }
+
+    /** Force mini bar fully visible (sheet COLLAPSED). */
+    public void showAsMini() {
+        rootView.setAlpha(1F);
+        rootView.setVisibility(View.VISIBLE);
+        if (backgroundView != null) backgroundView.setAlpha(1F);
+        if (constraintLayout != null) constraintLayout.setAlpha(1F);
     }
 
     public <T extends View> T findViewById(@IdRes int id) {
