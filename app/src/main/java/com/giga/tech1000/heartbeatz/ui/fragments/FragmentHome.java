@@ -1,5 +1,7 @@
 package com.giga.tech1000.heartbeatz.ui.fragments;
 
+import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
+
 import static android.app.Activity.RESULT_OK;
 
 import android.app.Activity;
@@ -198,9 +200,9 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
         long t0 = android.os.SystemClock.elapsedRealtime();
         UIInfoLog.d("FragmentHome.onViewCreated", "START savedState=" + (savedInstanceState != null));
 
-        libraryObservers = UIThread.getInstance().getLibraryObservers();
-        search = UIThread.getInstance().getSearchController();
-        librarySetViewModel = UIThread.getInstance().getLibrarySetViewModel();
+        libraryObservers = HeartBeatzApp.container(requireContext()).requireUiThread().getLibraryObservers();
+        search = HeartBeatzApp.container(requireContext()).requireUiThread().getSearchController();
+        librarySetViewModel = HeartBeatzApp.container(requireContext()).requireUiThread().getLibrarySetViewModel();
 
         // Initialize ViewModels for UI panels
         songInfoPanelViewModel = new ViewModelProvider(this).get(SongInfoPanelViewModel.class);
@@ -209,7 +211,7 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
 
         mediaNavigationManager = new MediaNavigationManager(this, motionLayout);
 
-        UIThread.getInstance().getSessionIdViewModel().getSessionId()
+        HeartBeatzApp.container(requireContext()).requireUiThread().getSessionIdViewModel().getSessionId()
                 .observe(getViewLifecycleOwner(), id -> {
                     if (equalizerViewPanel != null) {
                         equalizerViewPanel.setSessionId(id != null ? id : -1);
@@ -257,8 +259,8 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
         // Re-apply bottom padding now that MediaNavigationManager exists
         boolean barVisible = false;
         try {
-            barVisible = UIThread.getInstance() != null
-                    && UIThread.getInstance().isPlayerBarVisible();
+            barVisible = HeartBeatzApp.container(requireContext()).requireUiThread() != null
+                    && HeartBeatzApp.container(requireContext()).requireUiThread().isPlayerBarVisible();
         } catch (Exception ignored) {
         }
         onDisplayBarPlayerChanged(barVisible);
@@ -272,7 +274,7 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
                     // After permission is granted, we usually need to re-trigger the update
                     // or the OS might have already applied it depending on how the intent was built.
                     // For safety, refresh the UI state.
-                    UIThread.getInstance().getScannerManager().runIncrementalMediaRefresh();
+                    HeartBeatzApp.container(requireContext()).requireUiThread().getScannerManager().runIncrementalMediaRefresh();
                 } else {
                     Toast.makeText(requireContext(), "Permission denied, could not save changes", Toast.LENGTH_SHORT).show();
                 }
@@ -286,7 +288,7 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
                         if (result.getResultCode() == RESULT_OK) {
                             Snackbar.make(requireView(), "Deleted successfully", Snackbar.LENGTH_SHORT).show();
                             // Trigger incremental refresh to remove the deleted item from DB and UI
-                            UIThread.getInstance().getScannerManager().runIncrementalMediaRefresh();
+                            HeartBeatzApp.container(requireContext()).requireUiThread().getScannerManager().runIncrementalMediaRefresh();
                         } else {
                             Snackbar.make(requireView(), "Delete cancelled", Snackbar.LENGTH_SHORT).show();
                         }
@@ -377,8 +379,8 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
     @Override
     public boolean onDrawerNavigationItem(int itemId) {
         if (itemId == R.id.nav_party) {
-            if (UIThread.getInstance() != null && UIThread.getInstance().getNavigationPanel() != null) {
-                UIThread.getInstance().getNavigationPanel().selectTab(R.id.nav_party);
+            if (HeartBeatzApp.container(requireContext()).requireUiThread() != null && HeartBeatzApp.container(requireContext()).requireUiThread().getNavigationPanel() != null) {
+                HeartBeatzApp.container(requireContext()).requireUiThread().getNavigationPanel().selectTab(R.id.nav_party);
             }
             return true;
         } else if (itemId == R.id.nav_settings) {
@@ -428,7 +430,7 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
 
         searchView.setOnCloseListener(() -> {
             toggleSearchView(false);
-            UIThread.getInstance().getSearchController().clear();
+            HeartBeatzApp.container(requireContext()).requireUiThread().getSearchController().clear();
             return true;
         });
 
@@ -509,7 +511,7 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
             ViewCompat.requestApplyInsets(requireView());
 
             // Immediately sync current session ID if available
-            Integer currentId = UIThread.getInstance().getSessionIdViewModel().getSessionId().getValue();
+            Integer currentId = HeartBeatzApp.container(requireContext()).requireUiThread().getSessionIdViewModel().getSessionId().getValue();
             equalizerViewPanel.setSessionId(currentId != null ? currentId : -1);
         }
         return equalizerViewPanel;

@@ -1,5 +1,7 @@
 package com.giga.tech1000.heartbeatz.views;
 
+import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
+
 import android.net.nsd.NsdServiceInfo;
 import android.view.View;
 import android.widget.FrameLayout;
@@ -74,7 +76,7 @@ public class BottomSheetView {
 
         closeBottomSheet.setOnClickListener(v -> toggleCloseBtn());
 
-        isVisible.observe(UIThread.getInstance().getLifecycleOwner(), isVisible -> {
+        isVisible.observe(HeartBeatzApp.container(rootView.getContext()).requireUiThread().getLifecycleOwner(), isVisible -> {
             if (isVisible) {
                 closeBottomSheet.setImageResource(com.giga.tech1000.icons_pack.R.drawable.keyboard_arrow_down_24px);
             } else {

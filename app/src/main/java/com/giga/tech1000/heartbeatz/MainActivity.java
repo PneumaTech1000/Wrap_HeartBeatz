@@ -12,6 +12,10 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 
+import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
+import com.giga.tech1000.heartbeatz.utils.QrCodeUtil;
+import com.giga.tech1000.heartbeatz.utils.PartyAnalytics;
+import com.giga.tech1000.party_mode.model.PartyHost;
 import com.giga.tech1000.heartbeatz.interfaces.DrawerController;
 import com.google.android.material.navigation.NavigationView;
 
@@ -20,7 +24,6 @@ import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.lifecycle.ViewModelProvider;
 
-import com.realgear.multislidinguppanel.MultiSlidingUpPanelLayout;
 
 import com.giga.tech1000.heartbeatz.observers.LibraryObservers;
 import com.giga.tech1000.heartbeatz.ui.UIThread;
@@ -42,7 +45,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 
 /**
- * Main Activity implementing MultiSlidingUpPanelLayout for a multi-pane slide-up interface.
+ * Main Activity: DrawerLayout + CoordinatorLayout with Material bottom nav and player sheet.
  * Individual fragments (Home, Party) contain their own toolbars.
  */
 
@@ -67,9 +70,8 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
     private FirebaseAuth.AuthStateListener mAuthListener;
 
     // UI Components
-    private MultiSlidingUpPanelLayout multiSlidingUpPanelLayout;
 
-    // App-level drawer (above MultiSlidingUpPanel)
+    // App-level drawer
     private DrawerLayout drawerLayout;
     private NavigationView navView;
     private View authButtonsContainer;
@@ -297,6 +299,7 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
         scannerManager.init();
 
         uiThread.init();
+        HeartBeatzApp.container(this).attachUiThread(uiThread);
         setupPartyObservers();
     }
 
@@ -339,16 +342,35 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
         if (scannerManager != null) {
             scannerManager.release();
         }
+        HeartBeatzApp.container(this).detachUiThread();
         super.onDestroy();
     }
 
     private void handleIntent(Intent intent) {
+        if (intent == null) return;
+
         if ("com.heartbeatz.party.SHOW_PARTY".equals(intent.getAction())) {
-            // Navigate to Party fragment when intent is received
             if (uiThread != null && uiThread.getNavigationPanel() != null) {
                 uiThread.getNavigationPanel().selectTab(R.id.nav_party);
             }
-            Toast.makeText(this, "Party Intent Received", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Deep link: heartbeatz://party/{id}?pin=  or https://heartbeatz.app/party/{id}
+        if (Intent.ACTION_VIEW.equals(intent.getAction()) && intent.getData() != null) {
+            QrCodeUtil.PartyInvite invite = QrCodeUtil.parseInvite(intent.getData().toString());
+            if (invite != null && invite.partyId != null) {
+                if (uiThread != null && uiThread.getNavigationPanel() != null) {
+                    uiThread.getNavigationPanel().selectTab(R.id.nav_party);
+                }
+                PartyAnalytics.partyJoinAttempt(true);
+                intent.putExtra("party_invite_id", invite.partyId);
+                if (invite.pin != null) intent.putExtra("party_invite_pin", invite.pin);
+                if (invite.partyName != null) intent.putExtra("party_invite_name", invite.partyName);
+                // FragmentParty reads pending extras via activity intent on resume
+                setIntent(intent);
+                Toast.makeText(this, "Opening party invite…", Toast.LENGTH_SHORT).show();
+            }
         }
     }
 

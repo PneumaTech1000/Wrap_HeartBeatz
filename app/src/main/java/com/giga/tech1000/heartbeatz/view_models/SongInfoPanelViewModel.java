@@ -1,5 +1,7 @@
 package com.giga.tech1000.heartbeatz.view_models;
 
+import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
+
 import android.app.Application;
 
 import androidx.annotation.NonNull;
@@ -19,7 +21,7 @@ import java.util.TreeMap;
 /**
  * ViewModel for SongInfoPanel
  * 
- * Replaces direct UIThread.getInstance() calls with injected repository access.
+ * Replaces direct HeartBeatzApp.container(getApplication()).requireUiThread() calls with injected repository access.
  * Manages song details, favorites, playlists, and library operations.
  * 
  * This ViewModel encapsulates all song information panel functionality

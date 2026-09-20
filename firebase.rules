@@ -1,35 +1,72 @@
 {
   "rules": {
-    ".read": "false",
-    ".write": "false",
+    ".read": false,
+    ".write": false,
 
     "parties": {
       ".read": "auth != null",
       ".indexOn": ["timestamp", "ownerId"],
+
       "$partyId": {
         ".read": "auth != null",
+
         ".write": "auth != null && (!data.exists() || data.child('ownerId').val() == auth.uid)",
+
+        ".validate": "newData.hasChildren(['partyId', 'partyName', 'ownerId', 'timestamp']) && newData.child('partyId').val() == $partyId && newData.child('ownerId').val() == auth.uid && newData.child('partyName').isString() && newData.child('partyName').val().length > 0 && newData.child('partyName').val().length <= 100 && newData.child('timestamp').isNumber()",
+
+        "partyId": {
+          ".validate": "newData.isString() && newData.val() == $partyId"
+        },
+        "partyName": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
+        },
+        "ownerId": {
+          ".validate": "newData.isString() && newData.val() == auth.uid"
+        },
+        "pin": {
+          ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 16)"
+        },
+        "timestamp": {
+          ".validate": "newData.isNumber()"
+        },
+        "passwordProtected": {
+          ".validate": "!newData.exists() || newData.isBoolean()"
+        },
+        "ipAddress": {
+          ".validate": "!newData.exists() || newData.isString()"
+        },
+        "port": {
+          ".validate": "!newData.exists() || newData.isNumber()"
+        },
+
         "members": {
+          ".read": "auth != null",
           "$memberId": {
             ".read": "auth != null",
-            ".write": "auth != null && (data.parent().parent().child('ownerId').val() == auth.uid || $memberId == auth.uid)"
+            ".write": "auth != null && (root.child('parties').child($partyId).child('ownerId').val() == auth.uid || $memberId == auth.uid)",
+            ".validate": "newData.hasChildren(['userId']) && newData.child('userId').val() == $memberId"
           }
         },
-        "sync": {
-          ".read": "auth != null",
-          ".write": "auth != null && data.parent().child('ownerId').val() == auth.uid"
-        },
+
         "authenticatedUsers": {
+          ".read": "auth != null",
           "$uid": {
             ".read": "auth != null",
-            ".write": "auth != null && (data.parent().parent().child('ownerId').val() == auth.uid || $uid == auth.uid)"
+            ".write": "auth != null && (root.child('parties').child($partyId).child('ownerId').val() == auth.uid || $uid == auth.uid)"
           }
         },
+
+        "sync": {
+          ".read": "auth != null",
+          ".write": "auth != null && root.child('parties').child($partyId).child('ownerId').val() == auth.uid",
+          ".validate": "newData.hasChildren(['updatedAt']) && (!newData.hasChild('positionMs') || newData.child('positionMs').isNumber()) && (!newData.hasChild('isPlaying') || newData.child('isPlaying').isBoolean()) && (!newData.hasChild('mediaUrl') || newData.child('mediaUrl').isString()) && (!newData.hasChild('storageKey') || newData.child('storageKey').isString()) && (!newData.hasChild('trackId') || newData.child('trackId').isString()) && newData.child('updatedAt').isNumber()"
+        },
+
         "webrtc_signaling": {
           ".read": "auth != null",
           ".write": "auth != null",
           "$messageId": {
-            ".validate": "newData.hasChildren(['type', 'payload', 'senderId']) && newData.child('senderId').val() == auth.uid",
+            ".validate": "newData.hasChildren(['type', 'payload', 'senderId']) && newData.child('senderId').val() == auth.uid && newData.child('type').isString() && newData.child('payload').isString()",
             ".indexOn": ["timestamp"]
           }
         }
@@ -41,14 +78,15 @@
       "$userId": {
         ".read": "auth != null",
         ".write": "auth != null && auth.uid == $userId",
-        ".validate": "newData.hasChildren(['online', 'lastSeen'])"
+        ".validate": "newData.hasChildren(['online', 'lastSeen']) && newData.child('online').isBoolean() && newData.child('lastSeen').isNumber()"
       }
     },
 
     "users": {
       "$userId": {
         ".read": "auth != null && auth.uid == $userId",
-        ".write": "auth != null && auth.uid == $userId"
+        ".write": "auth != null && auth.uid == $userId",
+        ".validate": "newData.hasChildren(['uid']) && newData.child('uid').val() == auth.uid"
       }
     }
   }

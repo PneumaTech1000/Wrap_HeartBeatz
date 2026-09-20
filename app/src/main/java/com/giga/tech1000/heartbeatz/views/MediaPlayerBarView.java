@@ -1,5 +1,7 @@
 package com.giga.tech1000.heartbeatz.views;
 
+import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
+
 import android.graphics.Color;
 import android.graphics.drawable.Icon;
 import android.net.Uri;
@@ -24,7 +26,6 @@ import com.giga.tech1000.visualizer_android.visualizer.BarVisualizer;
 import com.google.android.material.color.MaterialColors;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
 import com.google.android.material.progressindicator.LinearProgressIndicator;
-import com.realgear.multislidinguppanel.MultiSlidingUpPanelLayout;
 
 import androidx.lifecycle.ViewModelProvider;
 import androidx.media3.common.util.UnstableApi;
@@ -89,14 +90,14 @@ public class MediaPlayerBarView {
         this.rootView.setAlpha(1.0F);
         this.rootView.setVisibility(View.VISIBLE);
 
-        this.playbackViewModel = new ViewModelProvider(UIThread.getInstance().getActivity()).get(PlaybackCacheViewModel.class);
+        this.playbackViewModel = new ViewModelProvider(HeartBeatzApp.container(getContext()).requireUiThread().getActivity()).get(PlaybackCacheViewModel.class);
 
         onInitView();
     }
 
     private void onInitView() {
         rootView.setOnClickListener(v -> {
-            if (panel.getPanelState() == MultiSlidingUpPanelLayout.COLLAPSED) panel.expandPanel();
+            if (panel.getPanelState() == RootMediaPlayerPanel.STATE_COLLAPSED) panel.expandPlayer();
         });
 
         playPauseButton.setOnClickListener(v -> playbackViewModel.togglePlayPause());

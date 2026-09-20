@@ -11,19 +11,41 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <com.realgear.multislidinguppanel.MultiSlidingUpPanelLayout
-            android:id="@+id/root_multi_sliding_up_panel"
+        <!-- Primary content (Home / Party via show-hide) -->
+        <androidx.fragment.app.FragmentContainerView
+            android:id="@+id/root_container_view"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            app:layout_behavior="@string/appbar_scrolling_view_behavior">
+            android:layout_marginBottom="0dp" />
 
-            <!-- Plain container: tabs use show/hide (no Nav destroy/recreate) -->
-            <androidx.fragment.app.FragmentContainerView
-                android:id="@+id/root_container_view"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent" />
+        <!-- Material 3 bottom navigation — fixed chrome, not a sliding panel -->
+        <com.google.android.material.bottomnavigation.BottomNavigationView
+            android:id="@+id/root_navigation_bar"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/navigation_bar_height"
+            android:layout_gravity="bottom"
+            android:background="?attr/colorSurface"
+            android:elevation="8dp"
+            app:labelVisibilityMode="labeled"
+            app:menu="@menu/bottom_nav_menu"
+            app:itemIconTint="@drawable/bottom_nav_item_color"
+            app:itemTextColor="@drawable/bottom_nav_item_color"
+            app:itemRippleColor="?attr/colorPrimary"
+            app:itemActiveIndicatorStyle="@style/Widget.HeartBeatz.BottomNav.ActiveIndicator" />
 
-        </com.realgear.multislidinguppanel.MultiSlidingUpPanelLayout>
+        <!-- Player only: Material bottom sheet (mini peek ↔ full screen) -->
+        <FrameLayout
+            android:id="@+id/player_bottom_sheet"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:elevation="12dp"
+            android:clickable="true"
+            android:focusable="true"
+            app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior"
+            app:behavior_hideable="true"
+            app:behavior_skipCollapsed="false"
+            app:behavior_peekHeight="@dimen/media_player_bar_height"
+            app:behavior_fitToContents="true" />
 
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 

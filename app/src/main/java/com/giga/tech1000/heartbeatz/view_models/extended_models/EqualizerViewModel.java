@@ -1,5 +1,7 @@
 package com.giga.tech1000.heartbeatz.view_models.extended_models;
 
+import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
+
 import android.app.Application;
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -29,7 +31,7 @@ import java.util.List;
 /**
  * ViewModel for EqualizerViewPanel
  *
- * Replaces direct UIThread.getInstance() calls with injected repository access.
+ * Replaces direct HeartBeatzApp.container(getApplication()).requireUiThread() calls with injected repository access.
  * Manages playback controls (speed, pitch) and equalizer settings.
  *
  * This ViewModel encapsulates all equalizer panel functionality
@@ -91,8 +93,9 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
         super(application);
         PlaybackStateRepository repo = null;
         try {
-            if (UIThread.getInstance() != null) {
-                repo = UIThread.getInstance().getPlaybackStateRepository();
+            UIThread ui = HeartBeatzApp.container(getApplication()).uiThreadOrNull();
+            if (ui != null) {
+                repo = ui.getPlaybackStateRepository();
             }
         } catch (Exception ignored) {
         }

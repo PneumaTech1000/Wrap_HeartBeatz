@@ -1,5 +1,7 @@
 package com.giga.tech1000.heartbeatz.views;
 
+import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
+
 import android.annotation.SuppressLint;
 import android.graphics.Color;
 import android.graphics.PorterDuff;
@@ -37,7 +39,6 @@ import com.giga.tech1000.utils.TimeConverter;
 import com.giga.tech1000.visualizer_android.visualizer.WaveVisualizer;
 import com.google.android.material.color.MaterialColors;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
-import com.realgear.multislidinguppanel.MultiSlidingUpPanelLayout;
 
 import androidx.lifecycle.ViewModelProvider;
 
@@ -120,8 +121,8 @@ public class MediaPlayerView {
         this.rootView.setAlpha(0.0F);
         this.rootView.setVisibility(View.GONE);
 
-        this.settingViewModel = UIThread.getInstance().getSettingViewModel();
-        this.playbackViewModel = new ViewModelProvider(UIThread.getInstance().getActivity()).get(PlaybackCacheViewModel.class);
+        this.settingViewModel = HeartBeatzApp.container(getContext()).requireUiThread().getSettingViewModel();
+        this.playbackViewModel = new ViewModelProvider(HeartBeatzApp.container(getContext()).requireUiThread().getActivity()).get(PlaybackCacheViewModel.class);
         SettingEntity setting = settingViewModel.getCached();
         if (setting == null) setting = new SettingEntity();
 
@@ -162,10 +163,10 @@ public class MediaPlayerView {
 
         shuffleButton.setOnClickListener(v -> playbackViewModel.toggleShuffle());
 
-        findViewById(R.id.btn_equalizer).setOnClickListener(v -> panel.collapsePanel());
+        findViewById(R.id.btn_equalizer).setOnClickListener(v -> panel.collapsePlayer());
 
         btnBackPanel.setOnClickListener(v -> {
-            if (panel.getPanelState() == MultiSlidingUpPanelLayout.EXPANDED) panel.collapsePanel();
+            if (panel.getPanelState() == RootMediaPlayerPanel.STATE_EXPANDED) panel.collapsePlayer();
         });
 
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -258,10 +259,10 @@ public class MediaPlayerView {
         seekBar.setMax((int) duration);
         totalTimeText.setText(TimeConverter.formatTime(duration));
 
-        LibraryRepository repository = UIThread.getInstance().getLibrarySetViewModel().getRepo();
+        LibraryRepository repository = HeartBeatzApp.container(getContext()).requireUiThread().getLibrarySetViewModel().getRepo();
         String songId = String.valueOf(song.getId());
         repository.isFavoriteSync(songId, FavoriteType.SONG)
-                .observe(UIThread.getInstance().getLifecycleOwner(), isFav -> {
+                .observe(HeartBeatzApp.container(getContext()).requireUiThread().getLifecycleOwner(), isFav -> {
                     if (isFav) {
                         btnFavorite.setImageResource(com.giga.tech1000.icons_pack.R.drawable.favorite_outline_24px);
                         btnFavorite.setColorFilter(

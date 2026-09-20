@@ -35,12 +35,17 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
 import com.giga.tech1000.heartbeatz.CustomScannerActivity;
+import com.giga.tech1000.heartbeatz.LoginActivity;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 import com.giga.tech1000.heartbeatz.R;
 import com.giga.tech1000.heartbeatz.ui.adapters.GuestListAdapter;
 import com.giga.tech1000.heartbeatz.view_models.extended_models.PartyViewModel;
 import com.giga.tech1000.heartbeatz.views.knobs.DiscoveryIndicatorManager;
 import com.giga.tech1000.heartbeatz.views.knobs.PartyPulseView;
 import com.giga.tech1000.heartbeatz.utils.QrCodeUtil;
+import com.giga.tech1000.heartbeatz.ui.PartyConnectionStatus;
+import com.giga.tech1000.heartbeatz.utils.PartyAnalytics;
 import com.giga.tech1000.party_mode.core.PartyState;
 import com.giga.tech1000.party_mode.model.PartyHost;
 import com.giga.tech1000.utils.interfaces.DisplayMarginCallback;
@@ -116,6 +121,7 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
                             Toast.makeText(requireContext(), "Please enable Wi-Fi to search for parties", Toast.LENGTH_SHORT).show();
                             return;
                         }
+                        if (!requirePartyAuth("search for parties")) return;
                         viewModel.startDiscovery();
                     } else {
                         Toast.makeText(requireContext(), "Cancelled", Toast.LENGTH_SHORT).show();
@@ -214,11 +220,15 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
 
         if (btnShareParty != null) {
             btnShareParty.setOnClickListener(v -> {
-                String hostIp = viewModel.getHostIp();
-                int hostPort = viewModel.getHostPort();
+                String partyId = viewModel.getPartyId();
                 String partyName = viewModel.getPartyName();
                 String partyPin = viewModel.getPartyPin();
-                String inviteText = QrCodeUtil.formatPartyQr(hostIp, hostPort, partyName, partyPin);
+                if (partyId == null || partyId.isEmpty()) {
+                    Toast.makeText(requireContext(), "Party not ready to share yet", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                String inviteText = QrCodeUtil.formatPartyShareText(partyId, partyName, partyPin);
+                PartyAnalytics.inviteShared();
                 sharePartyLink(inviteText);
             });
         }
@@ -267,6 +277,7 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
 
         observeViewModel();
         viewModel.setUiCallback(this);
+        consumePendingPartyInvite();
 
         // Initial State
         renderState(viewModel.getPartyState().getValue() != null ? viewModel.getPartyState().getValue() : PartyState.IDLE);
@@ -353,6 +364,12 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
                 showHandoverRequestDialog(from);
             }
         });
+
+        viewModel.getPartyError().observe(getViewLifecycleOwner(), error -> {
+            if (error == null || error.isEmpty()) return;
+            showInlineMessage(error, null, null);
+            Toast.makeText(requireContext(), error, Toast.LENGTH_LONG).show();
+        });
     }
 
     private void openHotspotSettings() {
@@ -395,20 +412,14 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
     }
 
     private void updateQrDisplay() {
-        String hostIp = viewModel.getHostIp();
-        int hostPort = viewModel.getHostPort();
+        String partyId = viewModel.getPartyId();
         String partyName = viewModel.getPartyName();
         String partyPin = viewModel.getPartyPin();
+        if (partyId == null || partyId.isEmpty()) return;
 
-        if (hostIp == null || hostIp.isEmpty()) {
-            return;
-        }
-
-        // Offload QR generation to background thread to prevent UI stutter
         new Thread(() -> {
-            String qrContent = QrCodeUtil.formatPartyQr(hostIp, hostPort, partyName, partyPin);
+            String qrContent = QrCodeUtil.formatPartyInvite(partyId, partyName, partyPin);
             Bitmap qrBitmap = QrCodeUtil.generateQrCode(qrContent, 512);
-
             if (qrBitmap != null && isAdded()) {
                 requireActivity().runOnUiThread(() -> {
                     if (ivHostQrCode != null) {
@@ -417,16 +428,6 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
                 });
             }
         }).start();
-
-        if (tvPartyPin != null) {
-            if (partyPin != null && !partyPin.isEmpty()) {
-                String pinText = "PIN: " + partyPin;
-                tvPartyPin.setText(pinText);
-                tvPartyPin.setVisibility(View.VISIBLE);
-            } else {
-                tvPartyPin.setVisibility(View.GONE);
-            }
-        }
     }
 
     private void showHostActionDialog(String guestName) {
@@ -455,11 +456,11 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
     }
 
     private void handleJoinClick() {
+        if (!requirePartyAuth("join a party")) return;
         if (!hasNearbyPermissions()) {
             Toast.makeText(requireContext(), "Nearby devices permission required", Toast.LENGTH_SHORT).show();
             return;
         }
-
         startQrScanner();
     }
 
@@ -478,59 +479,55 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
     private void handleScannedData(String data) {
         if (data == null) return;
 
-        if (data.startsWith("HB_PARTY:")) {
-            try {
-                String[] parts = data.split(":");
-                if (parts.length >= 4) {
-                    String ip = parts[1];
-                    int port = Integer.parseInt(parts[2]);
-                    String name = parts[3];
-                    String pin = parts.length > 4 ? parts[4] : "";
-
-                    PartyHost host = new PartyHost();
-                    host.ipAddress = ip;
-                    host.port = port;
-                    host.partyName = name;
-                    host.partyId = name + "_" + ip; // Simple ID generation
-
-                    viewModel.joinParty(host, pin);
-                }
-            } catch (Exception e) {
-                Toast.makeText(requireContext(), "Invalid or malformed Party QR code", Toast.LENGTH_SHORT).show();
-            }
-        } else if (data.startsWith("WIFI:")) {
+        if (data.startsWith("WIFI:")) {
             Toast.makeText(requireContext(), "Wi-Fi QR detected. Please connect to the Wi-Fi manually and try again.", Toast.LENGTH_LONG).show();
-        } else {
+            return;
+        }
+
+        QrCodeUtil.PartyInvite invite = QrCodeUtil.parseInvite(data);
+        if (invite == null) {
             Toast.makeText(requireContext(), "Invalid QR Code", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        PartyAnalytics.partyJoinAttempt(false);
+        PartyHost host = new PartyHost();
+        host.setPartyId(invite.partyId);
+        host.setPartyName(invite.partyName != null ? invite.partyName : "Party");
+        if (invite.ipAddress != null) host.setIpAddress(invite.ipAddress);
+        if (invite.port > 0) host.setPort(invite.port);
+        host.setPin(invite.pin != null ? invite.pin : "");
+        host.setPasswordProtected(invite.pin != null && !invite.pin.isEmpty());
+
+        String pin = invite.pin != null ? invite.pin : "";
+        if (pin.isEmpty() && !invite.legacyLan) {
+            showPinEntryDialog(host);
+        } else {
+            viewModel.joinParty(host, pin);
         }
     }
 
     private void showHostQrCode() {
-        String hostIp = viewModel.getHostIp();
-        int hostPort = viewModel.getHostPort();
+        String partyId = viewModel.getPartyId();
         String partyName = viewModel.getPartyName();
         String partyPin = viewModel.getPartyPin();
-
-        if (hostIp == null || hostIp.isEmpty()) {
+        if (partyId == null || partyId.isEmpty()) {
             Toast.makeText(requireContext(), "Host information not available yet", Toast.LENGTH_SHORT).show();
             return;
         }
-
-        // Generate in background
         new Thread(() -> {
-            String qrContent = QrCodeUtil.formatPartyQr(hostIp, hostPort, partyName, partyPin);
+            String qrContent = QrCodeUtil.formatPartyInvite(partyId, partyName, partyPin);
             Bitmap qrBitmap = QrCodeUtil.generateQrCode(qrContent, 512);
-
             if (qrBitmap != null && isAdded()) {
                 requireActivity().runOnUiThread(() -> {
                     ImageView imageView = new ImageView(requireContext());
                     imageView.setImageBitmap(qrBitmap);
                     int padding = (int) (16 * getResources().getDisplayMetrics().density);
                     imageView.setPadding(padding, padding, padding, padding);
-
                     new MaterialAlertDialogBuilder(requireContext())
                             .setTitle("Party QR Code")
-                            .setMessage("Guests can scan this to join '" + partyName + "'")
+                            .setMessage("Guests scan this to join
+" + QrCodeUtil.formatPartyInvite(partyId, partyName, null))
                             .setView(imageView)
                             .setPositiveButton("Close", null)
                             .show();
@@ -539,7 +536,53 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
         }).start();
     }
 
+
+    /**
+     * Local library playback does not require an account.
+     * Party host/join/discover require Firebase Auth ({@code auth != null} on RTDB rules).
+     */
+    private void consumePendingPartyInvite() {
+        if (getActivity() == null) return;
+        android.content.Intent intent = requireActivity().getIntent();
+        if (intent == null) return;
+        String partyId = intent.getStringExtra("party_invite_id");
+        if (partyId == null || partyId.isEmpty()) return;
+        String pin = intent.getStringExtra("party_invite_pin");
+        String name = intent.getStringExtra("party_invite_name");
+        intent.removeExtra("party_invite_id");
+        intent.removeExtra("party_invite_pin");
+        intent.removeExtra("party_invite_name");
+
+        if (!requirePartyAuth("join a party")) return;
+
+        PartyHost host = new PartyHost();
+        host.setPartyId(partyId);
+        host.setPartyName(name != null ? name : "Party");
+        host.setPin(pin != null ? pin : "");
+        host.setPasswordProtected(pin != null && !pin.isEmpty());
+        if (pin == null || pin.isEmpty()) {
+            showPinEntryDialog(host);
+        } else {
+            viewModel.joinParty(host, pin);
+        }
+    }
+
+    private boolean requirePartyAuth(@NonNull String actionLabel) {
+        if (FirebaseAuth.getInstance().getCurrentUser() != null) {
+            return true;
+        }
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Sign in required")
+                .setMessage("Sign in to " + actionLabel + ". Playing music from your library does not need an account.")
+                .setPositiveButton("Sign in", (d, w) ->
+                        startActivity(new Intent(requireContext(), LoginActivity.class)))
+                .setNegativeButton("Cancel", null)
+                .show();
+        return false;
+    }
+
     private void handleCreateClick() {
+        if (!requirePartyAuth("create a party")) return;
         if (!hasNearbyPermissions()) {
             Toast.makeText(requireContext(), "Nearby devices permission required", Toast.LENGTH_SHORT).show();
             return;
@@ -560,6 +603,7 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
                     String nameText = nameEditText.getText().toString();
                     String partyName = (!nameText.isEmpty()) ? nameText.trim() : "HeartBeatz Party";
                     String pin = pinEditText.getText().toString();
+                    PartyAnalytics.partyCreated(pin != null && !pin.isEmpty());
                     viewModel.createParty(partyName, pin);
                 })
                 .setNegativeButton("Cancel", null)

@@ -1,5 +1,7 @@
 package com.giga.tech1000.heartbeatz.views.panels.sub_panels;
 
+import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
+
 import android.content.Context;
 import android.graphics.PorterDuff;
 import android.view.LayoutInflater;
@@ -112,7 +114,7 @@ public class SongInfoPanel {
                     FileUtils.deleteAudio(fragmentHome, root, currentSong.uri, new FileUtils.OnDeleteListener() {
                         @Override
                         public void onDeleteSuccess() {
-                            UIThread.getInstance().getScannerManager().runIncrementalMediaRefresh();
+                            HeartBeatzApp.container(getContext()).requireUiThread().getScannerManager().runIncrementalMediaRefresh();
                         }
 
                         @Override

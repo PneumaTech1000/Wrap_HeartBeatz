@@ -1,5 +1,7 @@
 package com.giga.tech1000.heartbeatz.layouts.holders;
 
+import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
+
 import android.view.View;
 
 import androidx.annotation.NonNull;
@@ -49,11 +51,11 @@ public class AlbumsLayoutHolder extends LibraryLayoutHolder {
 
     @Override
     public void onViewAttachedToWindow() {
-        UIThread.getInstance().getPlayingCache().getPlayerCacheInfo().observeForever(observer);
+        HeartBeatzApp.container(itemView.getContext()).requireUiThread().getPlayingCache().getPlayerCacheInfo().observeForever(observer);
     }
 
     @Override
     public void onViewDetachedFromWindow() {
-        UIThread.getInstance().getPlayingCache().getPlayerCacheInfo().removeObserver(observer);
+        HeartBeatzApp.container(itemView.getContext()).requireUiThread().getPlayingCache().getPlayerCacheInfo().removeObserver(observer);
     }
 }

@@ -39,6 +39,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * - HOST: Full control (play/pause/seek/song changes, can kick guests)
  * - GUEST: Passive consumer only (can view metadata, see seekbar updates, join/leave)
  */
+/** @deprecated Frozen. Party audio will use cloud object storage + DB sync (§7), not WebRTC/TURN/SFU. */
+@Deprecated
 public class WebRtcPartyManager implements StreamProvider, WebRtcEventListener {
 
     private static final String TAG = "WebRtcPartyManager";

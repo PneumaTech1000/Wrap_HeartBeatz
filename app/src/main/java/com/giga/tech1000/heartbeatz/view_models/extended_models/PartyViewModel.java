@@ -13,6 +13,9 @@ import androidx.lifecycle.MutableLiveData;
 import androidx.media3.common.util.UnstableApi;
 
 import com.giga.tech1000.heartbeatz.architecture.repositories.EnhancedFirebasePartyHostRepository;
+import com.giga.tech1000.heartbeatz.architecture.session.PartySession;
+import com.giga.tech1000.heartbeatz.architecture.session.FirebasePartySession;
+import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
 import com.giga.tech1000.heartbeatz.architecture.repositories.PartyHostRepository;
 import com.giga.tech1000.heartbeatz.architecture.repositories.PlaybackStateRepository;
 import com.giga.tech1000.heartbeatz.ui.UIThread;
@@ -52,6 +55,7 @@ public class PartyViewModel extends AndroidViewModel {
     /** May be null until UIThread.init(); resolved lazily. */
     private PlaybackStateRepository playbackState;
     private final PartyHostRepository partyHost;
+    private final PartySession partySession;
 
     // ============ PARTY STATE (Local) ============
 
@@ -77,9 +81,10 @@ public class PartyViewModel extends AndroidViewModel {
      * Uses Firebase-based repositories for party management
      */
     public PartyViewModel(@NonNull Application application) {
-        // Do NOT touch UIThread here — MainActivity may create this ViewModel
-        // before UIThread.init() (permissions path). Playback repo is attached lazily.
-        this(application, null, new EnhancedFirebasePartyHostRepository(application));
+        // PartySession from AppContainer (single instance). Playback attached later.
+        this(application,
+                HeartBeatzApp.container(application).playbackRepositoryOrNull(),
+                HeartBeatzApp.container(application).partySession());
     }
 
     /**
@@ -88,13 +93,31 @@ public class PartyViewModel extends AndroidViewModel {
     public PartyViewModel(
             @NonNull Application application,
             @Nullable PlaybackStateRepository playbackStateRepo,
-            @NonNull PartyHostRepository partyHostRepo) {
+            @NonNull PartySession partySession) {
         super(application);
 
         this.playbackState = playbackStateRepo;
-        this.partyHost = partyHostRepo;
+        this.partySession = partySession;
+        if (partySession instanceof FirebasePartySession) {
+            this.partyHost = ((FirebasePartySession) partySession).asHostRepository();
+        } else {
+            throw new IllegalArgumentException("PartySession must expose PartyHostRepository for this ViewModel revision");
+        }
 
         Log.d(TAG, "PartyViewModel created playbackReady=" + (playbackStateRepo != null));
+        initializeStateObservers();
+    }
+
+    /** @deprecated prefer PartySession constructor */
+    public PartyViewModel(
+            @NonNull Application application,
+            @Nullable PlaybackStateRepository playbackStateRepo,
+            @NonNull PartyHostRepository partyHostRepo) {
+        super(application);
+        this.playbackState = playbackStateRepo;
+        this.partyHost = partyHostRepo;
+        this.partySession = null;
+        Log.d(TAG, "PartyViewModel (legacy repo ctor) playbackReady=" + (playbackStateRepo != null));
         initializeStateObservers();
     }
 
@@ -112,8 +135,9 @@ public class PartyViewModel extends AndroidViewModel {
     private PlaybackStateRepository requirePlayback() {
         if (playbackState == null) {
             try {
-                if (UIThread.getInstance() != null) {
-                    playbackState = UIThread.getInstance().getPlaybackStateRepository();
+                UIThread ui = HeartBeatzApp.container(getApplication()).uiThreadOrNull();
+                if (ui != null) {
+                    playbackState = ui.getPlaybackStateRepository();
                 }
             } catch (Exception e) {
                 Log.w(TAG, "PlaybackStateRepository not ready: " + e.getMessage());
@@ -549,6 +573,21 @@ public class PartyViewModel extends AndroidViewModel {
     /**
      * Get party pin
      */
+    @NonNull
+    public String getPartyId() {
+        PartyHost host = partyHost.getHostedParty().getValue();
+        if (host == null && playbackState != null) {
+            host = playbackState.getPartyHost().getValue();
+        }
+        if (host == null) {
+            host = partyHost.getConnectedHost().getValue();
+        }
+        if (host != null && host.getPartyId() != null) {
+            return host.getPartyId();
+        }
+        return "";
+    }
+
     @NonNull
     public String getPartyPin() {
         PartyHost host = partyHost.getHostedParty().getValue();

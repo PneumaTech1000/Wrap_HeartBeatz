@@ -9,12 +9,9 @@ import com.giga.tech1000.party_mode.model.PartyHost;
 import java.util.List;
 
 /**
- * Abstraction for party host management.
- * 
- * Handles discovery, hosting, and guest connection without exposing
- * underlying WiFi/networking implementation details to UI.
- * 
- * UI depends only on this interface, not on PartyRouter or PartyManager.
+ * Abstraction for party host management (Firebase-backed).
+ * Prefer {@link com.giga.tech1000.heartbeatz.architecture.session.PartySession} from AppContainer.
+ * Do not reintroduce UDP discovery, PartyRouter, or WebRTC audio here.
  */
 public interface PartyHostRepository {
     

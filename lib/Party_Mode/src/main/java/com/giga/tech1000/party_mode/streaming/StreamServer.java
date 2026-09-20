@@ -10,6 +10,8 @@ import java.util.Map;
 /**
  * NanoHTTPD wrapper for streaming audio streams.
  */
+/** @deprecated Frozen local HTTP streamer. Prefer shared media URL after §7. */
+@Deprecated
 public class StreamServer extends NanoHTTPD {
     private static final String TAG = "StreamServer";
     private final StreamProvider provider;

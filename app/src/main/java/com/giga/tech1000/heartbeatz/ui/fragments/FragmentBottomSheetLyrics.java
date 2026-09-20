@@ -1,5 +1,7 @@
 package com.giga.tech1000.heartbeatz.ui.fragments;
 
+import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
+
 import android.annotation.SuppressLint;
 import android.graphics.Color;
 import android.os.Bundle;
@@ -92,10 +94,10 @@ public class FragmentBottomSheetLyrics extends Fragment {
 
     private void observePlayback() {
         Log.d("LyricsFragment", "observePlayback: start");
-        UIThread.getInstance().getPlayingCache().getPlayerCacheInfo()
+        HeartBeatzApp.container(requireContext()).requireUiThread().getPlayingCache().getPlayerCacheInfo()
                 .observe(getViewLifecycleOwner(), this::handleSongChange);
 
-        UIThread.getInstance().getPlayingCache().getProgress()
+        HeartBeatzApp.container(requireContext()).requireUiThread().getPlayingCache().getProgress()
                 .observe(getViewLifecycleOwner(), this::highlightCurrentLine);
     }
 

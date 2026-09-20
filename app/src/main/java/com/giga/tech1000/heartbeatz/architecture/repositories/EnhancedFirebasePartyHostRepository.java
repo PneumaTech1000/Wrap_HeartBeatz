@@ -24,6 +24,8 @@ import com.google.firebase.database.Query;
 import com.google.firebase.database.ServerValue;
 import com.google.firebase.database.ValueEventListener;
 import com.giga.tech1000.party_mode.model.PartyHost;
+import com.giga.tech1000.heartbeatz.architecture.party.PartyPresenceStore;
+import com.giga.tech1000.heartbeatz.architecture.party.PartyFirebasePaths;
 
 import java.net.Inet4Address;
 import java.net.Inet6Address;
@@ -45,8 +47,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class EnhancedFirebasePartyHostRepository extends FirebaseRepository implements PartyHostRepository {
 
     private static final String TAG = "EnhancedFirebasePartyHostRepository";
-    private static final String PARTIES_NODE = "parties";
-    private static final String PRESENCE_NODE = "presence";
+    private static final String PARTIES_NODE = PartyFirebasePaths.PARTIES;
+    private static final String PRESENCE_NODE = PartyFirebasePaths.PRESENCE;
+    private final PartyPresenceStore presenceStore = new PartyPresenceStore();
     private static final String USERS_NODE = "users";
 
     // LiveData for UI observation
@@ -426,41 +429,8 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
         if (!isNetworkConnected || userId == null || userId.isEmpty()) {
             return;
         }
-        if (!isAuthenticated()) {
-            Log.w(TAG, "Skip presence: user not authenticated");
-            return;
-        }
-        // Only the signed-in user may write their own presence node
-        String authUid = getCurrentUserId();
-        if (authUid == null || !authUid.equals(userId)) {
-            Log.w(TAG, "Skip presence: uid mismatch auth=" + authUid + " userId=" + userId);
-            return;
-        }
-
-        DatabaseReference presenceRef = FirebaseDatabase.getInstance()
-                .getReference(PRESENCE_NODE)
-                .child(userId);
-
-        Map<String, Object> presenceData = new HashMap<>();
-        presenceData.put("online", isOnline);
-        presenceData.put("lastSeen", ServerValue.TIMESTAMP);
-        presenceData.put("version", Build.VERSION.SDK_INT);
-
-        // Clear presence automatically if the client disconnects
-        if (isOnline) {
-            Map<String, Object> offline = new HashMap<>();
-            offline.put("online", false);
-            offline.put("lastSeen", ServerValue.TIMESTAMP);
-            presenceRef.onDisconnect().setValue(offline);
-        }
-
-        presenceRef.setValue(presenceData)
-                .addOnSuccessListener(aVoid -> Log.d(TAG, "Presence updated for user: " + userId))
-                .addOnFailureListener(e -> {
-                    // Presence is non-critical for hosting; log and continue
-                    Log.w(TAG, "Failed to update presence (deploy firebase.rules presence node if Permission denied): "
-                            + e.getMessage());
-                });
+        presenceStore.setOnline(userId, isOnline, isAuthenticated()
+                && userId.equals(getCurrentUserId()));
     }
 
     /**
@@ -503,12 +473,8 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
     }
 
     public void stopPresenceListener() {
-        if (presenceEventListener != null) {
-            DatabaseReference presenceRef = FirebaseDatabase.getInstance()
-                    .getReference(PRESENCE_NODE);
-            presenceRef.removeEventListener(presenceEventListener);
-            presenceEventListener = null;
-        }
+        presenceStore.stopListening();
+        presenceEventListener = null;
     }
 
     public interface PresenceListener {

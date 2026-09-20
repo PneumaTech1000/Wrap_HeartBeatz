@@ -1,5 +1,7 @@
 package com.giga.tech1000.heartbeatz.views.panels.sub_panels;
 
+import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
+
 import android.app.PendingIntent;
 import android.content.Context;
 import android.net.Uri;
@@ -45,7 +47,7 @@ public class EditSongInfoPanel {
     public EditSongInfoPanel(@NonNull FragmentHome fragment, @NonNull ViewGroup parent) {
         this.fragmentHome = fragment;
         this.context = fragment.requireContext();
-        this.repository = UIThread.getInstance().getLibrarySetViewModel().getRepo();
+        this.repository = HeartBeatzApp.container(getContext()).requireUiThread().getLibrarySetViewModel().getRepo();
 
         root = LayoutInflater.from(context).inflate(R.layout.media_edit_song_info, parent, false);
 
@@ -132,7 +134,7 @@ public class EditSongInfoPanel {
                 fragmentHome.hideMediaDetailsPanel();
                 
                 // Trigger a light refresh of genres and albums to reflect name changes
-                UIThread.getInstance().getScannerManager().runIncrementalMediaRefresh();
+                HeartBeatzApp.container(getContext()).requireUiThread().getScannerManager().runIncrementalMediaRefresh();
             }
 
             @Override

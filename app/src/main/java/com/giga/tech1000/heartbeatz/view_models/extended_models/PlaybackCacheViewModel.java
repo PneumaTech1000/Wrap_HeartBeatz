@@ -1,5 +1,7 @@
 package com.giga.tech1000.heartbeatz.view_models.extended_models;
 
+import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
+
 import android.app.Application;
 
 import androidx.annotation.NonNull;
@@ -19,7 +21,7 @@ import java.util.List;
 /**
  * ViewModel for RootMediaDetailsPanel
  * 
- * Replaces direct UIThread.getInstance() calls with injected repository access.
+ * Replaces direct HeartBeatzApp.container(getApplication()).requireUiThread() calls with injected repository access.
  * Manages playback cache information and current playing song display.
  * 
  * This ViewModel encapsulates all playback details panel functionality
@@ -34,7 +36,15 @@ public class PlaybackCacheViewModel extends AndroidViewModel {
     
     public PlaybackCacheViewModel(@NonNull Application application) {
         super(application);
-        this.playbackState = UIThread.getInstance().getPlaybackStateRepository();
+        PlaybackStateRepository repo = null;
+        try {
+            UIThread ui = HeartBeatzApp.container(getApplication()).uiThreadOrNull();
+            if (ui != null) {
+                repo = ui.getPlaybackStateRepository();
+            }
+        } catch (Exception ignored) {
+        }
+        this.playbackState = repo;
     }
     
     /**
@@ -141,7 +151,9 @@ public class PlaybackCacheViewModel extends AndroidViewModel {
      */
     @NonNull
     public LiveData<PlayerCacheModel> getPlayerCacheInfo() {
-        return UIThread.getInstance().getPlayingCache().getPlayerCacheInfo();
+        UIThread ui = HeartBeatzApp.container(getApplication()).uiThreadOrNull();
+        if (ui == null || ui.getPlayingCache() == null) return new MutableLiveData<>(null);
+        return ui.getPlayingCache().getPlayerCacheInfo();
     }
     
     // ============ PLAYBACK CONTROLS ============
@@ -158,7 +170,10 @@ public class PlaybackCacheViewModel extends AndroidViewModel {
      */
     public void play(int index, List<Integer> queue, ItemSource source) {
         playbackState.play(index, queue, source);
-        UIThread.getInstance().getPlayingCache().cachePlayerItemSource(source);
+        UIThread ui = HeartBeatzApp.container(getApplication()).uiThreadOrNull();
+        if (ui != null && ui.getPlayingCache() != null) {
+            ui.getPlayingCache().cachePlayerItemSource(source);
+        }
     }
     
     /**

@@ -1,5 +1,7 @@
 package com.giga.tech1000.heartbeatz.ui.fragments;
 
+import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
+
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -68,7 +70,7 @@ public class FragmentBottomSheetQueue extends Fragment implements BottomSheetQue
 
         this.songTreeMap = SongRepository.getInstance().getCachedSongs();
 
-        UIThread.getInstance().getPlayingCache().getPlayerCacheInfo().observe(getViewLifecycleOwner(), playingCache -> adapter.setPlayingCacheInfo(playingCache));
+        HeartBeatzApp.container(requireContext()).requireUiThread().getPlayingCache().getPlayerCacheInfo().observe(getViewLifecycleOwner(), playingCache -> adapter.setPlayingCacheInfo(playingCache));
         sortItem();
     }
 

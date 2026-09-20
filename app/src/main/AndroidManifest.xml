@@ -67,6 +67,19 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="com.giga.tech1000.media_player" />
             </intent-filter>
+            <!-- Party invite deep links: heartbeatz://party/{partyId}?pin= -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="heartbeatz" android:host="party" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="heartbeatz.app" android:pathPrefix="/party" />
+            </intent-filter>
         </activity>
 
         <service

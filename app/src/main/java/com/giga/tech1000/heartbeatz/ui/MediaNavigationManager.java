@@ -1,5 +1,7 @@
 package com.giga.tech1000.heartbeatz.ui;
 
+import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
+
 import android.net.Uri;
 
 import androidx.activity.result.IntentSenderRequest;
@@ -42,7 +44,7 @@ public class MediaNavigationManager implements MediaNavigation {
                 CreatePlaylistDialogFragment.newInstance();
 
         dialog.setCallback(name -> {
-            UIThread.getInstance()
+            HeartBeatzApp.container(fragment.requireContext()).requireUiThread()
                     .getScannerManager()
                     .getRepository()
                     .createPlaylist(name, playlistId -> this.openPlaylist(name, playlistId));
@@ -57,7 +59,7 @@ public class MediaNavigationManager implements MediaNavigation {
 
 
     public void getSongsFromAlbumId(long albumId, Consumer<List<Song>> callback) {
-        UIThread.getInstance().getScannerManager().getRepository()
+        HeartBeatzApp.container(fragment.requireContext()).requireUiThread().getScannerManager().getRepository()
                 .getAlbumWithSongs(albumId)
                 .observe(fragment.getViewLifecycleOwner(), albumWithSongs -> {
                     if (albumWithSongs != null) {
@@ -69,7 +71,7 @@ public class MediaNavigationManager implements MediaNavigation {
     }
 
     public void getSongsFromArtistId(long artistId, Consumer<List<Song>> callback) {
-        UIThread.getInstance().getScannerManager().getRepository()
+        HeartBeatzApp.container(fragment.requireContext()).requireUiThread().getScannerManager().getRepository()
                 .getArtistWithSongs(artistId)
                 .observe(fragment.getViewLifecycleOwner(), artistWithSongs -> {
                     if (artistWithSongs != null) {
@@ -81,7 +83,7 @@ public class MediaNavigationManager implements MediaNavigation {
     }
 
     public void getSongsFromGenreId(long genreId, Consumer<List<Song>> callback) {
-        UIThread.getInstance().getScannerManager().getRepository()
+        HeartBeatzApp.container(fragment.requireContext()).requireUiThread().getScannerManager().getRepository()
                 .getGenreWithSongs(genreId)
                 .observe(fragment.getViewLifecycleOwner(), genreWithSongs -> {
                     if (genreWithSongs != null) {
@@ -93,7 +95,7 @@ public class MediaNavigationManager implements MediaNavigation {
     }
 
     public void getSongsFromPlaylistId(long playlistId, Consumer<List<Song>> callback) {
-        UIThread.getInstance().getScannerManager().getRepository()
+        HeartBeatzApp.container(fragment.requireContext()).requireUiThread().getScannerManager().getRepository()
                 .getPlaylistWithSongs(playlistId)
                 .observe(fragment.getViewLifecycleOwner(), playlistWithSongs -> {
                     if (playlistWithSongs != null) {
@@ -105,7 +107,7 @@ public class MediaNavigationManager implements MediaNavigation {
     }
 
     public void getSongsFromFolderPath(String folder, Consumer<List<Song>> callback) {
-        UIThread.getInstance().getScannerManager().getRepository()
+        HeartBeatzApp.container(fragment.requireContext()).requireUiThread().getScannerManager().getRepository()
                 .getSongsByFolder(folder)
                 .observe(fragment.getViewLifecycleOwner(), folderWithSongs -> {
                     if (folderWithSongs != null) {
@@ -199,7 +201,7 @@ public class MediaNavigationManager implements MediaNavigation {
     public void renamePlaylist(long id, String name) {
         RenamePlaylistDialogFragment dialog = RenamePlaylistDialogFragment.newInstance(id, name);
         dialog.setCallback((playlistId, newName) -> {
-            UIThread.getInstance().getScannerManager().getRepository().renamePlaylist(playlistId, newName, new LibraryRepository.OnMetadataUpdateListener() {
+            HeartBeatzApp.container(fragment.requireContext()).requireUiThread().getScannerManager().getRepository().renamePlaylist(playlistId, newName, new LibraryRepository.OnMetadataUpdateListener() {
                 @Override
                 public void onUpdateSuccess() {
                     // Refresh if needed, though LiveData should handle it
@@ -221,7 +223,7 @@ public class MediaNavigationManager implements MediaNavigation {
 
     @Override
     public void deletePlaylist(Playlist playlist) {
-        UIThread.getInstance().getScannerManager().getRepository().deletePlaylist(playlist, new LibraryRepository.OnMetadataUpdateListener() {
+        HeartBeatzApp.container(fragment.requireContext()).requireUiThread().getScannerManager().getRepository().deletePlaylist(playlist, new LibraryRepository.OnMetadataUpdateListener() {
             @Override
             public void onUpdateSuccess() {
             }

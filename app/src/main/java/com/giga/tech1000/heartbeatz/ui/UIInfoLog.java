@@ -2,26 +2,33 @@ package com.giga.tech1000.heartbeatz.ui;
 
 import android.util.Log;
 import android.view.View;
+import android.view.ViewGroup;
 
 import androidx.annotation.Nullable;
 
+import com.giga.tech1000.heartbeatz.BuildConfig;
 import com.realgear.multislidinguppanel.BasePanelView;
-import com.realgear.multislidinguppanel.IPanel;
 import com.realgear.multislidinguppanel.MultiSlidingUpPanelLayout;
 
 /**
- * Single log tag for UI layout / panel debugging. Filter Logcat: {@code UIInfo}
+ * Debug-only UI diagnostics. No-ops in release builds ({@link BuildConfig#DEBUG} false).
  */
 public final class UIInfoLog {
     public static final String TAG = "UIInfo";
 
     private UIInfoLog() {}
 
+    public static boolean enabled() {
+        return BuildConfig.DEBUG;
+    }
+
     public static void d(String msg) {
+        if (!enabled()) return;
         Log.d(TAG, msg);
     }
 
     public static void d(String where, String msg) {
+        if (!enabled()) return;
         Log.d(TAG, "[" + where + "] " + msg);
     }
 
@@ -36,16 +43,12 @@ public final class UIInfoLog {
     }
 
     public static void panelSnapshot(String where, @Nullable BasePanelView panel) {
+        if (!enabled()) return;
         if (panel == null) {
             d(where, "panel=null");
             return;
         }
         String name = panel.getClass().getSimpleName();
-        int top = panel.getTop();
-        int bottom = panel.getBottom();
-        int h = panel.getHeight();
-        float elev = panel.getElevation();
-        float tz = panel.getTranslationZ();
         d(where, name
                 + " state=" + stateName(panel.getPanelState())
                 + " isHidden=" + panel.isUserHidden()
@@ -53,24 +56,24 @@ public final class UIInfoLog {
                 + " peak=" + panel.getPeakHeight()
                 + " collapsedH=" + panel.getPanelCollapsedHeight()
                 + " expandedH=" + panel.getPanelExpandedHeight()
-                + " top=" + top + " bottom=" + bottom + " height=" + h
-                + " elev=" + elev + " tz=" + tz
+                + " top=" + panel.getTop() + " bottom=" + panel.getBottom()
+                + " height=" + panel.getHeight()
+                + " elev=" + panel.getElevation() + " tz=" + panel.getTranslationZ()
                 + " enabled=" + panel.isEnabled());
     }
 
-    public static void layoutChildren(String where, @Nullable MultiSlidingUpPanelLayout layout) {
-        if (layout == null) {
-            d(where, "layout=null");
-            return;
-        }
-        int n = layout.getChildCount();
-        d(where, "MultiSlidingUpPanel children=" + n
-                + " h=" + layout.getHeight()
-                + " padT=" + layout.getPaddingTop()
-                + " padB=" + layout.getPaddingBottom()
-                + " slidingEnabled=" + layout.isSlidingEnabled());
-        for (int i = 0; i < n; i++) {
-            View c = layout.getChildAt(i);
+    public static void layoutChildren(String where, @Nullable ViewGroup host) {
+        if (!enabled() || host == null) return;
+        d(where, host.getClass().getSimpleName()
+                + " children=" + host.getChildCount()
+                + " h=" + host.getHeight()
+                + " padT=" + host.getPaddingTop()
+                + " padB=" + host.getPaddingBottom()
+                + (host instanceof MultiSlidingUpPanelLayout
+                ? " slidingEnabled=" + ((MultiSlidingUpPanelLayout) host).isEnabled()
+                : ""));
+        for (int i = 0; i < host.getChildCount(); i++) {
+            View c = host.getChildAt(i);
             if (c instanceof BasePanelView) {
                 panelSnapshot(where + "/child[" + i + "]", (BasePanelView) c);
             } else {

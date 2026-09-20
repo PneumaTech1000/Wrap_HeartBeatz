@@ -1,27 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Bottom chrome only: Material 3 bottom navigation. Player panel is separate. -->
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/root_card_view"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:clickable="true"
+    android:focusable="true"
     android:clipToPadding="false"
     android:clipChildren="false"
-    app:cardCornerRadius="6dp"
-    app:cardElevation="4dp"
-    android:elevation="4dp"
-    app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.MediumComponent">
+    app:cardBackgroundColor="?attr/colorSurface"
+    app:cardCornerRadius="0dp"
+    app:cardElevation="8dp"
+    app:strokeWidth="0dp">
 
-    <!-- Bottom Navigation -->
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/root_navigation_bar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="@dimen/navigation_bar_height"
         android:background="@android:color/transparent"
         app:menu="@menu/bottom_nav_menu"
+        app:labelVisibilityMode="labeled"
         app:itemIconTint="@drawable/bottom_nav_item_color"
         app:itemTextColor="@drawable/bottom_nav_item_color"
         app:itemRippleColor="?attr/colorPrimary"
-        app:itemActiveIndicatorStyle="@null" />
-
+        app:itemActiveIndicatorStyle="@style/Widget.HeartBeatz.BottomNav.ActiveIndicator"
+        app:elevation="0dp" />
 
 </com.google.android.material.card.MaterialCardView>

@@ -1,5 +1,7 @@
 package com.giga.tech1000.heartbeatz.architecture;
 
+import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
+
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -25,7 +27,7 @@ import java.util.List;
  * Concrete implementation of {@link PlaybackStateRepository}.
  *
  * Single shared instance is owned by {@link com.giga.tech1000.heartbeatz.ui.UIThread}
- * and obtained via {@code UIThread.getInstance().getPlaybackStateRepository()}.
+ * and obtained via {@code HeartBeatzApp.container(getContext()).requireUiThread().getPlaybackStateRepository()}.
  *
  * Bridges Media3 (CorePlayer / MediaController / MediaPlayerService) to LiveData
  * for the UI. Commands go through MediaPlayerThread → CorePlayer → MediaController.

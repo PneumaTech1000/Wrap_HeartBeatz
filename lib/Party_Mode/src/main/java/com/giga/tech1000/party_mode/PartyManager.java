@@ -30,6 +30,8 @@ import com.google.firebase.auth.FirebaseAuth;
  * Facade for the Party Mode architecture.
  * Simplifies hosting and joining parties using WebRTC for real-time communication.
  */
+/** @deprecated Use app PartySession / Firebase party repository. WebRTC audio path is frozen; see FROZEN_TRANSPORT.md and §7 cloud URL migration. */
+@Deprecated
 public class PartyManager implements StreamProvider {
     private static final String TAG = "PartyManager";
     private static final int HTTP_PORT = 8080;

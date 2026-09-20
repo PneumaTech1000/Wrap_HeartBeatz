@@ -1,5 +1,7 @@
 package com.giga.tech1000.heartbeatz.ui;
 
+import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
+
 // UIInfoLog is same package
 
 import android.os.Handler;
@@ -31,6 +33,8 @@ import com.giga.tech1000.heartbeatz.view_models.SessionIdViewModel;
 import com.giga.tech1000.heartbeatz.view_models.extended_models.SettingViewModel;
 import com.giga.tech1000.heartbeatz.views.panels.RootMediaPlayerPanel;
 import com.giga.tech1000.heartbeatz.views.panels.RootNavigationBarPanel;
+import com.google.android.material.bottomnavigation.BottomNavigationView;
+import android.view.View;
 import com.giga.tech1000.media_player.SongObserver;
 import com.giga.tech1000.media_player.interfaces.IPlaybackCallback;
 import com.giga.tech1000.media_player.models.Song;
@@ -41,9 +45,6 @@ import com.giga.tech1000.party_mode.model.PartyHost;
 import com.giga.tech1000.party_mode.model.SyncPacket;
 import com.giga.tech1000.utils.PermissionManager;
 import com.giga.tech1000.utils.interfaces.OnBackPressedHandler;
-import com.realgear.multislidinguppanel.MultiSlidingPanelAdapter;
-import com.realgear.multislidinguppanel.MultiSlidingUpPanelLayout;
-import com.realgear.multislidinguppanel.PanelStateListener;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,9 +54,10 @@ import java.util.TreeMap;
 @OptIn(markerClass = UnstableApi.class)
 public class UIThread implements IPlaybackCallback {
 
-    private static UIThread instance;
     private final MainActivity activity;
-    private MultiSlidingUpPanelLayout panelLayout;
+    private View playerSheetContainer;
+    private RootMediaPlayerPanel mediaPlayerPanel;
+    private RootNavigationBarPanel navigationPanel;
 
     private MediaPlayerThread mediaPlayerThread;
     /**
@@ -78,7 +80,6 @@ public class UIThread implements IPlaybackCallback {
     private long lastPosition;
 
     public UIThread(MainActivity act) {
-        instance = this;
         this.activity = act;
 
         searchController = new SearchController();
@@ -101,8 +102,8 @@ public class UIThread implements IPlaybackCallback {
                     return;
                 }
 
-                if (getMediaPlayerPanel().getPanelState() == MultiSlidingUpPanelLayout.EXPANDED) {
-                    getMediaPlayerPanel().collapsePanel();
+                if (getMediaPlayerPanel().getPanelState() == RootMediaPlayerPanel.STATE_EXPANDED) {
+                    getMediaPlayerPanel().collapsePlayer();
                     return;
                 }
 
@@ -139,6 +140,7 @@ public class UIThread implements IPlaybackCallback {
 
     public boolean isPlayerBarVisible() {
         boolean v = lastPlaybackState != Player.STATE_IDLE;
+        UIThreadBridgePad.setPlayerBarVisible(v);
         UIInfoLog.d("UIThread.isPlayerBarVisible", "visible=" + v + " lastPlaybackState=" + lastPlaybackState);
         return v;
     }
@@ -191,7 +193,7 @@ public class UIThread implements IPlaybackCallback {
             UIInfoLog.panelSnapshot("UIThread.nav", navPanel);
             navPanel.updatePaddingWhenWhenBarChanged(isPlayerBarVisible());
         }
-        UIInfoLog.layoutChildren("UIThread.onPlaybackStateChanged", panelLayout);
+        UIInfoLog.d("UIThread.onPlaybackStateChanged", "sheet state done");
     }
 
     @Override
@@ -364,18 +366,23 @@ public class UIThread implements IPlaybackCallback {
 
     @Nullable
     public RootMediaPlayerPanel getMediaPlayerPanel() {
-        if (!uiReady || panelLayout == null || panelLayout.getAdapter() == null) return null;
-        return panelLayout.getAdapter().getItem(RootMediaPlayerPanel.class);
+        return mediaPlayerPanel;
     }
 
     @Nullable
     public RootNavigationBarPanel getNavigationPanel() {
-        if (!uiReady || panelLayout == null || panelLayout.getAdapter() == null) return null;
-        return panelLayout.getAdapter().getItem(RootNavigationBarPanel.class);
+        return navigationPanel;
     }
 
+    /**
+     * @deprecated Use {@link com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp#container(android.content.Context)}
+     * and {@code requireUiThread()} / injected dependencies. Kept temporarily for compile migration only.
+     */
+    @Deprecated
+    @Nullable
     public static UIThread getInstance() {
-        return instance;
+        throw new UnsupportedOperationException(
+                "UIThread.getInstance() removed — use HeartBeatzApp.container(context).requireUiThread()");
     }
 
     public MediaPlayerThread getMediaPlayerThread() {
@@ -395,14 +402,18 @@ public class UIThread implements IPlaybackCallback {
     }
 
     public void onCreate() {
-        panelLayout = activity.findViewById(R.id.root_multi_sliding_up_panel);
-        List<Class<?>> items = new ArrayList<>();
-        items.add(RootMediaPlayerPanel.class);
-        items.add(RootNavigationBarPanel.class);
-        UIInfoLog.d("UIThread.onCreate", "panel order: [0]=RootMediaPlayerPanel [1]=RootNavigationBarPanel");
-        panelLayout.setPanelStateListener(new PanelStateListener(panelLayout));
-        panelLayout.setAdapter(new MultiSlidingPanelAdapter(activity, items));
-        panelLayout.post(() -> UIInfoLog.layoutChildren("UIThread.onCreate.posted", panelLayout));
+        BottomNavigationView bottomNav = activity.findViewById(R.id.root_navigation_bar);
+        playerSheetContainer = activity.findViewById(R.id.player_bottom_sheet);
+
+        PlayerChromeController.bindBottomNav(bottomNav);
+        navigationPanel = new RootNavigationBarPanel(activity, bottomNav);
+        UIThreadBridge.setNav(navigationPanel);
+
+        mediaPlayerPanel = new RootMediaPlayerPanel(activity);
+        if (playerSheetContainer != null) {
+            mediaPlayerPanel.attachToSheet(playerSheetContainer);
+        }
+        UIInfoLog.d("UIThread.onCreate", "Material bottom sheet player + fixed bottom nav");
     }
 
     public <T extends View> T findViewById(@IdRes int id) {

@@ -29,6 +29,8 @@ import java.util.Objects;
  * Firebase-based implementation of PartyHostRepository
  * Replaces the UDP-based discovery with Firebase Realtime Database
  */
+/** @deprecated Use EnhancedFirebasePartyHostRepository via PartySession / AppContainer. */
+@Deprecated
 public class FirebasePartyHostRepository extends FirebaseRepository implements PartyHostRepository {
 
     private static final String TAG = "FirebasePartyHostRepository";

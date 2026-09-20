@@ -33,6 +33,7 @@ import java.util.List;
  * without exposing PartyRouter or WiFi implementation details.
  */
 @OptIn(markerClass = UnstableApi.class)
+@Deprecated
 public class PartyHostManager implements PartyHostRepository {
     
     private static final String TAG = "PartyHostManager";
