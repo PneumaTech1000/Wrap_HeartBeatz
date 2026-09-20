@@ -180,8 +180,13 @@ public class UIThread implements IPlaybackCallback {
             if (playbackState == Player.STATE_IDLE && mediaPanel.getCurrentSong() == null) {
                 UIInfoLog.d("UIThread.onPlaybackStateChanged", "-> hideMiniPlayer");
                 mediaPanel.hideMiniPlayer();
-            } else if (playbackState != Player.STATE_IDLE) {
-                UIInfoLog.d("UIThread.onPlaybackStateChanged", "-> showMiniPlayerCollapsed");
+            } else if (playbackState != Player.STATE_IDLE || mediaPanel.getCurrentSong() != null) {
+                // READY/BUFFERING/ENDED or song present → show mini (even if state briefly odd)
+                UIInfoLog.d("UIThread.onPlaybackStateChanged", "-> showMiniPlayerCollapsed"
+                        + " isPlaying=" + isPlaying
+                        + " state=" + playbackState
+                        + " song=" + (mediaPanel.getCurrentSong() != null
+                        ? mediaPanel.getCurrentSong().getTitle() : "null"));
                 mediaPanel.showMiniPlayerCollapsed();
             }
             UIInfoLog.panelSnapshot("UIThread.afterPlayback", mediaPanel);

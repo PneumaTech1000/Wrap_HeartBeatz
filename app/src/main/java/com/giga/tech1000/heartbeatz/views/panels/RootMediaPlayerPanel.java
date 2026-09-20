@@ -89,12 +89,17 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
             }
         }
         sheetBehavior = BottomSheetBehavior.from(sheetContainer);
-        sheetBehavior.setPeekHeight(
-                getResources().getDimensionPixelSize(R.dimen.media_player_bar_height));
+        int peek = getResources().getDimensionPixelSize(R.dimen.media_player_bar_height);
+        sheetBehavior.setPeekHeight(peek, false);
         sheetBehavior.setHideable(true);
-        sheetBehavior.setFitToContents(true);
+        sheetBehavior.setFitToContents(false);
         sheetBehavior.setSkipCollapsed(false);
+        sheetBehavior.setDraggable(true);
         sheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+        UIInfoLog.d("RootMediaPlayer.attach", "peek=" + peek
+                + " container=" + sheetContainer.getClass().getSimpleName()
+                + " childCount=" + ((sheetContainer instanceof FrameLayout)
+                ? ((FrameLayout) sheetContainer).getChildCount() : -1));
         sheetBehavior.addBottomSheetCallback(new BottomSheetBehavior.BottomSheetCallback() {
             @Override
             public void onStateChanged(@NonNull View bottomSheet, int newState) {
@@ -197,14 +202,43 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
     }
 
     public void showMiniPlayerCollapsed() {
-        if (sheetBehavior == null) return;
-        UIInfoLog.d("RootMediaPlayer", "showMini COLLAPSED");
-        if (sheetContainer != null) {
-            sheetContainer.setVisibility(View.VISIBLE);
+        if (sheetBehavior == null || sheetContainer == null) {
+            UIInfoLog.d("RootMediaPlayer.showMini", "ABORT behavior=" + (sheetBehavior != null)
+                    + " container=" + (sheetContainer != null));
+            return;
         }
+        int peek = getResources().getDimensionPixelSize(R.dimen.media_player_bar_height);
+        sheetBehavior.setPeekHeight(peek, false);
+        sheetContainer.setVisibility(View.VISIBLE);
         setVisibility(View.VISIBLE);
-        sheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
-        post(() -> applyChromeForSheetState(BottomSheetBehavior.STATE_COLLAPSED));
+        setAlpha(1f);
+
+        View mini = findViewById(R.id.mini_player_view);
+        View full = findViewById(R.id.media_player_view);
+        UIInfoLog.d("RootMediaPlayer.showMini", "before state=" + sheetBehavior.getState()
+                + " peek=" + sheetBehavior.getPeekHeight()
+                + " mini=" + (mini != null)
+                + " miniVis=" + (mini != null ? mini.getVisibility() : -1)
+                + " miniAlpha=" + (mini != null ? mini.getAlpha() : -1)
+                + " full=" + (full != null)
+                + " panelH=" + getHeight()
+                + " containerH=" + sheetContainer.getHeight()
+                + " containerY=" + sheetContainer.getY());
+
+        // Must run after layout; HIDDEN → COLLAPSED on next frame is reliable
+        sheetContainer.post(() -> {
+            if (sheetBehavior == null) return;
+            sheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+            applyChromeForSheetState(BottomSheetBehavior.STATE_COLLAPSED);
+            sheetContainer.post(() -> UIInfoLog.d("RootMediaPlayer.showMini.after",
+                    "state=" + sheetBehavior.getState()
+                            + " top=" + sheetContainer.getTop()
+                            + " bottom=" + sheetContainer.getBottom()
+                            + " y=" + sheetContainer.getY()
+                            + " h=" + sheetContainer.getHeight()
+                            + " miniAlpha=" + (mini != null ? mini.getAlpha() : -1)
+                            + " miniVis=" + (mini != null ? mini.getVisibility() : -1)));
+        });
     }
 
     public void hideMiniPlayer() {

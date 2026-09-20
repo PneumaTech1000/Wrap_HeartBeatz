@@ -34,18 +34,23 @@
             app:itemActiveIndicatorStyle="@style/Widget.HeartBeatz.BottomNav.ActiveIndicator" />
 
         <!-- Player only: Material bottom sheet (mini peek ↔ full screen) -->
+        <!-- marginBottom = nav height so collapsed mini sits *above* bottom nav -->
         <FrameLayout
             android:id="@+id/player_bottom_sheet"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:elevation="12dp"
+            android:layout_marginBottom="@dimen/navigation_bar_height"
+            android:elevation="16dp"
+            android:translationZ="16dp"
             android:clickable="true"
             android:focusable="true"
+            android:background="@android:color/transparent"
             app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior"
             app:behavior_hideable="true"
             app:behavior_skipCollapsed="false"
             app:behavior_peekHeight="@dimen/media_player_bar_height"
-            app:behavior_fitToContents="true" />
+            app:behavior_fitToContents="false"
+            app:behavior_expandedOffset="0dp" />
 
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
