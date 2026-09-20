@@ -26,6 +26,7 @@ import androidx.lifecycle.ViewModelProvider;
 
 
 import com.giga.tech1000.heartbeatz.observers.LibraryObservers;
+import com.giga.tech1000.heartbeatz.ui.UIInfoLog;
 import com.giga.tech1000.heartbeatz.ui.UIThread;
 import com.giga.tech1000.heartbeatz.view_models.extended_models.PartyViewModel;
 import com.giga.tech1000.heartbeatz.view_models.extended_models.SettingViewModel;
@@ -295,8 +296,17 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
      * This is where you would call your ViewModel or background scanner.
      */
     private void loadAudioFiles() {
-        scannerManager = new LocalMediaScannerManager(this);
-        scannerManager.init();
+        if (scannerManager == null) {
+            scannerManager = new LocalMediaScannerManager(this);
+            scannerManager.init();
+        }
+
+        // Avoid double-init (permission callback can fire after UI already built).
+        if (uiThread != null && uiThread.getNavigationPanel() != null) {
+            UIInfoLog.d("MainActivity.loadAudioFiles", "UI already initialized — skip re-init");
+            HeartBeatzApp.container(this).attachUiThread(uiThread);
+            return;
+        }
 
         // Attach so requireUiThread() works during init; re-attach after init to bind PlaybackStateRepository.
         HeartBeatzApp.container(this).attachUiThread(uiThread);

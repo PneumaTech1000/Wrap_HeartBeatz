@@ -663,10 +663,11 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
                         UIInfoLog.d("FragmentHome.rebuildPages", "STALE drop on UI gen=" + generation);
                         return;
                     }
-                    if (!isAdded() || pagerAdapter == null) return;
+                    if (!isAdded() || pagerAdapter == null || viewPager2 == null) return;
                     pages = pagesCopy;
                     long tUi = android.os.SystemClock.elapsedRealtime();
                     pagerAdapter.submitList(pages, () -> {
+                        if (!isAdded() || viewPager2 == null) return;
                         setupTabs();
                         UIInfoLog.d("FragmentHome.rebuildPages", "UI submit+tabs gen=" + generation
                                 + " uiMs=" + (android.os.SystemClock.elapsedRealtime() - tUi)
@@ -681,6 +682,10 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
 
 
     private void setupViewPager() {
+        if (viewPager2 == null || !isAdded()) {
+            UIInfoLog.d("FragmentHome.setupViewPager", "skip — viewPager2 null or not added");
+            return;
+        }
         pagerAdapter = new LibraryLayoutAdapter(
                 requireContext(),
                 mediaNavigationManager,
@@ -696,6 +701,10 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
 
     private void setupTabs() {
         if (pages.isEmpty()) return;
+        if (viewPager2 == null || tabLayout == null || !isAdded()) {
+            UIInfoLog.d("FragmentHome.setupTabs", "skip — pager/tabs not ready");
+            return;
+        }
 
         new TabLayoutMediator(tabLayout, viewPager2,
                 (tab, position) -> {
