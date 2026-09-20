@@ -179,10 +179,32 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
         return getPanelState() == STATE_HIDDEN;
     }
 
+    private void applyChromeForSheetState(int newState) {
+        if (newState == BottomSheetBehavior.STATE_COLLAPSED) {
+            if (mediaPlayerBarView != null) mediaPlayerBarView.showAsMini();
+            if (mediaPlayerView != null) mediaPlayerView.hideAsFull();
+        } else if (newState == BottomSheetBehavior.STATE_EXPANDED) {
+            if (mediaPlayerBarView != null) {
+                mediaPlayerBarView.onSliding(1f, MediaPlayerBarView.STATE_PARTIAL);
+            }
+            if (mediaPlayerView != null) mediaPlayerView.showAsFull();
+        } else if (newState == BottomSheetBehavior.STATE_HIDDEN) {
+            if (mediaPlayerBarView != null) {
+                mediaPlayerBarView.onSliding(1f, MediaPlayerBarView.STATE_PARTIAL);
+            }
+            if (mediaPlayerView != null) mediaPlayerView.hideAsFull();
+        }
+    }
+
     public void showMiniPlayerCollapsed() {
         if (sheetBehavior == null) return;
         UIInfoLog.d("RootMediaPlayer", "showMini COLLAPSED");
+        if (sheetContainer != null) {
+            sheetContainer.setVisibility(View.VISIBLE);
+        }
+        setVisibility(View.VISIBLE);
         sheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+        post(() -> applyChromeForSheetState(BottomSheetBehavior.STATE_COLLAPSED));
     }
 
     public void hideMiniPlayer() {
@@ -194,11 +216,13 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
     public void expandPlayer() {
         if (sheetBehavior == null) return;
         sheetBehavior.setState(BottomSheetBehavior.STATE_EXPANDED);
+        post(() -> applyChromeForSheetState(BottomSheetBehavior.STATE_EXPANDED));
     }
 
     public void collapsePlayer() {
         if (sheetBehavior == null) return;
         sheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+        post(() -> applyChromeForSheetState(BottomSheetBehavior.STATE_COLLAPSED));
     }
 
     public BottomSheetView getBottomSheetView() {
