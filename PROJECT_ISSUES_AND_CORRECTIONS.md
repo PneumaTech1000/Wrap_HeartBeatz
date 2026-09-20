@@ -39,7 +39,7 @@ So: the **result you want is achievable without MultiSlidingUpPanel owning navig
 
 ## 1. Architecture / coupling
 
-**Status:** `IN PROGRESS` (AppContainer + PartySession + presence split; UIThread static removed)
+**Status:** `DONE` — AppContainer, PartySession, PartyPresenceStore; UIThread.getInstance throws; holders use container. Residual: SongRepository.getInstance still used in a few places.
 
 ### Problems
 
@@ -61,7 +61,7 @@ So: the **result you want is achievable without MultiSlidingUpPanel owning navig
 
 ## 2. Firebase design & security
 
-**Status:** `OPEN` (rules file updated in repo; **must be published** in console)
+**Status:** `DONE` (rules in `firebase.rules` including presence + sync; **publish in Console** if not already)
 
 ### Problems
 
@@ -81,7 +81,7 @@ So: the **result you want is achievable without MultiSlidingUpPanel owning navig
 
 ## 3. UI / navigation complexity
 
-**Status:** `IN PROGRESS` — Material BottomSheet player + fixed Material bottom nav; PlayerChromeController; show/hide tabs; drawer in Activity
+**Status:** `DONE` — Material BottomSheet player + fixed bottom nav; PlayerChromeController; show/hide tabs; drawer in Activity; UIInfoLog DEBUG-only
 
 ### Problems
 
@@ -104,7 +104,7 @@ So: the **result you want is achievable without MultiSlidingUpPanel owning navig
 
 ## 4. Quality, lifecycle, and polish
 
-**Status:** `IN PROGRESS` — party auth gate (library playback stays open); party errors surfaced; ViewModel attach patterns
+**Status:** `DONE` — party auth gate only for party; library free; party errors Toast/inline; ViewModel attach after UIThread.init
 
 ### Problems
 
@@ -126,7 +126,7 @@ So: the **result you want is achievable without MultiSlidingUpPanel owning navig
 
 ## 5. Product features to add (professional baseline)
 
-**Status:** `IN PROGRESS` — invites partyId+PIN, deep links, share/QR, connection labels, PartyAnalytics; remote media stays §7
+**Status:** `DONE` (except remote media → §7) — partyId invites, deep links, share/QR, connection labels, PartyAnalytics
 
 | Item | Intended correction |
 |------|---------------------|
@@ -141,7 +141,7 @@ So: the **result you want is achievable without MultiSlidingUpPanel owning navig
 
 ## 6. Candidates to remove or freeze
 
-**Status:** `IN PROGRESS` — WebRTC/StreamServer/PartyManager frozen+deprecated; UDP path documented gone; TURN WONTFIX; see `DEPRECATIONS_AND_FREEZES.md`
+**Status:** `DONE` — WebRTC/StreamServer/PartyManager frozen+@Deprecated; TURN WONTFIX; multiSliding unused for chrome (module remains until zero refs). See `DEPRECATIONS_AND_FREEZES.md`
 
 | Candidate | Action |
 |-----------|--------|

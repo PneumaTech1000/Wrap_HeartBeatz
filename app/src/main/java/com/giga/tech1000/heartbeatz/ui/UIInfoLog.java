@@ -7,6 +7,7 @@ import android.view.ViewGroup;
 import androidx.annotation.Nullable;
 
 import com.giga.tech1000.heartbeatz.BuildConfig;
+import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.realgear.multislidinguppanel.BasePanelView;
 import com.realgear.multislidinguppanel.MultiSlidingUpPanelLayout;
 
@@ -32,14 +33,21 @@ public final class UIInfoLog {
         Log.d(TAG, "[" + where + "] " + msg);
     }
 
+    /** Accepts Material BottomSheet or legacy MultiSliding state ints. */
     public static String stateName(int state) {
-        switch (state) {
-            case MultiSlidingUpPanelLayout.COLLAPSED: return "COLLAPSED";
-            case MultiSlidingUpPanelLayout.EXPANDED: return "EXPANDED";
-            case MultiSlidingUpPanelLayout.HIDDEN: return "HIDDEN";
-            case MultiSlidingUpPanelLayout.DRAGGING: return "DRAGGING";
-            default: return "STATE_" + state;
-        }
+        return switch (state) {
+            case BottomSheetBehavior.STATE_COLLAPSED,
+                 MultiSlidingUpPanelLayout.COLLAPSED -> "COLLAPSED";
+            case BottomSheetBehavior.STATE_EXPANDED,
+                 MultiSlidingUpPanelLayout.EXPANDED -> "EXPANDED";
+            case BottomSheetBehavior.STATE_HIDDEN,
+                 MultiSlidingUpPanelLayout.HIDDEN -> "HIDDEN";
+            case BottomSheetBehavior.STATE_DRAGGING,
+                 MultiSlidingUpPanelLayout.DRAGGING -> "DRAGGING";
+            case BottomSheetBehavior.STATE_SETTLING -> "SETTLING";
+            case BottomSheetBehavior.STATE_HALF_EXPANDED -> "HALF_EXPANDED";
+            default -> "STATE_" + state;
+        };
     }
 
     public static void panelSnapshot(String where, @Nullable BasePanelView panel) {

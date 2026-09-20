@@ -339,6 +339,9 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
         viewModel.getCurrentDuration().observe(getViewLifecycleOwner(), duration -> updatePlaybackProgress());
 
         viewModel.isGuestAuthenticated().observe(getViewLifecycleOwner(), authenticated -> {
+            if (Boolean.TRUE.equals(authenticated)) {
+                PartyAnalytics.partyJoinSuccess();
+            }
             if (authenticated != null && (currentState == PartyState.JOINED || currentState == PartyState.HOSTING)) {
                 updateUiContent(currentState);
             }
