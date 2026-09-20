@@ -7,7 +7,9 @@ import android.graphics.Color;
 import android.graphics.PorterDuff;
 import android.graphics.drawable.Icon;
 import android.os.SystemClock;
+
 import androidx.media3.session.legacy.PlaybackStateCompat;
+
 import android.view.View;
 import android.widget.ImageButton;
 import android.widget.SeekBar;
@@ -166,7 +168,8 @@ public class MediaPlayerView {
         findViewById(R.id.btn_equalizer).setOnClickListener(v -> panel.collapsePlayer());
 
         btnBackPanel.setOnClickListener(v -> {
-            if (panel.getPanelState() == RootMediaPlayerPanel.STATE_EXPANDED) panel.collapsePlayer();
+            if (panel.getPanelState() == RootMediaPlayerPanel.STATE_EXPANDED)
+                panel.collapsePlayer();
         });
 
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -219,7 +222,7 @@ public class MediaPlayerView {
     public void onPlaybackStateChanged(PlaybackStateCompat state) {
         int oldState = (prevPlaybackState != null) ? prevPlaybackState.getState() : -1;
         prevPlaybackState = state;
-        
+
         updateProgressUI(state.getPosition());
 
         rootView.removeCallbacks(progressUpdater);
@@ -233,11 +236,13 @@ public class MediaPlayerView {
         } else {
             playPauseProgressIndicator.setVisibility(View.GONE);
             playPauseButtonView.setVisibility(View.VISIBLE);
-            
+
             if (oldState != state.getState()) {
                 switch (state.getState()) {
-                    case PlaybackStateCompat.STATE_PLAYING -> playPauseButtonView.setImageIcon(Icon.createWithResource(rootView.getContext(), com.giga.tech1000.icons_pack.R.drawable.pause_24px));
-                    case PlaybackStateCompat.STATE_PAUSED, PlaybackStateCompat.STATE_STOPPED -> playPauseButtonView.setImageIcon(Icon.createWithResource(rootView.getContext(), com.giga.tech1000.icons_pack.R.drawable.play_arrow_fill));
+                    case PlaybackStateCompat.STATE_PLAYING ->
+                            playPauseButtonView.setImageIcon(Icon.createWithResource(rootView.getContext(), com.giga.tech1000.icons_pack.R.drawable.pause_24px));
+                    case PlaybackStateCompat.STATE_PAUSED, PlaybackStateCompat.STATE_STOPPED ->
+                            playPauseButtonView.setImageIcon(Icon.createWithResource(rootView.getContext(), com.giga.tech1000.icons_pack.R.drawable.play_arrow_fill));
                 }
             }
         }
@@ -291,26 +296,26 @@ public class MediaPlayerView {
 
     public void setPartyClientMode(boolean enabled) {
         this.isPartyClient = enabled;
-        
+
         // Disable and blur/fade controls
         float alpha = enabled ? 0.5f : 1.0f;
         boolean interactive = !enabled;
 
         playPauseButtonView.setEnabled(interactive);
         playPauseButtonView.setAlpha(alpha);
-        
+
         previousButton.setEnabled(interactive);
         previousButton.setAlpha(alpha);
-        
+
         nextButton.setEnabled(interactive);
         nextButton.setAlpha(alpha);
-        
+
         shuffleButton.setEnabled(interactive);
         shuffleButton.setAlpha(alpha);
-        
+
         btnRepeat.setEnabled(interactive);
         btnRepeat.setAlpha(alpha);
-        
+
         seekBar.setEnabled(interactive);
         // seekBar alpha is handled by its container usually or direct
         seekBar.setAlpha(alpha);
@@ -324,8 +329,10 @@ public class MediaPlayerView {
 
     private int setImageByCheckingMode(int repeatMode) {
         return switch (repeatMode) {
-            case PlaybackStateCompat.REPEAT_MODE_NONE -> com.giga.tech1000.icons_pack.R.drawable.repeat_off_24px;
-            case PlaybackStateCompat.REPEAT_MODE_ONE -> com.giga.tech1000.icons_pack.R.drawable.repeat_one_24px;
+            case PlaybackStateCompat.REPEAT_MODE_NONE ->
+                    com.giga.tech1000.icons_pack.R.drawable.repeat_off_24px;
+            case PlaybackStateCompat.REPEAT_MODE_ONE ->
+                    com.giga.tech1000.icons_pack.R.drawable.repeat_one_24px;
             default -> com.giga.tech1000.icons_pack.R.drawable.repeat_24px;
         };
     }

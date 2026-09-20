@@ -408,10 +408,12 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
             }
 
             @Override
-            public void onTabUnselected(TabLayout.Tab tab) {}
+            public void onTabUnselected(TabLayout.Tab tab) {
+            }
 
             @Override
-            public void onTabReselected(TabLayout.Tab tab) {}
+            public void onTabReselected(TabLayout.Tab tab) {
+            }
         });
     }
 
@@ -522,6 +524,7 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
         new Thread(() -> {
             String qrContent = QrCodeUtil.formatPartyInvite(partyId, partyName, partyPin);
             Bitmap qrBitmap = QrCodeUtil.generateQrCode(qrContent, 512);
+            String qrString = QrCodeUtil.formatPartyInvite(partyId, partyName, null);
             if (qrBitmap != null && isAdded()) {
                 requireActivity().runOnUiThread(() -> {
                     ImageView imageView = new ImageView(requireContext());
@@ -530,11 +533,10 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
                     imageView.setPadding(padding, padding, padding, padding);
                     new MaterialAlertDialogBuilder(requireContext())
                             .setTitle("Party QR Code")
-                            .setMessage("Guests scan this to join
-" + QrCodeUtil.formatPartyInvite(partyId, partyName, null))
-                            .setView(imageView)
-                            .setPositiveButton("Close", null)
-                            .show();
+                            .setMessage("Guests scan this to join " + qrString)
+                                            .setView(imageView)
+                                            .setPositiveButton("Close", null)
+                                            .show();
                 });
             }
         }).start();
@@ -677,8 +679,10 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
             case CREATING:
             case CONNECTING:
                 pulseView.start();
-                if (state == PartyState.SEARCHING) pulseInfoText.setText(R.string.searching_for_parties);
-                else if (state == PartyState.CREATING) pulseInfoText.setText(R.string.creating_party);
+                if (state == PartyState.SEARCHING)
+                    pulseInfoText.setText(R.string.searching_for_parties);
+                else if (state == PartyState.CREATING)
+                    pulseInfoText.setText(R.string.creating_party);
                 else pulseInfoText.setText(R.string.connecting_to_party);
                 break;
             case FOUND:
@@ -691,7 +695,8 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
                 if (state == PartyState.JOINED) {
                     pulseInfoText.setText(R.string.connected_to_party);
                     if (partyTitle != null) partyTitle.setText(R.string.party_joined);
-                    if (tvPartySongTitle != null) tvPartySongTitle.setText(R.string.streaming_audio);
+                    if (tvPartySongTitle != null)
+                        tvPartySongTitle.setText(R.string.streaming_audio);
 
                     Boolean authenticated = viewModel.isGuestAuthenticated().getValue();
                     if (tvPartyArtist != null) {
@@ -712,7 +717,8 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
                     pulseInfoText.setText(partyName);
                     if (partyTitle != null) partyTitle.setText(R.string.your_party);
                     if (partyTabs != null) partyTabs.setVisibility(View.VISIBLE);
-                    if (tvPartySongTitle != null) tvPartySongTitle.setText(R.string.streaming_active);
+                    if (tvPartySongTitle != null)
+                        tvPartySongTitle.setText(R.string.streaming_active);
                     if (tvPartyArtist != null) tvPartyArtist.setText(R.string.you_are_the_host);
                     if (progressSync != null) progressSync.setVisibility(View.GONE);
 
@@ -834,7 +840,8 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
     }
 
     private void showInlineMessage(String message, String actionText, Runnable action) {
-        if (partySnackbar == null || tvPartySnackbarMessage == null || btnPartySnackbarAction == null) return;
+        if (partySnackbar == null || tvPartySnackbarMessage == null || btnPartySnackbarAction == null)
+            return;
         tvPartySnackbarMessage.setText(message);
         if (actionText != null && action != null) {
             btnPartySnackbarAction.setText(actionText);
@@ -965,7 +972,7 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
 
     @Override
     public void onDisplayBarPlayerChanged(boolean isDisplaying) {
-        int  paddingHeight = (isDisplaying) ? getResources().getDimensionPixelSize(R.dimen.bar_and_navigation_height) : getResources().getDimensionPixelSize(R.dimen.navigation_bar_height); 
+        int paddingHeight = (isDisplaying) ? getResources().getDimensionPixelSize(R.dimen.bar_and_navigation_height) : getResources().getDimensionPixelSize(R.dimen.navigation_bar_height);
         partyRoot.setPadding(0, 0, 0, paddingHeight);
     }
 }

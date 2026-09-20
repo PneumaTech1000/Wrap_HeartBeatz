@@ -247,7 +247,6 @@ public final class EqualizerViewPanel {
         loudnessIcon = new AppCompatImageButton(context);
 
 
-
         // Initialize spectrum view
         spectrumView = v.findViewById(R.id.spectrum_canvas);
 
@@ -274,7 +273,6 @@ public final class EqualizerViewPanel {
         limiterCeilingSlider = v.findViewById(R.id.slider_limiter_ceiling);
         noiseGateThresholdSlider = v.findViewById(R.id.slider_gate_threshold);
         deEsserThresholdSlider = v.findViewById(R.id.slider_deesser_threshold);
-
 
 
         // Initialize frequency value TextViews
@@ -497,7 +495,7 @@ public final class EqualizerViewPanel {
 
                     // Update frequency seekbar (0-100 maps to 20Hz-20000Hz on logarithmic scale)
                     float freqProgress = (float) ((Math.log10(band.getFrequencyHz()) - Math.log10(20)) /
-                                                (Math.log10(20000) - Math.log10(20)) * 100);
+                            (Math.log10(20000) - Math.log10(20)) * 100);
 
                     // Update gain value and UI
                     float gainDb = band.getGainDb();
@@ -1407,7 +1405,7 @@ public final class EqualizerViewPanel {
             freqValues.set(i, freq);
             updateFrequencyDisplay(i);
             float freqProgress = (float) ((Math.log10(freq) - Math.log10(20)) /
-                                (Math.log10(20000) - Math.log10(20)) * 100);
+                    (Math.log10(20000) - Math.log10(20)) * 100);
 
             // Update dB value display
             float gainDb = ((progress / 100f) * 30f) - 15f;
@@ -1418,7 +1416,7 @@ public final class EqualizerViewPanel {
             String qText = String.format(Locale.getDefault(), "Q: %.1f", qFactor);
             qValueViews[i].setText(qText);
             float qProgress = (float) ((Math.log10(qFactor) - Math.log10(0.1f)) /
-                                (Math.log10(10.0f) - Math.log10(0.1f)) * 100);
+                    (Math.log10(10.0f) - Math.log10(0.1f)) * 100);
             // Q seek bars are optional in the current layout (may be null)
             if (qSeekBars[i] != null) {
                 qSeekBars[i].setProgress(Math.round(qProgress));

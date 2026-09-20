@@ -92,7 +92,7 @@ public class EditSongInfoPanel {
         etArtist.setText(song.getArtist());
         etAlbum.setText(song.getAlbum());
         etGenre.setText(song.getGenreName());
-        
+
         selectedArtUri = song.getAlbumArt();
     }
 
@@ -132,7 +132,7 @@ public class EditSongInfoPanel {
                 btnSave.setEnabled(true);
                 Toast.makeText(context, context.getString(R.string.success_changes_saved), Toast.LENGTH_SHORT).show();
                 fragmentHome.hideMediaDetailsPanel();
-                
+
                 // Trigger a light refresh of genres and albums to reflect name changes
                 HeartBeatzApp.container(getContext()).requireUiThread().getScannerManager().runIncrementalMediaRefresh();
             }
@@ -175,7 +175,7 @@ public class EditSongInfoPanel {
             Toast.makeText(context, context.getString(R.string.error_no_image_selected), Toast.LENGTH_SHORT).show();
         }
     }
-    
+
     public void onImagePicked(Uri uri) {
         this.selectedArtUri = uri;
         ImageLoader.load(ivAlbumEdit, uri);

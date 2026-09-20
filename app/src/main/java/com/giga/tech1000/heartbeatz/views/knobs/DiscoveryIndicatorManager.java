@@ -23,7 +23,7 @@ public class DiscoveryIndicatorManager {
     public void showDeviceFound(String deviceName) {
         // 1. Inflate the indicator layout
         View node = android.view.LayoutInflater.from(context).inflate(R.layout.party_found_item_float, container, false);
-        
+
         // 2. Set the device name
         android.widget.TextView tvName = node.findViewById(R.id.partyFoundText);
         if (tvName != null) {
@@ -44,7 +44,7 @@ public class DiscoveryIndicatorManager {
         // Ensure it doesn't clip the edges
         int containerWidth = container.getWidth();
         int containerHeight = container.getHeight();
-        
+
         if (containerWidth > 0 && containerHeight > 0) {
             int marginX = random.nextInt(Math.max(1, containerWidth - width));
             int marginY = random.nextInt(Math.max(1, containerHeight - height));
@@ -54,7 +54,7 @@ public class DiscoveryIndicatorManager {
             // Fallback if container not yet measured
             params.gravity = android.view.Gravity.CENTER;
         }
-        
+
         node.setLayoutParams(params);
         node.setScaleX(0f);
         node.setScaleY(0f);

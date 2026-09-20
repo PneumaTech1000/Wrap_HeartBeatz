@@ -32,7 +32,7 @@ import java.util.List;
 /**
  * Media player chrome hosted in a Material {@link BottomSheetBehavior}.
  * Mini = COLLAPSED (peek), full = EXPANDED, idle = HIDDEN.
- * MultiSlidingUpPanel ANCHORED is not used: Material {@link BottomSheetBehavior#onSlide}
+ * MultiSlidingUpPanel ANCHORED is not used: Material {@link BottomSheetBehavior@onSlide}
  * supplies slideOffset for mini/full cross-fade. Nested lyrics sheet may still use
  * CustomBottomSheetBehavior.STATE_ANCHORED independently.
  * Bottom navigation is controlled via {@link PlayerChromeController} — not a sliding panel.
@@ -70,7 +70,9 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
         LayoutInflater.from(getContext()).inflate(R.layout.mediaplayer_root_layout, this, true);
     }
 
-    /** Attach this panel into the activity bottom-sheet container and bind behavior. */
+    /**
+     * Attach this panel into the activity bottom-sheet container and bind behavior.
+     */
     public void attachToSheet(@NonNull View sheetContainer) {
         this.sheetContainer = sheetContainer;
         if (getParent() != sheetContainer) {
@@ -115,12 +117,9 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
         mediaPlayerView = new MediaPlayerView(this, this);
         mediaPlayerBarView = new MediaPlayerBarView(this, this);
 
-        View lyricsSheet = findViewById(R.id.media_player_bottom_sheet);
+        FrameLayout lyricsSheet = findViewById(R.id.media_player_bottom_sheet_behavior);
         if (lyricsSheet != null) {
-            @SuppressWarnings("unchecked")
-            CustomBottomSheetBehavior<android.widget.FrameLayout> lyricsBehavior =
-                    (CustomBottomSheetBehavior<android.widget.FrameLayout>)
-                            CustomBottomSheetBehavior.from(lyricsSheet);
+            CustomBottomSheetBehavior<FrameLayout> lyricsBehavior = CustomBottomSheetBehavior.from(lyricsSheet);
             lyricsBehavior.setState(CustomBottomSheetBehavior.STATE_COLLAPSED);
             bottomSheetView = new BottomSheetView(this, lyricsBehavior, this);
             lyricsBehavior.addBottomSheetCallback(
@@ -132,11 +131,13 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
                                 case CustomBottomSheetBehavior.STATE_EXPANDED:
                                 case CustomBottomSheetBehavior.STATE_DRAGGING:
                                     if (sheetBehavior != null) sheetBehavior.setDraggable(false);
-                                    if (bottomSheetView != null) bottomSheetView.setViewVisibility(true);
+                                    if (bottomSheetView != null)
+                                        bottomSheetView.setViewVisibility(true);
                                     break;
                                 default:
                                     if (sheetBehavior != null) sheetBehavior.setDraggable(true);
-                                    if (bottomSheetView != null) bottomSheetView.setViewVisibility(false);
+                                    if (bottomSheetView != null)
+                                        bottomSheetView.setViewVisibility(false);
                                     break;
                             }
                         }
@@ -290,7 +291,6 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
         }
         return false;
     }
-}
 
     public FragmentManager getSupportFragmentManager() {
         if (context instanceof FragmentActivity) {

@@ -75,7 +75,6 @@ public class SongSelectionPanel {
         });
 
 
-
     }
 
     public void addDetails(List<Song> songs, long playlistId) {
@@ -115,12 +114,18 @@ public class SongSelectionPanel {
     public AtomicBoolean getIsVisible() {
         return isVisible;
     }
-    public AtomicBoolean getIsSearchVisible() { return isSearchVisible; }
+
+    public AtomicBoolean getIsSearchVisible() {
+        return isSearchVisible;
+    }
 
     public void setIsVisible(boolean isVisible) {
         this.isVisible.set(isVisible);
     }
-    public void setSearchIsVisible(boolean isVisible) { this.isSearchVisible.set(isVisible); }
+
+    public void setSearchIsVisible(boolean isVisible) {
+        this.isSearchVisible.set(isVisible);
+    }
 
 
     public void setBottomPadding(int dimensionPixelSize) {

@@ -42,7 +42,7 @@ public final class PartyPulseView extends View {
 
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(dp(1.5f));
-        
+
         fillPaint.setStyle(Paint.Style.FILL);
 
         animator = ValueAnimator.ofFloat(0f, 1f);
@@ -79,11 +79,11 @@ public final class PartyPulseView extends View {
 
         for (int i = 0; i < PULSE_COUNT; i++) {
             int alpha = (int) (alphas[i] * 255);
-            
+
             // Draw a subtle fill
             fillPaint.setColor(ColorUtils.setAlphaComponent(primaryColor, (int) (alpha * 0.1f)));
             canvas.drawCircle(cx, cy, radii[i], fillPaint);
-            
+
             // Draw the ring
             paint.setColor(ColorUtils.setAlphaComponent(primaryColor, (int) (alpha * 0.4f)));
             canvas.drawCircle(cx, cy, radii[i], paint);

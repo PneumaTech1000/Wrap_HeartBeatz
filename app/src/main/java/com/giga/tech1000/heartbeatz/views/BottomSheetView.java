@@ -144,11 +144,9 @@ public class BottomSheetView {
     }
 
 
-
     public <T extends View> T findViewById(@IdRes int id) {
         return this.rootView.findViewById(id);
     }
-
 
 
 }

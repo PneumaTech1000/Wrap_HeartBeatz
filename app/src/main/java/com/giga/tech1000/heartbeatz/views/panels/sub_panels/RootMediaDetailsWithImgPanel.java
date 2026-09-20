@@ -61,7 +61,7 @@ public class RootMediaDetailsWithImgPanel {
         itemImageView = view.findViewById(R.id.image);
         toolbar = view.findViewById(R.id.toolbar);
         emptyToolbar = view.findViewById(R.id.empty_tool_bar);
-        
+
         searchBtn = view.findViewById(R.id.search_queue);
         searchView = view.findViewById(R.id.search_view);
         shuffleQueue = view.findViewById(R.id.shuffle_queue);
@@ -167,12 +167,18 @@ public class RootMediaDetailsWithImgPanel {
     public AtomicBoolean getIsVisible() {
         return isVisible;
     }
-    public AtomicBoolean getIsSearchVisible() { return isSearchVisible; }
+
+    public AtomicBoolean getIsSearchVisible() {
+        return isSearchVisible;
+    }
 
     public void setIsVisible(boolean isVisible) {
         this.isVisible.set(isVisible);
     }
-    public void setSearchIsVisible(boolean isVisible) { this.isSearchVisible.set(isVisible); }
+
+    public void setSearchIsVisible(boolean isVisible) {
+        this.isSearchVisible.set(isVisible);
+    }
 
     public View getView() {
         return view;

@@ -47,9 +47,8 @@ public class RootMediaDetailsWithoutImgPanel {
     private final PlaybackCacheViewModel playbackViewModel;
 
 
-
     public RootMediaDetailsWithoutImgPanel(@NonNull FragmentHome fragment, @NonNull ViewGroup parent,
-                                          @NonNull PlaybackCacheViewModel playbackViewModel) {
+                                           @NonNull PlaybackCacheViewModel playbackViewModel) {
         this.playbackViewModel = playbackViewModel;
         view = LayoutInflater.from(fragment.requireContext()).inflate(R.layout.media_details_without_img_root_layout, parent, false);
 
@@ -103,7 +102,8 @@ public class RootMediaDetailsWithoutImgPanel {
         List<BaseRecyclerViewItem> items = new ArrayList<>();
         toolbar.setTitle(mediaDetail.getTitle());
         emptyToolbar.setTitle(mediaDetail.getTitle());
-        if (mediaDetail.getType() == MediaDetail.Type.PLAYLIST_SONG) playlistId = Converters.uriToPlaylistId(mediaDetail.getUri());
+        if (mediaDetail.getType() == MediaDetail.Type.PLAYLIST_SONG)
+            playlistId = Converters.uriToPlaylistId(mediaDetail.getUri());
 
         for (Song song : mediaDetail.getSongs()) {
             items.add(new MediaDetailsWithoutImgViewItem(song));
@@ -136,13 +136,24 @@ public class RootMediaDetailsWithoutImgPanel {
         });
     }
 
-    public AtomicBoolean getIsVisible() { return isVisible; }
-    public AtomicBoolean getIsSearchVisible() { return  isSearchVisible; }
-    public void setIsVisible(boolean isVisible) { this.isVisible.set(isVisible); }
-    public void setSearchIsVisible(boolean isVisible) { this.isSearchVisible.set(isVisible); }
+    public AtomicBoolean getIsVisible() {
+        return isVisible;
+    }
+
+    public AtomicBoolean getIsSearchVisible() {
+        return isSearchVisible;
+    }
+
+    public void setIsVisible(boolean isVisible) {
+        this.isVisible.set(isVisible);
+    }
+
+    public void setSearchIsVisible(boolean isVisible) {
+        this.isSearchVisible.set(isVisible);
+    }
 
     public void setBottomPadding(int dimensionPixelSize) {
-       // backgroundBlur.setPadding(0, 0,0, dimensionPixelSize);
+        // backgroundBlur.setPadding(0, 0,0, dimensionPixelSize);
     }
 
     public View getView() {
