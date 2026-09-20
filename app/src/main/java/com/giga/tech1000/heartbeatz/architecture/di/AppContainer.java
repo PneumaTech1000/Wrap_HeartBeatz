@@ -48,11 +48,13 @@ public final class AppContainer {
     }
 
     /**
-     * Called from MainActivity after {@code new UIThread(activity)} and {@code uiThread.init()}.
+     * Register UIThread. Safe before or after {@code uiThread.init()}.
+     * Call again after init so playback repository and helpers are bound.
      */
     public void attachUiThread(@NonNull UIThread thread) {
         this.uiThread = thread;
-        this.playbackStateRepository = thread.getPlaybackStateRepository();
+        // Do not call getPlaybackStateRepository() here — it throws before init().
+        this.playbackStateRepository = thread.peekPlaybackStateRepository();
         this.libraryObservers = thread.getLibraryObservers();
         this.scannerManager = thread.getScannerManager();
         this.sessionIdViewModel = thread.getSessionIdViewModel();

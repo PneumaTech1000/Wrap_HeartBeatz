@@ -384,6 +384,11 @@ public class UIThread implements IPlaybackCallback {
      * Single shared {@link PlaybackStateRepository} backed by Media3 via CorePlayer.
      * ViewModels must use this instead of constructing their own PlaybackStateManager.
      */
+    @Nullable
+    public PlaybackStateRepository peekPlaybackStateRepository() {
+        return playbackStateRepository;
+    }
+
     @NonNull
     public PlaybackStateRepository getPlaybackStateRepository() {
         if (playbackStateRepository == null) {

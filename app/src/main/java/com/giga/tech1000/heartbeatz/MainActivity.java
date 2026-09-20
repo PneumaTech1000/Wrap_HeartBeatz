@@ -298,9 +298,10 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
         scannerManager = new LocalMediaScannerManager(this);
         scannerManager.init();
 
-        // Attach before init: MediaPlayer views call requireUiThread() during onCreate.
+        // Attach so requireUiThread() works during init; re-attach after init to bind PlaybackStateRepository.
         HeartBeatzApp.container(this).attachUiThread(uiThread);
         uiThread.init();
+        HeartBeatzApp.container(this).attachUiThread(uiThread);
         setupPartyObservers();
     }
 
