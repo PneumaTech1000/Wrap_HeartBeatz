@@ -30,12 +30,9 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import java.util.List;
 
 /**
- * Media player chrome hosted in a Material {@link BottomSheetBehavior}.
- * Mini = COLLAPSED (peek), full = EXPANDED, idle = HIDDEN.
- * MultiSlidingUpPanel ANCHORED is not used: Material {@link BottomSheetBehavior@onSlide}
- * supplies slideOffset for mini/full cross-fade. Nested lyrics sheet may still use
- * CustomBottomSheetBehavior.STATE_ANCHORED independently.
- * Bottom navigation is controlled via {@link PlayerChromeController} — not a sliding panel.
+ * Media player chrome: fixed mini host above bottom nav + full-screen overlay.
+ * BottomSheet peek was leaving the mini off-screen (logs: y=height). Nested lyrics
+ * sheet may still use CustomBottomSheetBehavior independently.
  */
 @UnstableApi
 @SuppressLint("ViewConstructor")
@@ -64,70 +61,75 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
     private BottomSheetBehavior<View> sheetBehavior;
     @Nullable
     private View sheetContainer;
+    @Nullable
+    private FrameLayout miniHost;
+    @Nullable
+    private FrameLayout fullHost;
+    private int panelUiState = STATE_HIDDEN;
 
     public RootMediaPlayerPanel(@NonNull Context context) {
         super(context);
         this.context = context;
         getContext().setTheme(R.style.Theme_HeartBeatz);
-        LayoutInflater.from(getContext()).inflate(R.layout.mediaplayer_root_layout, this, true);
+        // Layout inflated in attachToHosts so children can be reparented to activity hosts
     }
 
-    /**
-     * Attach this panel into the activity bottom-sheet container and bind behavior.
-     */
-    public void attachToSheet(@NonNull View sheetContainer) {
-        this.sheetContainer = sheetContainer;
-        if (getParent() != sheetContainer) {
-            if (getParent() != null) {
-                ((android.view.ViewGroup) getParent()).removeView(this);
-            }
-            if (sheetContainer instanceof FrameLayout) {
-                ((FrameLayout) sheetContainer).addView(this,
-                        new FrameLayout.LayoutParams(
-                                LayoutParams.MATCH_PARENT,
-                                LayoutParams.MATCH_PARENT));
-            }
-        }
-        sheetBehavior = BottomSheetBehavior.from(sheetContainer);
-        int peek = getResources().getDimensionPixelSize(R.dimen.media_player_bar_height);
-        sheetBehavior.setPeekHeight(peek, false);
-        sheetBehavior.setHideable(true);
-        sheetBehavior.setFitToContents(false);
-        sheetBehavior.setSkipCollapsed(false);
-        sheetBehavior.setDraggable(true);
-        sheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
-        UIInfoLog.d("RootMediaPlayer.attach", "peek=" + peek
-                + " container=" + sheetContainer.getClass().getSimpleName()
-                + " childCount=" + ((sheetContainer instanceof FrameLayout)
-                ? ((FrameLayout) sheetContainer).getChildCount() : -1));
-        sheetBehavior.addBottomSheetCallback(new BottomSheetBehavior.BottomSheetCallback() {
-            @Override
-            public void onStateChanged(@NonNull View bottomSheet, int newState) {
-                UIInfoLog.d("RootMediaPlayer.sheet", "state=" + newState);
-                applyChromeForSheetState(newState);
-                PlayerChromeController.onSheetStateChanged(newState);
-            }
 
-            @Override
-            public void onSlide(@NonNull View bottomSheet, float slideOffset) {
-                // Material: -1 hidden, 0 collapsed, 1 expanded — only use 0..1 for cross-fade
-                float expand = Math.max(0f, slideOffset);
-                if (mediaPlayerView != null) {
-                    mediaPlayerView.onSliding(expand, MediaPlayerView.STATE_PARTIAL);
-                }
-                if (mediaPlayerBarView != null) {
-                    mediaPlayerBarView.onSliding(expand, MediaPlayerBarView.STATE_PARTIAL);
-                }
+    /**
+     * Wire mini + full hosts from activity_main.
+     */
+    public void attachToHosts(@NonNull FrameLayout miniHost, @NonNull FrameLayout fullHost) {
+        this.miniHost = miniHost;
+        this.fullHost = fullHost;
+        this.sheetContainer = miniHost;
+
+        // Inflate content into this panel once, then move children to hosts
+        if (getChildCount() == 0) {
+            LayoutInflater.from(getContext()).inflate(R.layout.mediaplayer_root_layout, this, true);
+        }
+        View mini = findViewById(R.id.mini_player_view);
+        View full = findViewById(R.id.media_player_view);
+        if (mini != null && mini.getParent() != miniHost) {
+            if (mini.getParent() instanceof android.view.ViewGroup) {
+                ((android.view.ViewGroup) mini.getParent()).removeView(mini);
             }
-        });
+            miniHost.addView(mini, new FrameLayout.LayoutParams(
+                    LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+        }
+        if (full != null && full.getParent() != fullHost) {
+            if (full.getParent() instanceof android.view.ViewGroup) {
+                ((android.view.ViewGroup) full.getParent()).removeView(full);
+            }
+            fullHost.addView(full, new FrameLayout.LayoutParams(
+                    LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+        }
+
+        miniHost.setVisibility(View.GONE);
+        fullHost.setVisibility(View.GONE);
+        panelUiState = STATE_HIDDEN;
+        sheetBehavior = null; // no BottomSheet for chrome
+
         onBindViews();
+        UIInfoLog.d("RootMediaPlayer.attachHosts", "miniHost=" + miniHost.getId()
+                + " fullHost=" + fullHost.getId()
+                + " miniChild=" + miniHost.getChildCount()
+                + " fullChild=" + fullHost.getChildCount());
+    }
+
+    /** @deprecated use {@link #attachToHosts(FrameLayout, FrameLayout)} */
+    public void attachToSheet(@NonNull View sheetContainer) {
+        // Legacy no-op path if still called
+        UIInfoLog.d("RootMediaPlayer.attachToSheet", "deprecated — use attachToHosts");
     }
 
     private void onBindViews() {
-        mediaPlayerView = new MediaPlayerView(this, this);
-        mediaPlayerBarView = new MediaPlayerBarView(this, this);
+        View barRoot = miniHost != null ? miniHost : this;
+        View fullRoot = fullHost != null ? fullHost : this;
+        mediaPlayerView = new MediaPlayerView(fullRoot, this);
+        mediaPlayerBarView = new MediaPlayerBarView(barRoot, this);
 
-        FrameLayout lyricsSheet = findViewById(R.id.media_player_bottom_sheet_behavior);
+        FrameLayout lyricsSheet = fullRoot.findViewById(R.id.media_player_bottom_sheet_behavior);
+        if (lyricsSheet == null) lyricsSheet = findViewById(R.id.media_player_bottom_sheet_behavior);
         if (lyricsSheet != null) {
             CustomBottomSheetBehavior<FrameLayout> lyricsBehavior = CustomBottomSheetBehavior.from(lyricsSheet);
             lyricsBehavior.setState(CustomBottomSheetBehavior.STATE_COLLAPSED);
@@ -176,8 +178,7 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
     }
 
     public int getPanelState() {
-        if (sheetBehavior == null) return STATE_HIDDEN;
-        return sheetBehavior.getState();
+        return panelUiState;
     }
 
     public boolean isUserHidden() {
@@ -185,78 +186,49 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
     }
 
     private void applyChromeForSheetState(int newState) {
-        if (newState == BottomSheetBehavior.STATE_COLLAPSED) {
+        panelUiState = newState;
+        if (newState == STATE_COLLAPSED) {
+            if (miniHost != null) miniHost.setVisibility(View.VISIBLE);
+            if (fullHost != null) fullHost.setVisibility(View.GONE);
             if (mediaPlayerBarView != null) mediaPlayerBarView.showAsMini();
             if (mediaPlayerView != null) mediaPlayerView.hideAsFull();
-        } else if (newState == BottomSheetBehavior.STATE_EXPANDED) {
+            PlayerChromeController.onSheetStateChanged(BottomSheetBehavior.STATE_COLLAPSED);
+        } else if (newState == STATE_EXPANDED) {
+            if (miniHost != null) miniHost.setVisibility(View.GONE);
+            if (fullHost != null) fullHost.setVisibility(View.VISIBLE);
             if (mediaPlayerBarView != null) {
                 mediaPlayerBarView.onSliding(1f, MediaPlayerBarView.STATE_PARTIAL);
             }
             if (mediaPlayerView != null) mediaPlayerView.showAsFull();
-        } else if (newState == BottomSheetBehavior.STATE_HIDDEN) {
-            if (mediaPlayerBarView != null) {
-                mediaPlayerBarView.onSliding(1f, MediaPlayerBarView.STATE_PARTIAL);
-            }
-            if (mediaPlayerView != null) mediaPlayerView.hideAsFull();
+            PlayerChromeController.onSheetStateChanged(BottomSheetBehavior.STATE_EXPANDED);
+        } else {
+            if (miniHost != null) miniHost.setVisibility(View.GONE);
+            if (fullHost != null) fullHost.setVisibility(View.GONE);
+            PlayerChromeController.onSheetStateChanged(BottomSheetBehavior.STATE_HIDDEN);
         }
+        UIInfoLog.d("RootMediaPlayer.applyChrome", "state=" + newState
+                + " miniVis=" + (miniHost != null ? miniHost.getVisibility() : -1)
+                + " fullVis=" + (fullHost != null ? fullHost.getVisibility() : -1));
     }
 
     public void showMiniPlayerCollapsed() {
-        if (sheetBehavior == null || sheetContainer == null) {
-            UIInfoLog.d("RootMediaPlayer.showMini", "ABORT behavior=" + (sheetBehavior != null)
-                    + " container=" + (sheetContainer != null));
-            return;
-        }
-        int peek = getResources().getDimensionPixelSize(R.dimen.media_player_bar_height);
-        sheetBehavior.setPeekHeight(peek, false);
-        sheetContainer.setVisibility(View.VISIBLE);
-        setVisibility(View.VISIBLE);
-        setAlpha(1f);
-
-        View mini = findViewById(R.id.mini_player_view);
-        View full = findViewById(R.id.media_player_view);
-        UIInfoLog.d("RootMediaPlayer.showMini", "before state=" + sheetBehavior.getState()
-                + " peek=" + sheetBehavior.getPeekHeight()
-                + " mini=" + (mini != null)
-                + " miniVis=" + (mini != null ? mini.getVisibility() : -1)
-                + " miniAlpha=" + (mini != null ? mini.getAlpha() : -1)
-                + " full=" + (full != null)
-                + " panelH=" + getHeight()
-                + " containerH=" + sheetContainer.getHeight()
-                + " containerY=" + sheetContainer.getY());
-
-        // Must run after layout; HIDDEN → COLLAPSED on next frame is reliable
-        sheetContainer.post(() -> {
-            if (sheetBehavior == null) return;
-            sheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
-            applyChromeForSheetState(BottomSheetBehavior.STATE_COLLAPSED);
-            sheetContainer.post(() -> UIInfoLog.d("RootMediaPlayer.showMini.after",
-                    "state=" + sheetBehavior.getState()
-                            + " top=" + sheetContainer.getTop()
-                            + " bottom=" + sheetContainer.getBottom()
-                            + " y=" + sheetContainer.getY()
-                            + " h=" + sheetContainer.getHeight()
-                            + " miniAlpha=" + (mini != null ? mini.getAlpha() : -1)
-                            + " miniVis=" + (mini != null ? mini.getVisibility() : -1)));
-        });
+        UIInfoLog.d("RootMediaPlayer", "showMini COLLAPSED fixed-host");
+        applyChromeForSheetState(STATE_COLLAPSED);
     }
 
     public void hideMiniPlayer() {
-        if (sheetBehavior == null) return;
-        UIInfoLog.d("RootMediaPlayer", "hide HIDDEN");
-        sheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+        UIInfoLog.d("RootMediaPlayer", "hide HIDDEN fixed-host");
+        applyChromeForSheetState(STATE_HIDDEN);
     }
 
     public void expandPlayer() {
-        if (sheetBehavior == null) return;
-        sheetBehavior.setState(BottomSheetBehavior.STATE_EXPANDED);
-        post(() -> applyChromeForSheetState(BottomSheetBehavior.STATE_EXPANDED));
+        UIInfoLog.d("RootMediaPlayer", "expand EXPANDED fixed-host");
+        applyChromeForSheetState(STATE_EXPANDED);
     }
 
     public void collapsePlayer() {
-        if (sheetBehavior == null) return;
-        sheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
-        post(() -> applyChromeForSheetState(BottomSheetBehavior.STATE_COLLAPSED));
+        UIInfoLog.d("RootMediaPlayer", "collapse COLLAPSED fixed-host");
+        applyChromeForSheetState(STATE_COLLAPSED);
     }
 
     public BottomSheetView getBottomSheetView() {

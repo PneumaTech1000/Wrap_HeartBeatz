@@ -8,6 +8,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.view.View;
+import android.widget.FrameLayout;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.IdRes;
@@ -34,6 +35,7 @@ import com.giga.tech1000.heartbeatz.views.panels.RootMediaPlayerPanel;
 import com.giga.tech1000.heartbeatz.views.panels.RootNavigationBarPanel;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import android.view.View;
+import android.widget.FrameLayout;
 import com.giga.tech1000.media_player.SongObserver;
 import com.giga.tech1000.media_player.interfaces.IPlaybackCallback;
 import com.giga.tech1000.media_player.models.Song;
@@ -404,17 +406,18 @@ public class UIThread implements IPlaybackCallback {
 
     public void onCreate() {
         BottomNavigationView bottomNav = activity.findViewById(R.id.root_navigation_bar);
-        playerSheetContainer = activity.findViewById(R.id.player_bottom_sheet);
+        FrameLayout miniHost = activity.findViewById(R.id.mini_player_host);
+        FrameLayout fullHost = activity.findViewById(R.id.full_player_host);
 
         PlayerChromeController.bindBottomNav(bottomNav);
         navigationPanel = new RootNavigationBarPanel(activity, bottomNav);
         UIThreadBridge.setNav(navigationPanel);
 
         mediaPlayerPanel = new RootMediaPlayerPanel(activity);
-        if (playerSheetContainer != null) {
-            mediaPlayerPanel.attachToSheet(playerSheetContainer);
+        if (miniHost != null && fullHost != null) {
+            mediaPlayerPanel.attachToHosts(miniHost, fullHost);
         }
-        UIInfoLog.d("UIThread.onCreate", "Material bottom sheet player + fixed bottom nav");
+        UIInfoLog.d("UIThread.onCreate", "fixed mini host + full overlay player");
     }
 
     public <T extends View> T findViewById(@IdRes int id) {

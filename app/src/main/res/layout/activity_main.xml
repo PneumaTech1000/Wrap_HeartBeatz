@@ -11,14 +11,24 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <!-- Primary content (Home / Party via show-hide) -->
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/root_container_view"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_marginBottom="0dp" />
+            android:layout_height="match_parent" />
 
-        <!-- Material 3 bottom navigation — fixed chrome, not a sliding panel -->
+        <!-- Fixed mini player ABOVE bottom nav (not BottomSheet peek — that was off-screen) -->
+        <FrameLayout
+            android:id="@+id/mini_player_host"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/media_player_bar_height"
+            android:layout_gravity="bottom"
+            android:layout_marginBottom="@dimen/navigation_bar_height"
+            android:elevation="12dp"
+            android:translationZ="12dp"
+            android:visibility="gone"
+            android:clickable="true"
+            android:focusable="true" />
+
         <com.google.android.material.bottomnavigation.BottomNavigationView
             android:id="@+id/root_navigation_bar"
             android:layout_width="match_parent"
@@ -33,24 +43,17 @@
             app:itemRippleColor="?attr/colorPrimary"
             app:itemActiveIndicatorStyle="@style/Widget.HeartBeatz.BottomNav.ActiveIndicator" />
 
-        <!-- Player only: Material bottom sheet (mini peek ↔ full screen) -->
-        <!-- marginBottom = nav height so collapsed mini sits *above* bottom nav -->
+        <!-- Full player overlay (shown when expanded) -->
         <FrameLayout
-            android:id="@+id/player_bottom_sheet"
+            android:id="@+id/full_player_host"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_marginBottom="@dimen/navigation_bar_height"
-            android:elevation="16dp"
-            android:translationZ="16dp"
+            android:elevation="24dp"
+            android:translationZ="24dp"
+            android:visibility="gone"
             android:clickable="true"
             android:focusable="true"
-            android:background="@android:color/transparent"
-            app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior"
-            app:behavior_hideable="true"
-            app:behavior_skipCollapsed="false"
-            app:behavior_peekHeight="@dimen/media_player_bar_height"
-            app:behavior_fitToContents="false"
-            app:behavior_expandedOffset="0dp" />
+            android:background="?attr/colorSurface" />
 
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
