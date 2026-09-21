@@ -9,7 +9,9 @@
     <androidx.coordinatorlayout.widget.CoordinatorLayout
         android:id="@+id/root_container"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:clipChildren="false"
+        android:clipToPadding="false">
 
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/root_container_view"
@@ -39,10 +41,13 @@
             android:id="@+id/player_bottom_sheet"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:background="@android:color/transparent"
             android:elevation="16dp"
             android:translationZ="16dp"
             android:clickable="true"
             android:focusable="true"
+            android:clipChildren="false"
+            android:clipToPadding="false"
             app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior"
             app:behavior_hideable="true"
             app:behavior_skipCollapsed="false"

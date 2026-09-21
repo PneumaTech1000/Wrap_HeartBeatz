@@ -114,6 +114,26 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
                         + " expand=" + lastExpand);
                 if (newState == BottomSheetBehavior.STATE_COLLAPSED) {
                     applySlideOffset(0f);
+                    if (miniView != null) {
+                        miniView.bringToFront();
+                        miniView.setVisibility(VISIBLE);
+                        miniView.setAlpha(1f);
+                        miniView.setElevation(20f);
+                    }
+                    if (fullView != null) {
+                        fullView.setVisibility(INVISIBLE);
+                        fullView.setAlpha(0f);
+                    }
+                    if (sheetContainer != null) {
+                        UIInfoLog.d("RootMediaPlayer.collapsedGeo",
+                                "sheetTop=" + sheetContainer.getTop()
+                                        + " sheetY=" + sheetContainer.getY()
+                                        + " sheetH=" + sheetContainer.getHeight()
+                                        + " peek=" + (sheetBehavior != null ? sheetBehavior.getPeekHeight() : -1)
+                                        + " miniTop=" + (miniView != null ? miniView.getTop() : -1)
+                                        + " miniBot=" + (miniView != null ? miniView.getBottom() : -1)
+                                        + " miniH=" + (miniView != null ? miniView.getHeight() : -1));
+                    }
                     PlayerChromeController.onSheetStateChanged(BottomSheetBehavior.STATE_COLLAPSED);
                 } else if (newState == BottomSheetBehavior.STATE_EXPANDED) {
                     applySlideOffset(1f);
@@ -191,12 +211,25 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
             }
         }
         PlayerChromeController.onSlide(lastExpand);
-        UIInfoLog.d("RootMediaPlayer.slide", "expand=" + lastExpand
-                + " miniA=" + miniAlpha + " fullA=" + fullAlpha);
+        if (lastExpand <= 0.02f || lastExpand >= 0.98f) {
+            int miniTop = miniView != null ? miniView.getTop() : -1;
+            int miniBot = miniView != null ? miniView.getBottom() : -1;
+            int miniH = miniView != null ? miniView.getHeight() : -1;
+            int panelH = getHeight();
+            UIInfoLog.d("RootMediaPlayer.slide", "expand=" + lastExpand
+                    + " miniA=" + miniAlpha + " fullA=" + fullAlpha
+                    + " miniTop=" + miniTop + " miniBot=" + miniBot
+                    + " miniH=" + miniH + " panelH=" + panelH
+                    + " miniVis=" + (miniView != null ? miniView.getVisibility() : -1));
+        }
     }
 
     private void onBindViews() {
-        miniView = findViewById(R.id.mini_player_view);
+        // Prefer slot wrapper (reliable gravity); fall back to mini_player_view
+        miniView = findViewById(R.id.mini_player_slot);
+        if (miniView == null) {
+            miniView = findViewById(R.id.mini_player_view);
+        }
         fullView = findViewById(R.id.media_player_view);
 
         mediaPlayerView = new MediaPlayerView(this, this);
@@ -270,6 +303,12 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
             if (sheetBehavior == null) return;
             sheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
             applySlideOffset(0f);
+            if (miniView != null) {
+                miniView.bringToFront();
+                miniView.setVisibility(VISIBLE);
+                miniView.setAlpha(1f);
+                miniView.requestLayout();
+            }
         });
     }
 

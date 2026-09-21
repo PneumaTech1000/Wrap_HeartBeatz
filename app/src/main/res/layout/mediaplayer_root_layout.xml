@@ -1,27 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Sheet content. Peek shows the BOTTOM of this layout.
-  Bottom navHeight is transparent spacer so mini sits above system bottom nav sibling.
+  Sheet content. BottomSheet peek shows the BOTTOM of this view.
+  paddingBottom = nav height so mini (gravity=bottom) sits above the nav sibling.
+  peekHeight must equal mini height + nav height.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/media_player_root_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:paddingBottom="@dimen/navigation_bar_height"
+    android:clipToPadding="false"
     android:clickable="true"
     android:focusable="true">
 
-    <!-- Full player -->
+    <!-- Full player (fades in with expand) -->
     <include
         layout="@layout/media_player_full_sheet"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Mini player above nav spacer -->
-    <include
-        layout="@layout/media_player_bar_bottom_sheet"
+    <!-- Mini: bottom of padded area = bottom of visible peek above nav -->
+    <FrameLayout
+        android:id="@+id/mini_player_slot"
         android:layout_width="match_parent"
         android:layout_height="@dimen/media_player_bar_height"
         android:layout_gravity="bottom"
-        android:layout_marginBottom="@dimen/navigation_bar_height" />
+        android:elevation="20dp"
+        android:translationZ="20dp">
+
+        <include
+            layout="@layout/media_player_bar_bottom_sheet"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+    </FrameLayout>
 
 </FrameLayout>
