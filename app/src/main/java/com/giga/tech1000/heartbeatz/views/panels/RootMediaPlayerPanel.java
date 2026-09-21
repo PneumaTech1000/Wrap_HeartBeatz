@@ -6,6 +6,8 @@ import android.net.nsd.NsdServiceInfo;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
+import android.view.ViewConfiguration;
 import android.view.View;
 import android.widget.FrameLayout;
 
@@ -149,10 +151,19 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
 
                 @Override
                 public void onSlide(@NonNull View bottomSheet, float slideOffset) {
+                    // -1 hidden … 0 collapsed … 1 expanded
                     float expand = Math.max(0f, slideOffset);
+                    PlayerChromeController.onSlide(expand);
                     if (mediaPlayerView != null) {
                         mediaPlayerView.onSliding(expand, MediaPlayerView.STATE_PARTIAL);
                     }
+                    if (mediaPlayerBarView != null && expand < 0.15f && miniHost != null
+                            && miniHost.getVisibility() != View.VISIBLE
+                            && panelUiState != STATE_EXPANDED) {
+                        // near collapsed during drag — show mini underneath
+                        miniHost.setVisibility(View.VISIBLE);
+                    }
+                    UIInfoLog.d("RootMediaPlayer.fullSlide", "offset=" + slideOffset + " expand=" + expand);
                 }
             });
         } catch (IllegalArgumentException e) {
@@ -161,10 +172,76 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
         }
 
         onBindViews();
+        installMiniSwipeToExpand();
         UIInfoLog.d("RootMediaPlayer.attachHosts", "miniHost=" + miniHost.getId()
                 + " fullHost=" + fullHost.getId()
                 + " miniChild=" + miniHost.getChildCount()
                 + " fullChild=" + fullHost.getChildCount());
+    }
+
+    /**
+     * Drag mini bar upward to open full player; tracks expand fraction for nav fade.
+     */
+    private void installMiniSwipeToExpand() {
+        if (miniHost == null || fullHost == null) return;
+        final int touchSlop = ViewConfiguration.get(getContext()).getScaledTouchSlop();
+        final float[] startY = {0f};
+        final float[] startX = {0f};
+        final boolean[] dragging = {false};
+
+        miniHost.setOnTouchListener((v, event) -> {
+            if (panelUiState == STATE_HIDDEN) return false;
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    startY[0] = event.getRawY();
+                    startX[0] = event.getRawX();
+                    dragging[0] = false;
+                    return false; // allow click
+                case MotionEvent.ACTION_MOVE: {
+                    float dy = startY[0] - event.getRawY(); // up positive
+                    float dx = Math.abs(event.getRawX() - startX[0]);
+                    if (!dragging[0] && dy > touchSlop && dy > dx) {
+                        dragging[0] = true;
+                        fullHost.setVisibility(View.VISIBLE);
+                        if (mediaPlayerView != null) mediaPlayerView.showAsFull();
+                    }
+                    if (dragging[0]) {
+                        float h = fullHost.getHeight() > 0 ? fullHost.getHeight() : getResources().getDisplayMetrics().heightPixels;
+                        float expand = Math.min(1f, Math.max(0f, dy / (h * 0.45f)));
+                        fullHost.setTranslationY(h * (1f - expand));
+                        fullHost.setAlpha(0.3f + 0.7f * expand);
+                        miniHost.setAlpha(1f - expand);
+                        PlayerChromeController.onSlide(expand);
+                        UIInfoLog.d("RootMediaPlayer.miniSwipe", "expand=" + expand);
+                        return true;
+                    }
+                    return false;
+                }
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL: {
+                    if (!dragging[0]) return false;
+                    float dy = startY[0] - event.getRawY();
+                    float h = fullHost.getHeight() > 0 ? fullHost.getHeight() : getResources().getDisplayMetrics().heightPixels;
+                    float expand = Math.min(1f, Math.max(0f, dy / (h * 0.45f)));
+                    miniHost.setAlpha(1f);
+                    if (expand >= 0.28f) {
+                        fullHost.setTranslationY(0f);
+                        fullHost.setAlpha(1f);
+                        expandPlayer();
+                    } else {
+                        fullHost.setTranslationY(0f);
+                        fullHost.setAlpha(1f);
+                        fullHost.setVisibility(View.GONE);
+                        PlayerChromeController.onSlide(0f);
+                        applyChromeForSheetState(STATE_COLLAPSED);
+                    }
+                    dragging[0] = false;
+                    return true;
+                }
+                default:
+                    return false;
+            }
+        });
     }
 
     /** @deprecated use {@link #attachToHosts(FrameLayout, FrameLayout)} */
@@ -208,12 +285,9 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
 
                         @Override
                         public void onSlide(@NonNull View bottomSheet, float slideOffset) {
-                            if (mediaPlayerView != null) {
-                                mediaPlayerView.onSliding(slideOffset, MediaPlayerView.STATE_PARTIAL);
-                            }
-                            if (mediaPlayerBarView != null) {
-                                mediaPlayerBarView.onSliding(slideOffset, MediaPlayerBarView.STATE_PARTIAL);
-                            }
+                            // Lyrics/queue nested sheet only — do not fade main full player
+                            // (that was leaving the full player blank after collapse).
+                            UIInfoLog.d("RootMediaPlayer.lyricsSlide", "offset=" + slideOffset);
                         }
                     });
         }
@@ -262,10 +336,15 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
                 mediaPlayerBarView.onSliding(1f, MediaPlayerBarView.STATE_PARTIAL);
             }
             if (mediaPlayerView != null) mediaPlayerView.showAsFull();
+            if (fullHost != null) {
+                fullHost.setTranslationY(0f);
+                fullHost.setAlpha(1f);
+            }
             if (sheetBehavior != null) {
                 fullHost.post(() -> sheetBehavior.setState(BottomSheetBehavior.STATE_EXPANDED));
             }
             PlayerChromeController.onSheetStateChanged(BottomSheetBehavior.STATE_EXPANDED);
+            PlayerChromeController.onSlide(1f);
         } else {
             if (miniHost != null) miniHost.setVisibility(View.GONE);
             if (fullHost != null) fullHost.setVisibility(View.GONE);

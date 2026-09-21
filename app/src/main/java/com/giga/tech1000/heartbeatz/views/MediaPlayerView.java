@@ -203,12 +203,15 @@ public class MediaPlayerView {
     }
 
     /**
-     * @param slidingOffset 0 = collapsed (full player hidden), 1 = expanded (full player visible)
+     * @param slidingOffset 0 = collapsed, 1 = expanded.
+     * Keeps content visible during drag so collapse does not leave a blank surface.
      */
     public void onSliding(float slidingOffset, int state) {
         float alpha = MathUtils.clamp(slidingOffset, 0F, 1F);
-        this.rootView.setAlpha(alpha);
-        this.rootView.setVisibility(alpha > 0.02F ? View.VISIBLE : View.GONE);
+        // Floor alpha so mid-drag never fully blanks the UI
+        float visual = Math.max(0.15F, alpha);
+        this.rootView.setAlpha(visual);
+        this.rootView.setVisibility(View.VISIBLE);
         if (constraintLayout != null) {
             this.constraintLayout.setAlpha(1F);
         }
@@ -216,14 +219,19 @@ public class MediaPlayerView {
 
     /** Hide full player (sheet COLLAPSED / mini only). */
     public void hideAsFull() {
-        rootView.setAlpha(0F);
-        rootView.setVisibility(View.GONE);
+        if (rootView == null) return;
+        rootView.setAlpha(1F); // keep ready for next expand
+        rootView.setVisibility(View.VISIBLE);
     }
 
     /** Show full player (sheet EXPANDED). */
     public void showAsFull() {
+        if (rootView == null) return;
         rootView.setAlpha(1F);
         rootView.setVisibility(View.VISIBLE);
+        if (constraintLayout != null) constraintLayout.setAlpha(1F);
+        com.giga.tech1000.heartbeatz.ui.UIInfoLog.d("MediaPlayerView.showAsFull",
+                "alpha=1 vis=VISIBLE root=" + rootView.getClass().getSimpleName());
     }
 
     public <T extends View> T findViewById(@IdRes int id) {

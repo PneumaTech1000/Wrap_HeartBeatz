@@ -3,18 +3,16 @@ package com.giga.tech1000.heartbeatz.ui;
 import android.view.View;
 
 import androidx.annotation.Nullable;
+import androidx.core.math.MathUtils;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 
 /**
- * Coordinates Material bottom sheet (player) with Material bottom navigation.
- *
- * <ul>
- *   <li>Player EXPANDED → hide bottom nav (full immersive player)</li>
- *   <li>Player COLLAPSED (mini) → show bottom nav</li>
- *   <li>Player HIDDEN → show bottom nav</li>
- * </ul>
+ * Coordinates player expand fraction with bottom navigation visibility.
+ * <p>
+ * expandFraction: 0 = mini (or hidden), 1 = full player.
+ * Nav alpha / translation track the fraction continuously during drag.
  */
 public final class PlayerChromeController {
 
@@ -27,6 +25,40 @@ public final class PlayerChromeController {
         bottomNav = nav;
     }
 
+    /**
+     * Continuous chrome update while user slides the player.
+     * @param expandFraction 0 = mini, 1 = full
+     */
+    public static void onSlide(float expandFraction) {
+        if (bottomNav == null) return;
+        float e = MathUtils.clamp(expandFraction, 0f, 1f);
+
+        if (bottomNav.getVisibility() != View.VISIBLE) {
+            bottomNav.setVisibility(View.VISIBLE);
+        }
+        bottomNav.animate().cancel();
+        float h = bottomNav.getHeight() > 0 ? bottomNav.getHeight() : 80f;
+        bottomNav.setTranslationY(h * e);
+        bottomNav.setAlpha(1f - e);
+        // Fully expanded → hide for touch-through; fully collapsed → ensure interactive
+        if (e >= 0.98f) {
+            bottomNav.setVisibility(View.INVISIBLE);
+            bottomNav.setTranslationY(h);
+            bottomNav.setAlpha(0f);
+        } else if (e <= 0.02f) {
+            bottomNav.setVisibility(View.VISIBLE);
+            bottomNav.setTranslationY(0f);
+            bottomNav.setAlpha(1f);
+        }
+
+        if (UIThreadBridge.getNav() != null) {
+            // Mini visible when not fully expanded
+            boolean miniOrHidden = e < 0.5f;
+            UIThreadBridge.getNav().updatePaddingWhenWhenBarChanged(
+                    miniOrHidden || UIThreadBridgePad.isPlayerBarVisible());
+        }
+    }
+
     public static void onSheetStateChanged(int sheetState) {
         if (bottomNav == null) return;
 
@@ -36,36 +68,20 @@ public final class PlayerChromeController {
         UIInfoLog.d("PlayerChrome", "sheetState=" + sheetState + " hideNav=" + fullPlayer);
 
         if (fullPlayer) {
-            if (bottomNav.getVisibility() != View.GONE) {
-                bottomNav.animate().cancel();
-                bottomNav.animate()
-                        .translationY(bottomNav.getHeight())
-                        .alpha(0f)
-                        .setDuration(180)
-                        .withEndAction(() -> {
-                            bottomNav.setVisibility(View.GONE);
-                            bottomNav.setTranslationY(0f);
-                            bottomNav.setAlpha(1f);
-                        })
-                        .start();
+            onSlide(1f);
+            if (UIThreadBridge.getNav() != null) {
+                UIThreadBridge.getNav().updatePaddingWhenWhenBarChanged(false);
             }
-        } else {
-            if (bottomNav.getVisibility() != View.VISIBLE) {
-                bottomNav.setVisibility(View.VISIBLE);
-                bottomNav.setAlpha(0f);
-                bottomNav.setTranslationY(bottomNav.getHeight() > 0 ? bottomNav.getHeight() : 80f);
-                bottomNav.animate()
-                        .translationY(0f)
-                        .alpha(1f)
-                        .setDuration(180)
-                        .start();
+        } else if (sheetState == BottomSheetBehavior.STATE_COLLAPSED) {
+            onSlide(0f);
+            if (UIThreadBridge.getNav() != null) {
+                UIThreadBridge.getNav().updatePaddingWhenWhenBarChanged(true);
             }
-        }
-
-        // Content padding: notify active tab fragment via nav controller if available
-        if (UIThreadBridge.getNav() != null) {
-            boolean miniVisible = sheetState == BottomSheetBehavior.STATE_COLLAPSED;
-            UIThreadBridge.getNav().updatePaddingWhenWhenBarChanged(miniVisible);
+        } else if (sheetState == BottomSheetBehavior.STATE_HIDDEN) {
+            onSlide(0f);
+            if (UIThreadBridge.getNav() != null) {
+                UIThreadBridge.getNav().updatePaddingWhenWhenBarChanged(false);
+            }
         }
     }
 }
