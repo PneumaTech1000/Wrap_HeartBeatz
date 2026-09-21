@@ -112,10 +112,37 @@ public class MediaPlayerBarView {
     }
 
 
-    /** Panel owns cross-fade alpha — leave root alpha alone. */
-    public void onSliding(float slidingOffset, int state) { }
+    /**
+     * MultiSliding fade: fadeStart 0.25 — mini fully visible until 0.25 then fades out.
+     */
+    public void onSliding(float slidingOffset, int state) {
+        float fadeStart = 0.25F;
+        float alpha;
+        if (state == STATE_PARTIAL) {
+            alpha = MathUtils.clamp(slidingOffset / fadeStart, 0F, 1F);
+            // PARTIAL from lyrics sheet — keep mini responsive
+            this.rootView.setAlpha(1F - alpha);
+        } else {
+            // NORMAL: panel expand offset 0=collapsed 1=expanded
+            if (slidingOffset <= fadeStart) {
+                this.rootView.setAlpha(1F);
+            } else {
+                float t = (slidingOffset - fadeStart) / (1F - fadeStart);
+                this.rootView.setAlpha(1F - MathUtils.clamp(t, 0F, 1F));
+            }
+        }
+        float a = this.rootView.getAlpha();
+        this.rootView.setVisibility(a > 0.02F ? View.VISIBLE : View.GONE);
+        if (backgroundView != null) backgroundView.setAlpha(a);
+        if (constraintLayout != null) constraintLayout.setAlpha(1F);
+    }
 
-    public void showAsMini() { }
+    public void showAsMini() {
+        if (rootView != null) {
+            rootView.setAlpha(1F);
+            rootView.setVisibility(View.VISIBLE);
+        }
+    }
 
     public <T extends View> T findViewById(@IdRes int id) {
         return this.rootView.findViewById(id);
