@@ -1,27 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Bottom sheet content. Peek shows the BOTTOM of this layout, so the mini bar
-  must sit at layout_gravity=bottom. Full player fills the sheet above it.
+  Sheet content. Peek shows the BOTTOM of this layout.
+  Bottom navHeight is transparent spacer so mini sits above system bottom nav sibling.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/media_player_root_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:clickable="true"
     android:focusable="true">
 
-    <!-- Full player (visible when sheet expanded) -->
+    <!-- Full player -->
     <include
         layout="@layout/media_player_full_sheet"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Mini player — bottom of sheet so peekHeight shows this bar -->
+    <!-- Mini player above nav spacer -->
     <include
         layout="@layout/media_player_bar_bottom_sheet"
         android:layout_width="match_parent"
         android:layout_height="@dimen/media_player_bar_height"
-        android:layout_gravity="bottom" />
+        android:layout_gravity="bottom"
+        android:layout_marginBottom="@dimen/navigation_bar_height" />
 
 </FrameLayout>
