@@ -149,27 +149,50 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
      * One offset drives: mini alpha, full alpha, bottom nav (via PlayerChromeController).
      * @param expand 0 = mini only, 1 = full only
      */
+    /**
+     * MultiSlidingUpPanel-style cross-fade (fadeStart = 0.25):
+     * - expand 0..fadeStart: mini stays fully visible, full stays invisible
+     * - expand fadeStart..1: mini fades out, full fades in
+     * Bottom nav uses the same expand fraction.
+     */
     private void applySlideOffset(float expand) {
         lastExpand = MathUtils.clamp(expand, 0f, 1f);
+        final float fadeStart = 0.25f;
+
+        float miniAlpha;
+        float fullAlpha;
+        if (lastExpand <= fadeStart) {
+            // Still in "mini dominant" zone
+            miniAlpha = 1f;
+            fullAlpha = 0f;
+        } else {
+            float t = (lastExpand - fadeStart) / (1f - fadeStart); // 0..1
+            miniAlpha = 1f - t;
+            fullAlpha = t;
+        }
+
         if (miniView != null) {
-            float miniAlpha = 1f - lastExpand;
             miniView.setAlpha(miniAlpha);
             miniView.setVisibility(miniAlpha > 0.02f ? VISIBLE : GONE);
-            // Keep mini clickable only when mostly collapsed
-            miniView.setClickable(lastExpand < 0.15f);
+            miniView.setClickable(lastExpand < fadeStart);
         }
         if (fullView != null) {
-            float fullAlpha = lastExpand;
             fullView.setAlpha(fullAlpha);
-            // Keep VISIBLE during drag so cross-fade works (never blank)
+            // Always VISIBLE once any full alpha so controls (play/pause) receive touches
             fullView.setVisibility(fullAlpha > 0.02f ? VISIBLE : INVISIBLE);
+            // When expanded, ensure full is fully interactive
+            if (lastExpand >= 0.98f) {
+                fullView.setAlpha(1f);
+                fullView.setVisibility(VISIBLE);
+            }
+            if (lastExpand <= 0.02f) {
+                fullView.setAlpha(0f);
+                fullView.setVisibility(INVISIBLE);
+            }
         }
         PlayerChromeController.onSlide(lastExpand);
-        if (lastExpand <= 0f || lastExpand >= 1f) {
-            UIInfoLog.d("RootMediaPlayer.slide", "expand=" + lastExpand
-                    + " miniA=" + (miniView != null ? miniView.getAlpha() : -1)
-                    + " fullA=" + (fullView != null ? fullView.getAlpha() : -1));
-        }
+        UIInfoLog.d("RootMediaPlayer.slide", "expand=" + lastExpand
+                + " miniA=" + miniAlpha + " fullA=" + fullAlpha);
     }
 
     private void onBindViews() {
@@ -226,11 +249,23 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
 
     public void showMiniPlayerCollapsed() {
         if (sheetBehavior == null || sheetContainer == null) return;
-        UIInfoLog.d("RootMediaPlayer", "showMini COLLAPSED");
         sheetContainer.setVisibility(VISIBLE);
         setVisibility(VISIBLE);
         int peek = getResources().getDimensionPixelSize(R.dimen.bar_and_navigation_height);
         sheetBehavior.setPeekHeight(peek, false);
+        int cur = sheetBehavior.getState();
+        // Do not interrupt EXPANDED / user drag
+        if (cur == BottomSheetBehavior.STATE_EXPANDED
+                || cur == BottomSheetBehavior.STATE_DRAGGING
+                || cur == BottomSheetBehavior.STATE_SETTLING) {
+            UIInfoLog.d("RootMediaPlayer", "showMini skip — curState=" + cur);
+            return;
+        }
+        if (cur == BottomSheetBehavior.STATE_COLLAPSED) {
+            applySlideOffset(0f);
+            return;
+        }
+        UIInfoLog.d("RootMediaPlayer", "showMini COLLAPSED from state=" + cur);
         sheetContainer.post(() -> {
             if (sheetBehavior == null) return;
             sheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);

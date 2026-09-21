@@ -166,12 +166,35 @@ public class MediaPlayerView {
 
         shuffleButton.setOnClickListener(v -> playbackViewModel.toggleShuffle());
 
-        findViewById(R.id.btn_equalizer).setOnClickListener(v -> panel.collapsePlayer());
-
-        btnBackPanel.setOnClickListener(v -> {
-            if (panel.getPanelState() == RootMediaPlayerPanel.STATE_EXPANDED)
+        // Equalizer: collapse player then open EQ from Home (nav bridge)
+        View eqBtn = findViewById(R.id.btn_equalizer);
+        if (eqBtn != null) {
+            eqBtn.setOnClickListener(v -> {
                 panel.collapsePlayer();
-        });
+                if (com.giga.tech1000.heartbeatz.ui.UIThreadBridge.getNav() != null
+                        && com.giga.tech1000.heartbeatz.ui.UIThreadBridge.getNav().getActiveFragment()
+                        instanceof com.giga.tech1000.heartbeatz.ui.fragments.FragmentHome home) {
+                    home.displayEqualizerPanel();
+                }
+            });
+        }
+
+        // Only back collapses full player — play/pause must NOT
+        if (btnBackPanel != null) {
+            btnBackPanel.setOnClickListener(v -> {
+                if (panel.getPanelState() == RootMediaPlayerPanel.STATE_EXPANDED) {
+                    panel.collapsePlayer();
+                }
+            });
+        }
+
+        // Ensure play/pause does not propagate to sheet drag / collapse
+        if (playPauseButtonView != null) {
+            playPauseButtonView.setOnClickListener(v -> {
+                v.playSoundEffect(android.view.SoundEffectConstants.CLICK);
+                playbackViewModel.togglePlayPause();
+            });
+        }
 
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             boolean isMediaSeeking = false;

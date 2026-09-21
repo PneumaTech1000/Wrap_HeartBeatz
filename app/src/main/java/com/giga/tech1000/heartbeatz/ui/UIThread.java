@@ -178,18 +178,21 @@ public class UIThread implements IPlaybackCallback {
                         + " mediaPanel=" + (mediaPanel != null)
                         + " song=" + (mediaPanel != null && mediaPanel.getCurrentSong() != null));
         if (mediaPanel != null) {
-            // Idle with no active item → hide mini player so bottom nav is flush
+            int panelState = mediaPanel.getPanelState();
+            // Idle with no active item → hide chrome
             if (playbackState == Player.STATE_IDLE && mediaPanel.getCurrentSong() == null) {
                 UIInfoLog.d("UIThread.onPlaybackStateChanged", "-> hideMiniPlayer");
                 mediaPanel.hideMiniPlayer();
             } else if (playbackState != Player.STATE_IDLE || mediaPanel.getCurrentSong() != null) {
-                // READY/BUFFERING/ENDED or song present → show mini (even if state briefly odd)
-                UIInfoLog.d("UIThread.onPlaybackStateChanged", "-> showMiniPlayerCollapsed"
-                        + " isPlaying=" + isPlaying
-                        + " state=" + playbackState
-                        + " song=" + (mediaPanel.getCurrentSong() != null
-                        ? mediaPanel.getCurrentSong().getTitle() : "null"));
-                mediaPanel.showMiniPlayerCollapsed();
+                // Only auto-show when currently HIDDEN. Never force COLLAPSED while user
+                // has expanded the full player (play/pause was collapsing full via this path).
+                if (panelState == RootMediaPlayerPanel.STATE_HIDDEN) {
+                    UIInfoLog.d("UIThread.onPlaybackStateChanged", "-> showMini (was HIDDEN)");
+                    mediaPanel.showMiniPlayerCollapsed();
+                } else {
+                    UIInfoLog.d("UIThread.onPlaybackStateChanged",
+                            "keep panelState=" + panelState + " (no force collapse)");
+                }
             }
             UIInfoLog.panelSnapshot("UIThread.afterPlayback", mediaPanel);
         }
