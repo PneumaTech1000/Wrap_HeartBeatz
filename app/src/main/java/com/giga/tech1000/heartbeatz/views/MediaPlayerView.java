@@ -228,11 +228,40 @@ public class MediaPlayerView {
      * @param slidingOffset 0 = collapsed, 1 = expanded.
      * Keeps content visible during drag so collapse does not leave a blank surface.
      */
-    public void onSliding(float slidingOffset, int state) { }
+    /**
+     * MultiSliding fade: full invisible until 0.25 then fades in to 1.
+     */
+    public void onSliding(float slidingOffset, int state) {
+        float fadeStart = 0.25F;
+        float alpha;
+        if (state == STATE_PARTIAL) {
+            alpha = MathUtils.clamp(slidingOffset, 0F, 1F);
+        } else {
+            if (slidingOffset <= fadeStart) {
+                alpha = 0F;
+            } else {
+                alpha = MathUtils.clamp((slidingOffset - fadeStart) / (1F - fadeStart), 0F, 1F);
+            }
+        }
+        if (rootView != null) {
+            rootView.setAlpha(alpha);
+            rootView.setVisibility(alpha > 0.02F ? View.VISIBLE : View.INVISIBLE);
+        }
+    }
 
-    public void hideAsFull() { }
+    public void hideAsFull() {
+        if (rootView != null) {
+            rootView.setAlpha(0F);
+            rootView.setVisibility(View.INVISIBLE);
+        }
+    }
 
-    public void showAsFull() { }
+    public void showAsFull() {
+        if (rootView != null) {
+            rootView.setAlpha(1F);
+            rootView.setVisibility(View.VISIBLE);
+        }
+    }
 
 
     public <T extends View> T findViewById(@IdRes int id) {

@@ -9,58 +9,20 @@
     <androidx.coordinatorlayout.widget.CoordinatorLayout
         android:id="@+id/root_container"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:clipChildren="false"
-        android:clipToPadding="false">
+        android:layout_height="match_parent">
 
-        <androidx.fragment.app.FragmentContainerView
-            android:id="@+id/root_container_view"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
-
-        <!-- FIXED mini bar — always above bottom nav; never depends on BottomSheet peek -->
-        <FrameLayout
-            android:id="@+id/mini_player_host"
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/media_player_bar_height"
-            android:layout_gravity="bottom"
-            android:layout_marginBottom="@dimen/navigation_bar_height"
-            android:elevation="18dp"
-            android:translationZ="18dp"
-            android:visibility="gone"
-            android:clickable="true"
-            android:focusable="true"
-            android:background="?attr/colorSurface" />
-
-        <com.google.android.material.bottomnavigation.BottomNavigationView
-            android:id="@+id/root_navigation_bar"
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/navigation_bar_height"
-            android:layout_gravity="bottom"
-            android:background="?attr/colorSurface"
-            android:elevation="8dp"
-            app:labelVisibilityMode="labeled"
-            app:menu="@menu/bottom_nav_menu"
-            app:itemIconTint="@drawable/bottom_nav_item_color"
-            app:itemTextColor="@drawable/bottom_nav_item_color"
-            app:itemRippleColor="?attr/colorPrimary"
-            app:itemActiveIndicatorStyle="@style/Widget.HeartBeatz.BottomNav.ActiveIndicator" />
-
-        <!-- Full player only (expand / drag-down to mini) -->
-        <FrameLayout
-            android:id="@+id/player_bottom_sheet"
+        <com.realgear.multislidinguppanel.MultiSlidingUpPanelLayout
+            android:id="@+id/root_multi_sliding_up_panel"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="?attr/colorSurface"
-            android:elevation="24dp"
-            android:translationZ="24dp"
-            android:clickable="true"
-            android:focusable="true"
-            app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior"
-            app:behavior_hideable="true"
-            app:behavior_skipCollapsed="true"
-            app:behavior_fitToContents="false"
-            app:behavior_peekHeight="0dp" />
+            app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+            <androidx.fragment.app.FragmentContainerView
+                android:id="@+id/root_container_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+        </com.realgear.multislidinguppanel.MultiSlidingUpPanelLayout>
 
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 

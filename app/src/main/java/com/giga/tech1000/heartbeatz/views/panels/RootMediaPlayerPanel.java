@@ -3,352 +3,325 @@ package com.giga.tech1000.heartbeatz.views.panels;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.net.nsd.NsdServiceInfo;
-import android.os.Handler;
-import android.os.Looper;
+import android.util.DisplayMetrics;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.core.math.MathUtils;
-import androidx.fragment.app.FragmentActivity;
-import androidx.fragment.app.FragmentManager;
-import androidx.lifecycle.Lifecycle;
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
 
 import com.giga.tech1000.extensions.bottom_sheet.CustomBottomSheetBehavior;
 import com.giga.tech1000.heartbeatz.R;
-import com.giga.tech1000.heartbeatz.ui.PlayerChromeController;
 import com.giga.tech1000.heartbeatz.ui.UIInfoLog;
+import com.giga.tech1000.heartbeatz.view_models.extended_models.SettingViewModel;
 import com.giga.tech1000.heartbeatz.views.BottomSheetView;
 import com.giga.tech1000.heartbeatz.views.MediaPlayerBarView;
 import com.giga.tech1000.heartbeatz.views.MediaPlayerView;
 import com.giga.tech1000.media_player.models.Song;
 import com.giga.tech1000.utils.interfaces.OnBackPressedHandler;
 import com.giga.tech1000.visualizer_android.VisualizerManager;
-import com.google.android.material.bottomsheet.BottomSheetBehavior;
+import com.realgear.multislidinguppanel.BasePanelView;
+import com.realgear.multislidinguppanel.IPanel;
+import com.realgear.multislidinguppanel.MultiSlidingUpPanelLayout;
 
 import java.util.List;
 
-/**
- * Mini player = fixed host above bottom nav (always visible when collapsed).
- * Full player = Material BottomSheet (HIDDEN ↔ EXPANDED, skipCollapsed).
- * Slide offset cross-fades mini/full and drives bottom-nav chrome.
- */
 @UnstableApi
 @SuppressLint("ViewConstructor")
-public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHandler {
+public class RootMediaPlayerPanel extends BasePanelView implements OnBackPressedHandler {
+    public static final int STATE_HIDDEN = MultiSlidingUpPanelLayout.HIDDEN;
+    public static final int STATE_COLLAPSED = MultiSlidingUpPanelLayout.COLLAPSED;
+    public static final int STATE_EXPANDED = MultiSlidingUpPanelLayout.EXPANDED;
 
-    public static final int STATE_HIDDEN = BottomSheetBehavior.STATE_HIDDEN;
-    public static final int STATE_COLLAPSED = BottomSheetBehavior.STATE_COLLAPSED;
-    public static final int STATE_EXPANDED = BottomSheetBehavior.STATE_EXPANDED;
-
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
-
+    private final Context context;
     private MediaPlayerBarView mediaPlayerBarView;
     private MediaPlayerView mediaPlayerView;
     private BottomSheetView bottomSheetView;
+
+    private boolean isFirstPlay = true;
+    private boolean isStarted = false;
+
+    private SettingViewModel settingViewModel;
 
     private Song currentSong;
     private boolean currentIsPlaying;
     private int currentPlaybackState = Player.STATE_IDLE;
     private long currentPositionMs;
-    private boolean isPartyClient;
 
-    @Nullable private BottomSheetBehavior<View> sheetBehavior;
-    @Nullable private View sheetContainer;
-    @Nullable private FrameLayout miniHost;
+    private boolean isPartyClient = false;
 
-    private View miniView;
-    private View fullView;
-    private float lastExpand = 0f;
-    private int panelUiState = STATE_HIDDEN;
 
-    public RootMediaPlayerPanel(@NonNull Context context) {
-        super(context);
-        getContext().setTheme(R.style.Theme_HeartBeatz);
+    public RootMediaPlayerPanel(@NonNull Context context, MultiSlidingUpPanelLayout panelLayout) {
+        super(context, panelLayout);
+        this.context = context;
+
+        // These 2 lines are required
+        getContext().setTheme(R.style.Theme_HeartBeatz); // Your projects theme
+        LayoutInflater.from(getContext()).inflate(R.layout.mediaplayer_root_layout, this, true);
+
     }
 
-    private void runOnUi(@NonNull Runnable r) {
-        if (Looper.myLooper() == Looper.getMainLooper()) r.run();
-        else mainHandler.post(r);
-    }
+    @Override
+    public void onCreateView() {
+        // Allow this panel to fully leave the stack so the bottom nav sits flush
+        this.setUserHiddenMode(true);
 
-    /**
-     * @param miniHost fixed bar above bottom nav
-     * @param sheetContainer full-player BottomSheet container
-     */
-    public void attachToSheet(@NonNull View sheetContainer, @NonNull FrameLayout miniHost) {
-        this.sheetContainer = sheetContainer;
-        this.miniHost = miniHost;
+        // The panel will slide up and down
+        this.setSlideDirection(MultiSlidingUpPanelLayout.SLIDE_VERTICAL);
 
-        // Full player content into sheet
-        if (getParent() != sheetContainer) {
-            if (getParent() != null) {
-                ((android.view.ViewGroup) getParent()).removeView(this);
-            }
-            LayoutInflater.from(getContext()).inflate(R.layout.mediaplayer_root_layout, this, true);
-            if (sheetContainer instanceof FrameLayout) {
-                ((FrameLayout) sheetContainer).addView(this,
-                        new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
-            }
+        // Sets the panels peak height
+        this.setPeakHeight(getResources().getDimensionPixelSize(R.dimen.media_player_bar_height));
+
+        // Mark user-hidden so height stack ignores this panel until a song plays.
+        // Prefer setPanelState+flag over hidePanel() during create to avoid drag-helper races.
+        this.isHidden = true;
+        this.setPanelState(MultiSlidingUpPanelLayout.HIDDEN);
+        if (getMultiSlidingUpPanel() != null) {
+            getMultiSlidingUpPanel().requestLayout();
         }
+        UIInfoLog.d("RootMediaPlayer.onCreateView", "HIDDEN isHidden=true peak=" + getPeakHeight());
+        UIInfoLog.layoutChildren("RootMediaPlayer.onCreateView", getMultiSlidingUpPanel());
+    }
 
-        // Mini bar into fixed host (separate from sheet — always on-screen when shown)
-        miniHost.removeAllViews();
-        View miniBar = LayoutInflater.from(getContext())
-                .inflate(R.layout.media_player_bar_bottom_sheet, miniHost, false);
-        miniHost.addView(miniBar, new FrameLayout.LayoutParams(
-                LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
-        miniView = miniBar;
-        fullView = findViewById(R.id.media_player_view);
+    @Override
+    public void onBindView() {
+        FrameLayout bottomSheetBehaviourView = findViewById(R.id.media_player_bottom_sheet_behavior);
+        CoordinatorLayout fullMediaPlayerView = findViewById(R.id.media_player_view);
+        FrameLayout miniMediaPlayerView = findViewById(R.id.mini_player_view);
 
-        miniHost.setVisibility(GONE);
-        miniHost.setAlpha(1f);
-        sheetContainer.setVisibility(VISIBLE);
+        mediaPlayerView = new MediaPlayerView(fullMediaPlayerView, this);
+        mediaPlayerBarView = new MediaPlayerBarView(miniMediaPlayerView, this);
 
-        sheetBehavior = BottomSheetBehavior.from(sheetContainer);
-        sheetBehavior.setFitToContents(false);
-        sheetBehavior.setSkipCollapsed(true);
-        sheetBehavior.setHideable(true);
-        sheetBehavior.setDraggable(true);
-        sheetBehavior.setPeekHeight(0);
-        sheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+        CustomBottomSheetBehavior<FrameLayout> bottomSheetBehavior = CustomBottomSheetBehavior.from(bottomSheetBehaviourView);
+        bottomSheetBehavior.setSkipAnchored(false);
+        bottomSheetBehavior.setAllowUserDragging(false);
 
-        sheetBehavior.addBottomSheetCallback(new BottomSheetBehavior.BottomSheetCallback() {
+        DisplayMetrics dm = getResources().getDisplayMetrics();
+
+        ViewGroup.LayoutParams params = bottomSheetBehaviourView.getLayoutParams();
+        params.height = dm.heightPixels - this.getPeakHeight();
+        bottomSheetBehaviourView.setLayoutParams(params);
+
+        bottomSheetBehavior.setAnchorOffset((int) (dm.heightPixels * 0.75F));
+        bottomSheetBehavior.setPeekHeight(getResources().getDimensionPixelSize(R.dimen.pager_bottom_height));
+        bottomSheetBehavior.setMediaPlayerBarHeight(getPeakHeight());
+        bottomSheetBehavior.setState(CustomBottomSheetBehavior.STATE_COLLAPSED);
+
+        bottomSheetView = new BottomSheetView(this, bottomSheetBehavior, bottomSheetBehaviourView);
+
+
+        bottomSheetBehavior.addBottomSheetCallback(new CustomBottomSheetBehavior.BottomSheetCallback() {
             @Override
-            public void onStateChanged(@NonNull View bottomSheet, int newState) {
-                UIInfoLog.d("RootMediaPlayer.sheet", "state=" + newState
-                        + " top=" + bottomSheet.getTop()
-                        + " y=" + bottomSheet.getY());
-                if (newState == BottomSheetBehavior.STATE_EXPANDED) {
-                    panelUiState = STATE_EXPANDED;
-                    applySlideOffset(1f);
-                    PlayerChromeController.onSheetStateChanged(BottomSheetBehavior.STATE_EXPANDED);
-                } else if (newState == BottomSheetBehavior.STATE_HIDDEN
-                        || newState == BottomSheetBehavior.STATE_COLLAPSED) {
-                    // skipCollapsed: drag-down ends in HIDDEN → show fixed mini
-                    if (currentSong != null) {
-                        panelUiState = STATE_COLLAPSED;
-                        applySlideOffset(0f);
-                        PlayerChromeController.onSheetStateChanged(BottomSheetBehavior.STATE_COLLAPSED);
-                    } else {
-                        panelUiState = STATE_HIDDEN;
-                        applySlideOffset(0f);
-                        if (miniHost != null) miniHost.setVisibility(GONE);
-                        PlayerChromeController.onSheetStateChanged(BottomSheetBehavior.STATE_HIDDEN);
-                    }
+            public void onStateChanged(@NonNull View bottomSheet, int oldState, int newState) {
+                switch (newState) {
+                    case CustomBottomSheetBehavior.STATE_ANCHORED:
+                    case CustomBottomSheetBehavior.STATE_EXPANDED:
+                    case CustomBottomSheetBehavior.STATE_DRAGGING:
+                        getMultiSlidingUpPanel().setSlidingEnabled(false);
+                        bottomSheetView.setViewVisibility(true);
+                        break;
+
+                    default:
+                        getMultiSlidingUpPanel().setSlidingEnabled(true);
+                        bottomSheetView.setViewVisibility(false);
+                        break;
                 }
             }
 
             @Override
             public void onSlide(@NonNull View bottomSheet, float slideOffset) {
-                // -1 hidden → 0 "collapsed" → 1 expanded (skipCollapsed: 0 rarely held)
-                float expand = MathUtils.clamp(slideOffset, 0f, 1f);
-                // When coming from hidden, slideOffset goes -1..1; map negative to 0..1 of visible
-                if (slideOffset < 0f) {
-                    expand = MathUtils.clamp(slideOffset + 1f, 0f, 1f);
-                }
-                applySlideOffset(expand);
+                mediaPlayerView.onSliding(slideOffset, MediaPlayerView.STATE_PARTIAL);
+                mediaPlayerBarView.onSliding(slideOffset, MediaPlayerBarView.STATE_PARTIAL);
             }
         });
 
-        onBindViews();
-        applySlideOffset(0f);
-        UIInfoLog.d("RootMediaPlayer.attach", "miniHost children=" + miniHost.getChildCount()
-                + " full=" + (fullView != null)
-                + " mini=" + (miniView != null));
-    }
-
-    /** Legacy single-arg — no-op safety */
-    public void attachToSheet(@NonNull View sheetContainer) {
-        UIInfoLog.d("RootMediaPlayer", "attachToSheet(single) needs miniHost — call 2-arg version");
-    }
-
-    public void attachToHosts(@NonNull FrameLayout miniHost, @NonNull FrameLayout fullHost) {
-        attachToSheet(fullHost, miniHost);
-    }
-
-    /**
-     * MultiSliding-style fadeStart=0.25 cross-fade + nav.
-     * expand 0 = mini only (fixed host VISIBLE), 1 = full only.
-     */
-    private void applySlideOffset(float expand) {
-        lastExpand = MathUtils.clamp(expand, 0f, 1f);
-        final float fadeStart = 0.25f;
-
-        float miniAlpha;
-        float fullAlpha;
-        if (lastExpand <= fadeStart) {
-            miniAlpha = 1f;
-            fullAlpha = 0f;
-        } else {
-            float t = (lastExpand - fadeStart) / (1f - fadeStart);
-            miniAlpha = 1f - t;
-            fullAlpha = t;
-        }
-
-        if (miniHost != null) {
-            // Fixed mini: visible whenever not fully expanded
-            if (lastExpand < 0.98f && currentSong != null && panelUiState != STATE_HIDDEN) {
-                miniHost.setVisibility(VISIBLE);
-            } else if (lastExpand >= 0.98f) {
-                miniHost.setVisibility(GONE);
-            }
-            miniHost.setAlpha(miniAlpha);
-            UIInfoLog.d("RootMediaPlayer.miniHost",
-                    "vis=" + miniHost.getVisibility()
-                            + " alpha=" + miniHost.getAlpha()
-                            + " w=" + miniHost.getWidth()
-                            + " h=" + miniHost.getHeight()
-                            + " y=" + miniHost.getY());
-        }
-        if (miniView != null) {
-            miniView.setAlpha(1f); // host handles fade
-            miniView.setVisibility(VISIBLE);
-        }
-        if (fullView != null) {
-            fullView.setAlpha(Math.max(fullAlpha, lastExpand > 0.02f ? 0.15f : 0f));
-            fullView.setVisibility(lastExpand > 0.02f ? VISIBLE : INVISIBLE);
-            if (lastExpand >= 0.98f) {
-                fullView.setAlpha(1f);
-                fullView.setVisibility(VISIBLE);
-            }
-        }
-        PlayerChromeController.onSlide(lastExpand);
-    }
-
-    private void onBindViews() {
-        mediaPlayerView = new MediaPlayerView(this, this);
-        // Bar binds to miniHost content
-        View barRoot = miniHost != null ? miniHost : this;
-        mediaPlayerBarView = new MediaPlayerBarView(barRoot, this);
-
-        FrameLayout lyricsSheet = findViewById(R.id.media_player_bottom_sheet_behavior);
-        if (lyricsSheet != null) {
-            CustomBottomSheetBehavior<FrameLayout> lyricsBehavior =
-                    CustomBottomSheetBehavior.from(lyricsSheet);
-            lyricsBehavior.setState(CustomBottomSheetBehavior.STATE_COLLAPSED);
-            bottomSheetView = new BottomSheetView(this, lyricsBehavior, this);
-            lyricsBehavior.addBottomSheetCallback(
-                    new CustomBottomSheetBehavior.BottomSheetCallback() {
-                        @Override
-                        public void onStateChanged(@NonNull View bottomSheet, int oldState, int newState) {
-                            UIInfoLog.d("RootMediaPlayer.lyrics", "state " + oldState + "→" + newState);
-                        }
-
-                        @Override
-                        public void onSlide(@NonNull View bottomSheet, float slideOffset) {
-                        }
-                    });
-        }
+        // Force a sync of the current state immediately after binding views
         syncUIState();
     }
 
+    /**
+     * Pushes the current song and playback state to the views if they are ready.
+     */
     private void syncUIState() {
+        if (mediaPlayerBarView == null || mediaPlayerView == null) return;
+
         if (currentSong != null) {
-            if (mediaPlayerBarView != null) mediaPlayerBarView.onSongChanged(currentSong);
-            if (mediaPlayerView != null) mediaPlayerView.onSongChanged(currentSong);
-        }
-        if (mediaPlayerBarView != null) {
-            mediaPlayerBarView.onPlaybackStateChanged(currentIsPlaying, currentPlaybackState, currentPositionMs);
-        }
-        if (mediaPlayerView != null) {
-            mediaPlayerView.onPlaybackStateChanged(currentIsPlaying, currentPlaybackState, currentPositionMs);
-        }
-    }
-
-    public int getPanelState() {
-        if (panelUiState == STATE_COLLAPSED || panelUiState == STATE_EXPANDED || panelUiState == STATE_HIDDEN) {
-            return panelUiState;
-        }
-        if (sheetBehavior == null) return STATE_HIDDEN;
-        int s = sheetBehavior.getState();
-        if (s == BottomSheetBehavior.STATE_EXPANDED) return STATE_EXPANDED;
-        if (s == BottomSheetBehavior.STATE_HIDDEN) {
-            return currentSong != null ? STATE_COLLAPSED : STATE_HIDDEN;
-        }
-        return s;
-    }
-
-    public boolean isUserHidden() {
-        return getPanelState() == STATE_HIDDEN;
-    }
-
-    public void showMiniPlayerCollapsed() {
-        if (miniHost == null) return;
-        panelUiState = STATE_COLLAPSED;
-        miniHost.setVisibility(VISIBLE);
-        miniHost.setAlpha(1f);
-        if (miniView != null) {
-            miniView.setVisibility(VISIBLE);
-            miniView.setAlpha(1f);
-        }
-        if (sheetBehavior != null) {
-            sheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
-        }
-        applySlideOffset(0f);
-        if (currentSong != null && mediaPlayerBarView != null) {
             mediaPlayerBarView.onSongChanged(currentSong);
+            mediaPlayerView.onSongChanged(currentSong);
         }
-        UIInfoLog.d("RootMediaPlayer", "showMini FIXED host vis=" + miniHost.getVisibility()
-                + " alpha=" + miniHost.getAlpha()
-                + " h=" + miniHost.getHeight()
-                + " children=" + miniHost.getChildCount());
-        PlayerChromeController.onSheetStateChanged(BottomSheetBehavior.STATE_COLLAPSED);
+
+        updatePlaybackViews(currentIsPlaying, currentPlaybackState, currentPositionMs);
     }
 
-    public void hideMiniPlayer() {
-        panelUiState = STATE_HIDDEN;
-        if (miniHost != null) miniHost.setVisibility(GONE);
-        if (sheetBehavior != null) sheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
-        applySlideOffset(0f);
-        PlayerChromeController.onSheetStateChanged(BottomSheetBehavior.STATE_HIDDEN);
-        UIInfoLog.d("RootMediaPlayer", "hide HIDDEN");
-    }
+    @Override
+    public void onPanelStateChanged(int i) {
+        // Never call nav.hidePanel()/collapsePanel() — those call setSlidingUpPanel()
+        // and steal the active sliding panel (breaks expand).
+        // Only mutate isHidden + setPanelState + requestLayout.
+        boolean miniVisible = (i == MultiSlidingUpPanelLayout.COLLAPSED) && !isUserHidden();
+        boolean fullVisible = (i == MultiSlidingUpPanelLayout.EXPANDED);
+        boolean playerHidden = (i == MultiSlidingUpPanelLayout.HIDDEN) || isUserHidden();
+        UIInfoLog.d("RootMediaPlayer.onPanelStateChanged",
+                "state=" + UIInfoLog.stateName(i)
+                + " miniVisible=" + miniVisible
+                + " fullVisible=" + fullVisible
+                + " playerHidden=" + playerHidden
+                + " isUserHidden=" + isUserHidden()
+                + " top=" + getTop() + " bottom=" + getBottom()
+                + " peak=" + getPeakHeight()
+                + " collapsedH=" + getPanelCollapsedHeight());
 
-    public void expandPlayer() {
-        panelUiState = STATE_EXPANDED;
-        if (sheetBehavior != null) {
-            if (sheetContainer != null) sheetContainer.setVisibility(VISIBLE);
-            sheetBehavior.setState(BottomSheetBehavior.STATE_EXPANDED);
+        RootNavigationBarPanel nav = null;
+        try {
+            if (getMultiSlidingUpPanel() != null
+                    && getMultiSlidingUpPanel().getAdapter() != null) {
+                nav = getMultiSlidingUpPanel().getAdapter().getItem(RootNavigationBarPanel.class);
+            }
+        } catch (Exception ignored) {
         }
-        applySlideOffset(1f);
-        UIInfoLog.d("RootMediaPlayer", "expand EXPANDED");
+        if (nav == null) return;
+
+        if (fullVisible) {
+            // Full player: remove nav from height stack so player is truly full-screen
+            nav.isHidden = true;
+            if (nav.getPanelState() != MultiSlidingUpPanelLayout.HIDDEN) {
+                nav.setPanelState(MultiSlidingUpPanelLayout.HIDDEN);
+            }
+            nav.updatePaddingWhenWhenBarChanged(false);
+        } else {
+            // Mini or idle: nav must be visible and counted in media collapsed height
+            // so the mini bar sits *above* the bottom nav (not under it).
+            nav.isHidden = false;
+            if (nav.getPanelState() != MultiSlidingUpPanelLayout.COLLAPSED) {
+                nav.setPanelState(MultiSlidingUpPanelLayout.COLLAPSED);
+            }
+            try {
+                resetPanelRealHeight();
+                nav.resetPanelRealHeight();
+            } catch (Exception ignored) {
+            }
+            nav.updatePaddingWhenWhenBarChanged(miniVisible);
+        }
+        if (getMultiSlidingUpPanel() != null) {
+            getMultiSlidingUpPanel().requestLayout();
+        }
+        UIInfoLog.panelSnapshot("RootMediaPlayer.afterStateSync", this);
+        if (nav != null) UIInfoLog.panelSnapshot("RootMediaPlayer.navAfterSync", nav);
+        UIInfoLog.layoutChildren("RootMediaPlayer.afterStateSync", getMultiSlidingUpPanel());
     }
 
-    public void collapsePlayer() {
-        showMiniPlayerCollapsed();
-        UIInfoLog.d("RootMediaPlayer", "collapse → mini");
+    @Override
+    public void onSliding(@NonNull IPanel<View> panel, int top, int dy, float slidingOffset) {
+        super.onSliding(panel, top, dy, slidingOffset);
+
+        mediaPlayerView.onSliding(slidingOffset, MediaPlayerView.STATE_NORMAL);
+        mediaPlayerBarView.onSliding(slidingOffset, MediaPlayerBarView.STATE_NORMAL);
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        if (mediaPlayerView != null)
+            VisualizerManager.get().register(mediaPlayerView.getPlayerWaveVisualizer());
+        if (mediaPlayerBarView != null)
+            VisualizerManager.get().register(mediaPlayerBarView.getPlayerBarVisualizer());
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        if (mediaPlayerView != null)
+            VisualizerManager.get().unregister(mediaPlayerView.getPlayerWaveVisualizer());
+        if (mediaPlayerBarView != null)
+            VisualizerManager.get().unregister(mediaPlayerBarView.getPlayerBarVisualizer());
+        super.onDetachedFromWindow();
     }
 
     public BottomSheetView getBottomSheetView() {
         return bottomSheetView;
     }
 
+
     public void onPlaybackStateChanged(boolean isPlaying, int playbackState, long positionMs) {
-        currentIsPlaying = isPlaying;
-        currentPlaybackState = playbackState;
-        currentPositionMs = positionMs;
-        runOnUi(() -> {
-            if (mediaPlayerBarView != null) {
-                mediaPlayerBarView.onPlaybackStateChanged(isPlaying, playbackState, positionMs);
-            }
-            if (mediaPlayerView != null) {
-                mediaPlayerView.onPlaybackStateChanged(isPlaying, playbackState, positionMs);
+        this.currentIsPlaying = isPlaying;
+        this.currentPlaybackState = playbackState;
+        this.currentPositionMs = positionMs;
+        post(() -> {
+            if (mediaPlayerBarView != null && mediaPlayerView != null) {
+                updatePlaybackViews(isPlaying, playbackState, positionMs);
             }
         });
     }
 
+    private void updatePlaybackViews(boolean isPlaying, int playbackState, long positionMs) {
+        UIInfoLog.d("RootMediaPlayer.updatePlaybackViews",
+                "isPlaying=" + isPlaying
+                + " state=" + playbackState
+                + " isFirstPlay=" + isFirstPlay
+                + " isStarted=" + isStarted
+                + " song=" + (currentSong != null)
+                + " panelState=" + UIInfoLog.stateName(getPanelState())
+                + " isHidden=" + isUserHidden());
+        if (isFirstPlay) {
+            if (isStarted && isPlaying) {
+                expandPanel();
+                isFirstPlay = false;
+            } else if (!isStarted && currentSong != null) {
+                collapsePanel();
+                isStarted = true;
+            }
+        }
+        mediaPlayerBarView.onPlaybackStateChanged(isPlaying, playbackState, positionMs);
+        mediaPlayerView.onPlaybackStateChanged(isPlaying, playbackState, positionMs);
+    }
+
+
+
+
     public void onSongChanged(@Nullable Song song) {
-        currentSong = song;
-        if (song == null) return;
-        runOnUi(() -> {
-            if (mediaPlayerBarView != null) mediaPlayerBarView.onSongChanged(song);
-            if (mediaPlayerView != null) mediaPlayerView.onSongChanged(song);
+        this.currentSong = song;
+        post(() -> {
+            if (song == null) {
+                return;
+            }
+            if (mediaPlayerBarView != null && mediaPlayerView != null) {
+                mediaPlayerBarView.onSongChanged(currentSong);
+                mediaPlayerView.onSongChanged(currentSong);
+            }
+            // Ensure mini player is in the stack when a song is active
+            showMiniPlayerCollapsed();
         });
+    }
+
+    /**
+     * Shows the mini player at collapsed peak height (above the bottom navigation).
+     */
+    public void expandPlayer() { expandPanel(); }
+    public void collapsePlayer() { collapsePanel(); }
+
+    public void showMiniPlayerCollapsed() {
+        UIInfoLog.d("RootMediaPlayer.showMiniPlayerCollapsed",
+                "isHidden=" + isUserHidden() + " state=" + UIInfoLog.stateName(getPanelState()));
+        if (isUserHidden() || getPanelState() == MultiSlidingUpPanelLayout.HIDDEN) {
+            collapsePanel();
+        }
+        post(() -> UIInfoLog.layoutChildren("RootMediaPlayer.showMini.posted", getMultiSlidingUpPanel()));
+    }
+
+    /**
+     * Fully removes the mini player from the panel stack so the bottom nav is flush.
+     */
+    public void hideMiniPlayer() {
+        UIInfoLog.d("RootMediaPlayer.hideMiniPlayer",
+                "isHidden=" + isUserHidden() + " state=" + UIInfoLog.stateName(getPanelState()));
+        if (!isUserHidden() || getPanelState() != MultiSlidingUpPanelLayout.HIDDEN) {
+            hidePanel();
+        }
+        post(() -> UIInfoLog.layoutChildren("RootMediaPlayer.hideMini.posted", getMultiSlidingUpPanel()));
     }
 
     @Nullable
@@ -357,66 +330,63 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
     }
 
     public void setPartyClientMode(boolean enabled) {
-        isPartyClient = enabled;
-        runOnUi(() -> {
+        this.isPartyClient = enabled;
+        post(() -> {
             if (mediaPlayerBarView != null) mediaPlayerBarView.setPartyClientMode(enabled);
             if (mediaPlayerView != null) mediaPlayerView.setPartyClientMode(enabled);
         });
     }
 
     public void onHostDiscovered(NsdServiceInfo serviceInfo) {
-        runOnUi(() -> {
+        post(() -> {
             if (bottomSheetView != null) bottomSheetView.onHostDiscovered(serviceInfo);
         });
     }
 
     public void onServiceRegistered(NsdServiceInfo serviceInfo) {
-        runOnUi(() -> {
+        post(() -> {
             if (bottomSheetView != null) bottomSheetView.onServiceRegistered(serviceInfo);
         });
     }
 
     public void onRepeatModeChanged(int repeatMode) {
-        runOnUi(() -> {
+        post(() -> {
             if (mediaPlayerView != null) mediaPlayerView.onRepeatModeChanged(repeatMode);
         });
     }
 
     public void onShuffleModeChanged(boolean isShuffleMode) {
-        runOnUi(() -> {
+        post(() -> {
             if (mediaPlayerView != null) mediaPlayerView.onShuffleModeChanged(isShuffleMode);
         });
     }
 
+
     public void onSessionIdReady(int id) {
-        runOnUi(() -> VisualizerManager.get().attachSession(id));
+        post(() -> VisualizerManager.get().attachSession(id));
     }
 
     public void onQueueIndexReady(List<Integer> queue, int queueIndex) {
-        runOnUi(() -> {
+        post(() -> {
             if (bottomSheetView != null) bottomSheetView.onQueueIndexReady(queue, queueIndex);
         });
     }
 
-    public FragmentManager getSupportFragmentManager() {
-        return ((FragmentActivity) getContext()).getSupportFragmentManager();
-    }
 
-    public Lifecycle getLifecycle() {
-        return ((FragmentActivity) getContext()).getLifecycle();
-    }
 
     @Override
     public boolean onBackPressed() {
-        if (bottomSheetView != null
-                && Boolean.TRUE.equals(bottomSheetView.isViewVisibility().getValue())) {
+        if (Boolean.TRUE.equals(bottomSheetView.isViewVisibility().getValue())) {
             bottomSheetView.closeBottomSheet();
             return true;
         }
-        if (getPanelState() == STATE_EXPANDED) {
-            collapsePlayer();
+        if (getPanelState() == MultiSlidingUpPanelLayout.EXPANDED) {
+            getMultiSlidingUpPanel().collapsePanel();
             return true;
         }
         return false;
     }
+
+
+
 }

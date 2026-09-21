@@ -32,6 +32,9 @@ import com.giga.tech1000.heartbeatz.view_models.LibrarySetViewModel;
 import com.giga.tech1000.heartbeatz.view_models.SessionIdViewModel;
 import com.giga.tech1000.heartbeatz.view_models.extended_models.SettingViewModel;
 import com.giga.tech1000.heartbeatz.views.panels.RootMediaPlayerPanel;
+import com.realgear.multislidinguppanel.PanelStateListener;
+import com.realgear.multislidinguppanel.MultiSlidingUpPanelLayout;
+import com.realgear.multislidinguppanel.MultiSlidingPanelAdapter;
 import com.giga.tech1000.heartbeatz.views.panels.RootNavigationBarPanel;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import android.view.View;
@@ -56,9 +59,8 @@ import java.util.TreeMap;
 public class UIThread implements IPlaybackCallback {
 
     private final MainActivity activity;
+    private MultiSlidingUpPanelLayout panelLayout;
     private View playerSheetContainer;
-    private RootMediaPlayerPanel mediaPlayerPanel;
-    private RootNavigationBarPanel navigationPanel;
 
     private MediaPlayerThread mediaPlayerThread;
     /**
@@ -184,14 +186,13 @@ public class UIThread implements IPlaybackCallback {
                 UIInfoLog.d("UIThread.onPlaybackStateChanged", "-> hideMiniPlayer");
                 mediaPanel.hideMiniPlayer();
             } else if (playbackState != Player.STATE_IDLE || mediaPanel.getCurrentSong() != null) {
-                // Only auto-show when currently HIDDEN. Never force COLLAPSED while user
-                // has expanded the full player (play/pause was collapsing full via this path).
-                if (panelState == RootMediaPlayerPanel.STATE_HIDDEN) {
+                if (mediaPanel.isUserHidden()
+                        || panelState == RootMediaPlayerPanel.STATE_HIDDEN) {
                     UIInfoLog.d("UIThread.onPlaybackStateChanged", "-> showMini (was HIDDEN)");
                     mediaPanel.showMiniPlayerCollapsed();
                 } else {
                     UIInfoLog.d("UIThread.onPlaybackStateChanged",
-                            "keep panelState=" + panelState + " (no force collapse)");
+                            "keep panelState=" + panelState);
                 }
             }
             UIInfoLog.panelSnapshot("UIThread.afterPlayback", mediaPanel);
@@ -367,12 +368,14 @@ public class UIThread implements IPlaybackCallback {
 
     @Nullable
     public RootMediaPlayerPanel getMediaPlayerPanel() {
-        return mediaPlayerPanel;
+        if (!uiReady || panelLayout == null || panelLayout.getAdapter() == null) return null;
+        return panelLayout.getAdapter().getItem(RootMediaPlayerPanel.class);
     }
 
     @Nullable
     public RootNavigationBarPanel getNavigationPanel() {
-        return navigationPanel;
+        if (!uiReady || panelLayout == null || panelLayout.getAdapter() == null) return null;
+        return panelLayout.getAdapter().getItem(RootNavigationBarPanel.class);
     }
 
     /**
@@ -408,19 +411,19 @@ public class UIThread implements IPlaybackCallback {
     }
 
     public void onCreate() {
-        BottomNavigationView bottomNav = activity.findViewById(R.id.root_navigation_bar);
-        View playerSheet = activity.findViewById(R.id.player_bottom_sheet);
-        FrameLayout miniHost = activity.findViewById(R.id.mini_player_host);
-
-        PlayerChromeController.bindBottomNav(bottomNav);
-        navigationPanel = new RootNavigationBarPanel(activity, bottomNav);
-        UIThreadBridge.setNav(navigationPanel);
-
-        mediaPlayerPanel = new RootMediaPlayerPanel(activity);
-        if (playerSheet != null && miniHost != null) {
-            mediaPlayerPanel.attachToSheet(playerSheet, miniHost);
-        }
-        UIInfoLog.d("UIThread.onCreate", "fixed mini host + full BottomSheet");
+        panelLayout = activity.findViewById(R.id.root_multi_sliding_up_panel);
+        List<Class<?>> items = new ArrayList<>();
+        items.add(RootMediaPlayerPanel.class);
+        items.add(RootNavigationBarPanel.class);
+        UIInfoLog.d("UIThread.onCreate", "MultiSlidingUpPanel order: [0]=MediaPlayer [1]=NavBar");
+        panelLayout.setPanelStateListener(new PanelStateListener(panelLayout));
+        panelLayout.setAdapter(new MultiSlidingPanelAdapter(activity, items));
+        panelLayout.post(() -> {
+            UIInfoLog.layoutChildren("UIThread.onCreate.posted", panelLayout);
+            RootNavigationBarPanel nav = panelLayout.getAdapter() != null
+                    ? panelLayout.getAdapter().getItem(RootNavigationBarPanel.class) : null;
+            if (nav != null) UIThreadBridge.setNav(nav);
+        });
     }
 
     public <T extends View> T findViewById(@IdRes int id) {

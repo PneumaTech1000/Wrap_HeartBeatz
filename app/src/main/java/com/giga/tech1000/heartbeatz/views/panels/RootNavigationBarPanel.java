@@ -1,6 +1,8 @@
 package com.giga.tech1000.heartbeatz.views.panels;
 
-import android.view.Menu;
+import android.annotation.SuppressLint;
+import android.content.Context;
+import android.view.LayoutInflater;
 import android.view.MenuItem;
 
 import androidx.annotation.NonNull;
@@ -18,119 +20,99 @@ import com.giga.tech1000.heartbeatz.ui.fragments.FragmentHome;
 import com.giga.tech1000.heartbeatz.ui.fragments.FragmentParty;
 import com.giga.tech1000.utils.interfaces.DisplayMarginCallback;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
-import com.google.android.material.bottomnavigation.LabelVisibilityMode;
 import com.google.android.material.navigation.NavigationBarView;
+import com.realgear.multislidinguppanel.BasePanelView;
+import com.realgear.multislidinguppanel.MultiSlidingUpPanelLayout;
 
 /**
- * Bottom navigation + primary tab show/hide. Not a sliding panel —
- * the bar lives in {@code activity_main} under Material layout gravity.
+ * Bottom navigation as a MultiSlidingUpPanel floor (peak = nav height).
+ * Primary tabs use show/hide (no fragment destroy).
  */
+@SuppressLint("ViewConstructor")
 @UnstableApi
-public class RootNavigationBarPanel {
+public class RootNavigationBarPanel extends BasePanelView {
 
     private static final String TAG_HOME = "tab_home";
     private static final String TAG_PARTY = "tab_party";
 
-    private final AppCompatActivity activity;
-    private final BottomNavigationView navigationBar;
+    private BottomNavigationView navigationBar;
     private int currentTabId = R.id.nav_home;
     @Nullable
     private Fragment activeFragment;
 
-    public RootNavigationBarPanel(
-            @NonNull AppCompatActivity activity,
-            @NonNull BottomNavigationView navigationBar) {
-        this.activity = activity;
-        this.navigationBar = navigationBar;
+    public RootNavigationBarPanel(@NonNull Context context, MultiSlidingUpPanelLayout panelLayout) {
+        super(context, panelLayout);
+        getContext().setTheme(R.style.Theme_HeartBeatz);
+        LayoutInflater.from(getContext()).inflate(R.layout.navigation_bar_root_layout, this, true);
+    }
+
+    @Override
+    public void onCreateView() {
+        setPeakHeight(getResources().getDimensionPixelSize(R.dimen.navigation_bar_height));
+        setUserHiddenMode(false);
+        isHidden = false;
+        setPanelState(MultiSlidingUpPanelLayout.COLLAPSED);
+        setSlideDirection(MultiSlidingUpPanelLayout.SLIDE_VERTICAL);
+        UIInfoLog.d("RootNav.onCreateView", "COLLAPSED peak=" + getPeakHeight());
+    }
+
+    @Override
+    public void onBindView() {
+        navigationBar = findViewById(R.id.root_navigation_bar);
+        if (navigationBar == null) return;
         navigationBar.setLabelVisibilityMode(NavigationBarView.LABEL_VISIBILITY_LABELED);
+
         ensureTabsAttached();
         selectTab(R.id.nav_home, false);
 
         navigationBar.setOnItemSelectedListener(item -> {
-            long t0 = android.os.SystemClock.elapsedRealtime();
             int destId = item.getItemId();
-            if (destId == currentTabId) {
-                UIInfoLog.d("RootNav.nav", "already on tab=" + destId);
-                return true;
-            }
+            if (destId == currentTabId) return true;
             selectTab(destId, true);
-            UIInfoLog.d("RootNav.nav", "showHide tab=" + destId
-                    + " ms=" + (android.os.SystemClock.elapsedRealtime() - t0));
             return true;
         });
 
-        activity.getSupportFragmentManager().registerFragmentLifecycleCallbacks(
+        getSupportFragmentManager().registerFragmentLifecycleCallbacks(
                 new FragmentManager.FragmentLifecycleCallbacks() {
                     @Override
-                    public void onFragmentViewCreated(
-                            @NonNull FragmentManager fm,
-                            @NonNull Fragment f,
-                            @NonNull android.view.View v,
-                            @Nullable android.os.Bundle savedInstanceState) {
-                        String tag = f.getTag();
-                        if (TAG_HOME.equals(tag) || TAG_PARTY.equals(tag)) {
-                            if (!f.isHidden()) {
-                                activeFragment = f;
-                                updatePaddingWhenWhenBarChanged(
-                                        com.giga.tech1000.heartbeatz.ui.UIThreadBridgePad.isPlayerBarVisible());
-                            }
+                    public void onFragmentResumed(@NonNull FragmentManager fm, @NonNull Fragment f) {
+                        if (f instanceof FragmentHome || f instanceof FragmentParty) {
+                            activeFragment = f;
                         }
                     }
-                },
-                false);
+                }, true);
 
-        updatePaddingWhenWhenBarChanged(
-                com.giga.tech1000.heartbeatz.ui.UIThreadBridgePad.isPlayerBarVisible());
+        updatePaddingWhenWhenBarChanged(false);
     }
 
-    public void updatePaddingWhenWhenBarChanged(boolean isDisplaying) {
-        UIInfoLog.d("RootNav.updatePadding", "isDisplaying=" + isDisplaying
-                + " activeFragment=" + (activeFragment != null
-                ? activeFragment.getClass().getSimpleName() : "null"));
-        if (activeFragment instanceof DisplayMarginCallback listener) {
-            listener.onDisplayBarPlayerChanged(isDisplaying);
+    private void ensureTabsAttached() {
+        FragmentManager fm = getSupportFragmentManager();
+        Fragment home = fm.findFragmentByTag(TAG_HOME);
+        Fragment party = fm.findFragmentByTag(TAG_PARTY);
+        FragmentTransaction tx = fm.beginTransaction();
+        if (home == null) {
+            home = new FragmentHome();
+            tx.add(R.id.root_container_view, home, TAG_HOME);
         }
-    }
-
-    @Nullable
-    public Fragment getActiveFragment() {
-        return activeFragment;
-    }
-
-    public int getCurrentTabId() {
-        return currentTabId;
+        if (party == null) {
+            party = new FragmentParty();
+            tx.add(R.id.root_container_view, party, TAG_PARTY);
+            tx.hide(party);
+        }
+        tx.commitNowAllowingStateLoss();
+        UIInfoLog.d("RootNav.tabs", "attached home+party (show/hide)");
     }
 
     public void selectTab(int tabId) {
         selectTab(tabId, true);
-    }
-
-    private void ensureTabsAttached() {
-        FragmentManager fm = activity.getSupportFragmentManager();
-        Fragment home = fm.findFragmentByTag(TAG_HOME);
-        Fragment party = fm.findFragmentByTag(TAG_PARTY);
-        FragmentTransaction ft = fm.beginTransaction();
-        boolean changed = false;
-        if (home == null) {
-            home = new FragmentHome();
-            ft.add(R.id.root_container_view, home, TAG_HOME);
-            changed = true;
-        }
-        if (party == null) {
-            party = new FragmentParty();
-            ft.add(R.id.root_container_view, party, TAG_PARTY);
-            ft.hide(party);
-            changed = true;
-        }
-        if (changed) {
-            ft.setReorderingAllowed(true);
-            ft.commitNowAllowingStateLoss();
-            UIInfoLog.d("RootNav.tabs", "attached home+party (show/hide)");
+        if (navigationBar != null) {
+            MenuItem item = navigationBar.getMenu().findItem(tabId);
+            if (item != null) item.setChecked(true);
         }
     }
 
-    private void selectTab(int tabId, boolean updateMenu) {
-        FragmentManager fm = activity.getSupportFragmentManager();
+    public void selectTab(int tabId, boolean animate) {
+        FragmentManager fm = getSupportFragmentManager();
         Fragment home = fm.findFragmentByTag(TAG_HOME);
         Fragment party = fm.findFragmentByTag(TAG_PARTY);
         if (home == null || party == null) {
@@ -138,33 +120,55 @@ public class RootNavigationBarPanel {
             home = fm.findFragmentByTag(TAG_HOME);
             party = fm.findFragmentByTag(TAG_PARTY);
         }
-        if (home == null || party == null) return;
-
-        FragmentTransaction ft = fm.beginTransaction().setReorderingAllowed(true);
+        FragmentTransaction tx = fm.beginTransaction();
         if (tabId == R.id.nav_party) {
-            ft.hide(home).setMaxLifecycle(home, Lifecycle.State.STARTED);
-            ft.show(party).setMaxLifecycle(party, Lifecycle.State.RESUMED);
+            if (home != null) tx.hide(home);
+            if (party != null) {
+                tx.show(party);
+                tx.setMaxLifecycle(party, Lifecycle.State.RESUMED);
+            }
+            if (home != null) tx.setMaxLifecycle(home, Lifecycle.State.STARTED);
             activeFragment = party;
         } else {
-            ft.hide(party).setMaxLifecycle(party, Lifecycle.State.STARTED);
-            ft.show(home).setMaxLifecycle(home, Lifecycle.State.RESUMED);
+            if (party != null) tx.hide(party);
+            if (home != null) {
+                tx.show(home);
+                tx.setMaxLifecycle(home, Lifecycle.State.RESUMED);
+            }
+            if (party != null) tx.setMaxLifecycle(party, Lifecycle.State.STARTED);
             activeFragment = home;
             tabId = R.id.nav_home;
         }
-        ft.commitNowAllowingStateLoss();
+        tx.commitNowAllowingStateLoss();
         currentTabId = tabId;
-        if (updateMenu) {
-            Menu menu = navigationBar.getMenu();
-            for (int i = 0; i < menu.size(); i++) {
-                MenuItem mi = menu.getItem(i);
-                mi.setChecked(mi.getItemId() == currentTabId);
-            }
-        }
+        UIInfoLog.d("RootNav.selectTab", "tab=" + tabId
+                + " active=" + (activeFragment != null ? activeFragment.getClass().getSimpleName() : "null"));
         updatePaddingWhenWhenBarChanged(
-                com.giga.tech1000.heartbeatz.ui.UIThreadBridgePad.isPlayerBarVisible());
-        UIInfoLog.d("RootNav.selectTab", "tab=" + currentTabId
-                + " active=" + (activeFragment != null
-                ? activeFragment.getClass().getSimpleName() : "null")
-                + " (no destroy)");
+                activeFragment instanceof DisplayMarginCallback);
+        // Re-apply with real player visibility after bind
+        updatePaddingWhenWhenBarChanged(false);
+    }
+
+    public int getCurrentTabId() {
+        return currentTabId;
+    }
+
+    @Nullable
+    public Fragment getActiveFragment() {
+        return activeFragment;
+    }
+
+    public void updatePaddingWhenWhenBarChanged(boolean isDisplaying) {
+        UIInfoLog.d("RootNav.updatePadding", "isDisplaying=" + isDisplaying
+                + " activeFragment=" + (activeFragment != null ? activeFragment.getClass().getSimpleName() : "null"));
+        if (activeFragment instanceof DisplayMarginCallback listener) {
+            listener.onDisplayBarPlayerChanged(isDisplaying);
+        }
+    }
+
+    @Override
+    public void onPanelStateChanged(int i) {
+        UIInfoLog.d("RootNav.onPanelStateChanged", "state=" + UIInfoLog.stateName(i)
+                + " isHidden=" + isUserHidden());
     }
 }
