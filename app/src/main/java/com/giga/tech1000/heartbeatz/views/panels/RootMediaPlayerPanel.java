@@ -133,7 +133,8 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
         if (lyricsSheet != null) {
             CustomBottomSheetBehavior<FrameLayout> lyricsBehavior = CustomBottomSheetBehavior.from(lyricsSheet);
             lyricsBehavior.setState(CustomBottomSheetBehavior.STATE_COLLAPSED);
-            bottomSheetView = new BottomSheetView(this, lyricsBehavior, this);
+            // rootView must be the host that still contains bottom_sheet_* ids (full player host)
+            bottomSheetView = new BottomSheetView(this, lyricsBehavior, fullRoot);
             lyricsBehavior.addBottomSheetCallback(
                     new CustomBottomSheetBehavior.BottomSheetCallback() {
                         @Override

@@ -55,10 +55,15 @@ public class BottomSheetView {
         adapter.addFragment(FragmentBottomSheetLyrics.class, this);
         adapter.addFragment(FragmentBottomSheetQueue.class, this);
 
-        playlistCallback = adapter.getFragment(FragmentBottomSheetQueue.class).getCallback();
+        FragmentBottomSheetQueue queueFrag = adapter.getFragment(FragmentBottomSheetQueue.class);
+        playlistCallback = queueFrag != null ? queueFrag.getCallback() : null;
 
-        viewPager.setAdapter(adapter);
-        bottomBar.setupWithViewPager2(viewPager);
+        if (viewPager != null) {
+            viewPager.setAdapter(adapter);
+            if (bottomBar != null) {
+                bottomBar.setupWithViewPager2(viewPager);
+            }
+        }
 
         bottomBar.setOnTabSelectListener(new ReadableBottomBar.OnTabSelectListener() {
             @Override
@@ -132,15 +137,20 @@ public class BottomSheetView {
 
     public void openLyricsFragment() {
         openBottomSheet();
-        viewPager.setCurrentItem(LYRICS_FRAGMENT, true);
-        bottomBar.selectTab(bottomBar.getTabs().get(LYRICS_FRAGMENT), true);
+        if (viewPager != null) viewPager.setCurrentItem(LYRICS_FRAGMENT, true);
+        if (bottomBar != null && bottomBar.getTabs() != null
+                && bottomBar.getTabs().size() > LYRICS_FRAGMENT) {
+            bottomBar.selectTab(bottomBar.getTabs().get(LYRICS_FRAGMENT), true);
+        }
     }
 
     public void openQueueFragment() {
         openBottomSheet();
-        viewPager.setCurrentItem(QUEUE_FRAGMENT, true);
-        bottomBar.selectTab(bottomBar.getTabs().get(QUEUE_FRAGMENT), true);
-
+        if (viewPager != null) viewPager.setCurrentItem(QUEUE_FRAGMENT, true);
+        if (bottomBar != null && bottomBar.getTabs() != null
+                && bottomBar.getTabs().size() > QUEUE_FRAGMENT) {
+            bottomBar.selectTab(bottomBar.getTabs().get(QUEUE_FRAGMENT), true);
+        }
     }
 
 
