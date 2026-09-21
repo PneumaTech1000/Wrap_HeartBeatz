@@ -19,6 +19,7 @@ import com.giga.tech1000.heartbeatz.ui.fragments.FragmentParty;
 import com.giga.tech1000.utils.interfaces.DisplayMarginCallback;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.bottomnavigation.LabelVisibilityMode;
+import com.google.android.material.navigation.NavigationBarView;
 
 /**
  * Bottom navigation + primary tab show/hide. Not a sliding panel —
@@ -41,7 +42,7 @@ public class RootNavigationBarPanel {
             @NonNull BottomNavigationView navigationBar) {
         this.activity = activity;
         this.navigationBar = navigationBar;
-        navigationBar.setLabelVisibilityMode(LabelVisibilityMode.LABEL_VISIBILITY_LABELED);
+        navigationBar.setLabelVisibilityMode(NavigationBarView.LABEL_VISIBILITY_LABELED);
         ensureTabsAttached();
         selectTab(R.id.nav_home, false);
 
