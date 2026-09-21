@@ -7,6 +7,7 @@ import android.graphics.drawable.Icon;
 import android.net.Uri;
 import android.os.SystemClock;
 
+import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.media3.common.Player;
 
 import android.view.View;
@@ -47,7 +48,7 @@ public class MediaPlayerBarView {
 
     private final LinearLayout backgroundView;
     private final LinearProgressIndicator progressIndicator;
-    private final LinearLayout constraintLayout;
+    private final ConstraintLayout constraintLayout;
 
     private final GradientImageView albumImageView;
     private final TextView titleText;

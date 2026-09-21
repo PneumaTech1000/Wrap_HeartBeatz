@@ -33,22 +33,27 @@
                 app:trackThickness="2dp" />
 
             <!-- Controls -->
-            <LinearLayout
+            <androidx.constraintlayout.widget.ConstraintLayout
                 android:id="@+id/mini_player_controls_wrapper"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:gravity="center_vertical"
                 android:background="@drawable/bg_vibrant_gradient_2"
                 android:orientation="horizontal"
-                android:paddingHorizontal="8dp">
+                android:paddingStart="0dp"
+                android:paddingEnd="8dp">
 
                 <!-- Album Art -->
                 <com.giga.tech1000.heartbeatz.theme.GradientImageView
                     android:id="@+id/bar_album_art"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
+                    android:layout_width="45dp"
+                    android:layout_height="0dp"
                     android:scaleType="centerCrop"
                     android:src="@drawable/album_24px"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintDimensionRatio="H,1:1"
                     app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.MediumComponent" />
 
                 <!-- Song Info -->
@@ -57,7 +62,11 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
                     android:layout_weight="1"
-                    android:orientation="vertical">
+                    android:orientation="vertical"
+                    app:layout_constraintStart_toEndOf="@+id/bar_album_art"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toStartOf="@+id/audio_visualizer_bar">
 
                     <TextView
                         android:id="@+id/bar_song_title"
@@ -91,7 +100,10 @@
                     android:layout_width="24dp"
                     android:layout_height="24dp"
                     android:layout_marginHorizontal="8dp"
-                    android:background="@android:color/transparent" />
+                    android:background="@android:color/transparent"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toStartOf="@+id/bar_play_pause_card"/>
 
                 <!-- Play / Pause -->
                 <com.google.android.material.card.MaterialCardView
@@ -100,7 +112,10 @@
                     android:layout_height="36dp"
                     android:backgroundTint="?attr/colorPrimary"
                     app:cardCornerRadius="18dp"
-                    app:cardElevation="0dp">
+                    app:cardElevation="0dp"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintBottom_toBottomOf="parent">
 
                     <com.google.android.material.progressindicator.CircularProgressIndicator
                         android:id="@+id/bar_play_pause_progress_indicator"
@@ -122,7 +137,7 @@
                         app:tint="?attr/colorOnPrimary" />
                 </com.google.android.material.card.MaterialCardView>
 
-            </LinearLayout>
+            </androidx.constraintlayout.widget.ConstraintLayout>
 
         </LinearLayout>
 
