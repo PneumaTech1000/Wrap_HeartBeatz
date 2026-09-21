@@ -3,6 +3,8 @@ package com.giga.tech1000.heartbeatz.views.panels;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.net.nsd.NsdServiceInfo;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.FrameLayout;
@@ -75,6 +77,18 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
     }
 
 
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    /** Panel is not in the hierarchy (children reparented) — never use View.post on this. */
+    private void runOnUi(@NonNull Runnable r) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            r.run();
+        } else {
+            mainHandler.post(r);
+        }
+    }
+
     /**
      * Wire mini + full hosts from activity_main.
      */
@@ -107,7 +121,44 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
         miniHost.setVisibility(View.GONE);
         fullHost.setVisibility(View.GONE);
         panelUiState = STATE_HIDDEN;
-        sheetBehavior = null; // no BottomSheet for chrome
+
+
+        // Full player: BottomSheet so user can drag down to mini (skipCollapsed)
+        try {
+            sheetBehavior = BottomSheetBehavior.from(fullHost);
+            sheetBehavior.setFitToContents(false);
+            sheetBehavior.setSkipCollapsed(true);
+            sheetBehavior.setHideable(true);
+            sheetBehavior.setDraggable(true);
+            sheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+            sheetBehavior.addBottomSheetCallback(new BottomSheetBehavior.BottomSheetCallback() {
+                @Override
+                public void onStateChanged(@NonNull View bottomSheet, int newState) {
+                    if (newState == BottomSheetBehavior.STATE_HIDDEN
+                            || newState == BottomSheetBehavior.STATE_COLLAPSED) {
+                        // User dragged full player away → mini
+                        if (panelUiState == STATE_EXPANDED) {
+                            applyChromeForSheetState(STATE_COLLAPSED);
+                        }
+                    } else if (newState == BottomSheetBehavior.STATE_EXPANDED) {
+                        panelUiState = STATE_EXPANDED;
+                        if (miniHost != null) miniHost.setVisibility(View.GONE);
+                        PlayerChromeController.onSheetStateChanged(BottomSheetBehavior.STATE_EXPANDED);
+                    }
+                }
+
+                @Override
+                public void onSlide(@NonNull View bottomSheet, float slideOffset) {
+                    float expand = Math.max(0f, slideOffset);
+                    if (mediaPlayerView != null) {
+                        mediaPlayerView.onSliding(expand, MediaPlayerView.STATE_PARTIAL);
+                    }
+                }
+            });
+        } catch (IllegalArgumentException e) {
+            UIInfoLog.d("RootMediaPlayer.attachHosts", "fullHost has no BottomSheetBehavior: " + e.getMessage());
+            sheetBehavior = null;
+        }
 
         onBindViews();
         UIInfoLog.d("RootMediaPlayer.attachHosts", "miniHost=" + miniHost.getId()
@@ -190,9 +241,19 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
         panelUiState = newState;
         if (newState == STATE_COLLAPSED) {
             if (miniHost != null) miniHost.setVisibility(View.VISIBLE);
-            if (fullHost != null) fullHost.setVisibility(View.GONE);
+            if (fullHost != null) {
+                if (sheetBehavior != null) {
+                    sheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+                }
+                fullHost.setVisibility(View.GONE);
+            }
             if (mediaPlayerBarView != null) mediaPlayerBarView.showAsMini();
             if (mediaPlayerView != null) mediaPlayerView.hideAsFull();
+            // Re-apply metadata in case earlier posts were dropped while detached
+            if (currentSong != null) {
+                if (mediaPlayerBarView != null) mediaPlayerBarView.onSongChanged(currentSong);
+                if (mediaPlayerView != null) mediaPlayerView.onSongChanged(currentSong);
+            }
             PlayerChromeController.onSheetStateChanged(BottomSheetBehavior.STATE_COLLAPSED);
         } else if (newState == STATE_EXPANDED) {
             if (miniHost != null) miniHost.setVisibility(View.GONE);
@@ -201,6 +262,9 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
                 mediaPlayerBarView.onSliding(1f, MediaPlayerBarView.STATE_PARTIAL);
             }
             if (mediaPlayerView != null) mediaPlayerView.showAsFull();
+            if (sheetBehavior != null) {
+                fullHost.post(() -> sheetBehavior.setState(BottomSheetBehavior.STATE_EXPANDED));
+            }
             PlayerChromeController.onSheetStateChanged(BottomSheetBehavior.STATE_EXPANDED);
         } else {
             if (miniHost != null) miniHost.setVisibility(View.GONE);
@@ -265,7 +329,7 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
         if (song == null) {
             return;
         }
-        post(() -> {
+        runOnUi(() -> {
             if (mediaPlayerBarView != null) mediaPlayerBarView.onSongChanged(song);
             if (mediaPlayerView != null) mediaPlayerView.onSongChanged(song);
         });
@@ -278,42 +342,42 @@ public class RootMediaPlayerPanel extends FrameLayout implements OnBackPressedHa
 
     public void setPartyClientMode(boolean enabled) {
         this.isPartyClient = enabled;
-        post(() -> {
+        runOnUi(() -> {
             if (mediaPlayerBarView != null) mediaPlayerBarView.setPartyClientMode(enabled);
             if (mediaPlayerView != null) mediaPlayerView.setPartyClientMode(enabled);
         });
     }
 
     public void onHostDiscovered(NsdServiceInfo serviceInfo) {
-        post(() -> {
+        runOnUi(() -> {
             if (bottomSheetView != null) bottomSheetView.onHostDiscovered(serviceInfo);
         });
     }
 
     public void onServiceRegistered(NsdServiceInfo serviceInfo) {
-        post(() -> {
+        runOnUi(() -> {
             if (bottomSheetView != null) bottomSheetView.onServiceRegistered(serviceInfo);
         });
     }
 
     public void onRepeatModeChanged(int repeatMode) {
-        post(() -> {
+        runOnUi(() -> {
             if (mediaPlayerView != null) mediaPlayerView.onRepeatModeChanged(repeatMode);
         });
     }
 
     public void onShuffleModeChanged(boolean isShuffleMode) {
-        post(() -> {
+        runOnUi(() -> {
             if (mediaPlayerView != null) mediaPlayerView.onShuffleModeChanged(isShuffleMode);
         });
     }
 
     public void onSessionIdReady(int id) {
-        post(() -> VisualizerManager.get().attachSession(id));
+        runOnUi(() -> VisualizerManager.get().attachSession(id));
     }
 
     public void onQueueIndexReady(List<Integer> queue, int queueIndex) {
-        post(() -> {
+        runOnUi(() -> {
             if (bottomSheetView != null) bottomSheetView.onQueueIndexReady(queue, queueIndex);
         });
     }

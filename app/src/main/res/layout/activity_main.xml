@@ -43,7 +43,7 @@
             app:itemRippleColor="?attr/colorPrimary"
             app:itemActiveIndicatorStyle="@style/Widget.HeartBeatz.BottomNav.ActiveIndicator" />
 
-        <!-- Full player overlay (shown when expanded) -->
+        <!-- Full player: Material bottom sheet (drag down → mini) -->
         <FrameLayout
             android:id="@+id/full_player_host"
             android:layout_width="match_parent"
@@ -53,7 +53,12 @@
             android:visibility="gone"
             android:clickable="true"
             android:focusable="true"
-            android:background="?attr/colorSurface" />
+            android:background="?attr/colorSurface"
+            app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior"
+            app:behavior_hideable="true"
+            app:behavior_skipCollapsed="true"
+            app:behavior_fitToContents="false"
+            app:behavior_peekHeight="0dp" />
 
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 

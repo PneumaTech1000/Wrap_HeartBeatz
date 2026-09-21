@@ -94,6 +94,10 @@ public class MediaPlayerBarView {
         this.rootView.setAlpha(1.0F);
         this.rootView.setVisibility(View.VISIBLE);
 
+        if (titleText == null) {
+            com.giga.tech1000.heartbeatz.ui.UIInfoLog.d("MediaPlayerBarView", "titleText null root=" + rootView);
+        }
+
         this.playbackViewModel = new ViewModelProvider(HeartBeatzApp.container(rootView.getContext()).requireUiThread().getActivity()).get(PlaybackCacheViewModel.class);
 
         onInitView();
