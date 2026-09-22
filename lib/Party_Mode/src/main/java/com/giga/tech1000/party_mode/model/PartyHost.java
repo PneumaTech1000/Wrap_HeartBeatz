@@ -10,6 +10,7 @@ import java.io.Serializable;
 /**
  * Represents a discovered Party Host.
  */
+@com.google.firebase.database.IgnoreExtraProperties
 public class PartyHost implements Serializable, Parcelable {
     @Serial
     private static final long serialVersionUID = 1L;

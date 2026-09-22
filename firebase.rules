@@ -10,20 +10,22 @@
       "$partyId": {
         ".read": "auth != null",
 
-        ".write": "auth != null && (!data.exists() || data.child('ownerId').val() == auth.uid)",
+        ".write": "auth != null && (!data.exists() || (!newData.exists() && data.child('ownerId').val() == auth.uid))",
 
-        ".validate": "newData.hasChildren(['partyId', 'partyName', 'ownerId', 'timestamp']) && newData.child('partyId').val() == $partyId && newData.child('ownerId').val() == auth.uid && newData.child('partyName').isString() && newData.child('partyName').val().length > 0 && newData.child('partyName').val().length <= 100 && newData.child('timestamp').isNumber()",
+        ".validate": "!newData.exists() || (newData.hasChildren(['partyId', 'partyName', 'ownerId', 'timestamp']) && newData.child('partyId').val() == $partyId && newData.child('partyName').isString() && newData.child('partyName').val().length > 0 && newData.child('partyName').val().length <= 100 && newData.child('ownerId').isString() && newData.child('timestamp').isNumber())",
 
         "partyId": {
           ".validate": "newData.isString() && newData.val() == $partyId"
         },
         "partyName": {
+          ".write": "auth != null && root.child('parties').child($partyId).child('ownerId').val() == auth.uid",
           ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
         },
         "ownerId": {
-          ".validate": "newData.isString() && newData.val() == auth.uid"
+          ".validate": "newData.isString()"
         },
         "pin": {
+          ".write": "auth != null && root.child('parties').child($partyId).child('ownerId').val() == auth.uid",
           ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 16)"
         },
         "timestamp": {
@@ -44,7 +46,7 @@
           "$memberId": {
             ".read": "auth != null",
             ".write": "auth != null && ($memberId == auth.uid || root.child('parties').child($partyId).child('ownerId').val() == auth.uid)",
-            ".validate": "!newData.exists() || (newData.hasChildren(['userId']) && newData.child('userId').val() == $memberId)"
+            ".validate": "!newData.exists() || (newData.hasChild('userId') && newData.child('userId').val() == $memberId)"
           }
         },
 
@@ -52,7 +54,7 @@
           ".read": "auth != null",
           "$uid": {
             ".read": "auth != null",
-            ".write": "auth != null && (root.child('parties').child($partyId).child('ownerId').val() == auth.uid || $uid == auth.uid)"
+            ".write": "auth != null && ($uid == auth.uid || root.child('parties').child($partyId).child('ownerId').val() == auth.uid)"
           }
         },
 
@@ -60,6 +62,14 @@
           ".read": "auth != null",
           ".write": "auth != null && root.child('parties').child($partyId).child('ownerId').val() == auth.uid",
           ".validate": "newData.hasChildren(['updatedAt']) && (!newData.hasChild('positionMs') || newData.child('positionMs').isNumber()) && (!newData.hasChild('isPlaying') || newData.child('isPlaying').isBoolean()) && (!newData.hasChild('mediaUrl') || newData.child('mediaUrl').isString()) && (!newData.hasChild('storageKey') || newData.child('storageKey').isString()) && (!newData.hasChild('trackId') || newData.child('trackId').isString()) && newData.child('updatedAt').isNumber()"
+        },
+
+        "queue": {
+          ".read": "auth != null",
+          "$itemId": {
+            ".read": "auth != null",
+            ".write": "auth != null && root.child('parties').child($partyId).child('ownerId').val() == auth.uid"
+          }
         },
 
         "webrtc_signaling": {
