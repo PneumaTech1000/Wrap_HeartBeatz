@@ -254,7 +254,7 @@ public class FragmentBottomSheetPartyChat extends Fragment {
     private void onSongPicked(@NonNull Song song) {
         collapseSongPicker();
         if (hostMode) {
-            // Host: add to local queue UI immediately (upload/sync later)
+            // Host: add to party-chat strip + shared Queue tab (party mode)
             List<PartyQueueItem> next = queueAdapter.getItems();
             next.add(new PartyQueueItem(
                     UUID.randomUUID().toString(),
@@ -266,11 +266,25 @@ public class FragmentBottomSheetPartyChat extends Fragment {
                     null));
             queueAdapter.submit(next);
             refreshQueueEmptyState();
+            pushSharedPartyQueue(next);
             // Backend: PartyTrackUploader + publishHostSync
         } else {
-            // Guest: queue stays unchanged until host approves (chat request later)
-            // UI-only: could toast "Request sent" when chat backend exists
+            // Guest: request only — host approves later (chat backend)
         }
+    }
+
+    /** Mirror party queue into FragmentBottomSheetQueue (one surface when party is live). */
+    private void pushSharedPartyQueue(@NonNull List<PartyQueueItem> items) {
+        if (parentSheetView == null) return;
+        List<Song> songs = new ArrayList<>();
+        try {
+            var tree = SongRepository.getInstance().getCachedSongs();
+            for (PartyQueueItem qi : items) {
+                Song s = tree != null ? tree.get((int) qi.localSongId) : null;
+                if (s != null) songs.add(s);
+            }
+        } catch (Exception ignored) { }
+        parentSheetView.submitPartyQueue(songs, 0);
     }
 
     private void refreshQueueEmptyState() {
