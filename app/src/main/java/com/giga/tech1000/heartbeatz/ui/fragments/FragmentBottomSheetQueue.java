@@ -70,23 +70,48 @@ public class FragmentBottomSheetQueue extends Fragment implements BottomSheetQue
             @NonNull LayoutInflater inflater,
             @Nullable ViewGroup container,
             @Nullable Bundle savedInstanceState) {
-        return inflater.inflate(R.layout.fragment_bottom_sheet_queue, container, false);
+        View view = inflater.inflate(R.layout.fragment_bottom_sheet_queue, container, false);
+        // Attach adapter before first layout pass (avoids "No adapter attached; skipping layout")
+        recyclerView = view.findViewById(R.id.bottom_sheet_queue_list);
+        if (recyclerView != null) {
+            recyclerView.setHasFixedSize(true);
+            recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
+            if (adapter == null) {
+                // playbackViewModel may be null until onViewCreated — use activity if available
+                try {
+                    if (playbackViewModel == null && getActivity() != null) {
+                        playbackViewModel = new ViewModelProvider(requireActivity())
+                                .get(PlaybackCacheViewModel.class);
+                    }
+                } catch (Exception ignored) { }
+                adapter = new BottomSheetQueueViewAdapter(new ArrayList<>(), playbackViewModel);
+                adapter.setViewType(BaseRecyclerViewAdapter.ViewType.LIST);
+            }
+            recyclerView.setAdapter(adapter);
+        }
+        return view;
     }
 
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        playbackViewModel = new ViewModelProvider(requireActivity()).get(PlaybackCacheViewModel.class);
-
-        recyclerView = view.findViewById(R.id.bottom_sheet_queue_list);
-        recyclerView.setHasFixedSize(true);
-        recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-
-        // Empty adapter first so observers never touch a null adapter
-        adapter = new BottomSheetQueueViewAdapter(new ArrayList<>(), playbackViewModel);
-        adapter.setViewType(BaseRecyclerViewAdapter.ViewType.LIST);
-        recyclerView.setAdapter(adapter);
+        if (playbackViewModel == null) {
+            playbackViewModel = new ViewModelProvider(requireActivity()).get(PlaybackCacheViewModel.class);
+        }
+        if (recyclerView == null) {
+            recyclerView = view.findViewById(R.id.bottom_sheet_queue_list);
+        }
+        if (recyclerView != null) {
+            if (adapter == null) {
+                adapter = new BottomSheetQueueViewAdapter(new ArrayList<>(), playbackViewModel);
+                adapter.setViewType(BaseRecyclerViewAdapter.ViewType.LIST);
+            }
+            if (recyclerView.getAdapter() == null) {
+                recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
+                recyclerView.setAdapter(adapter);
+            }
+        }
 
         try {
             songTreeMap = SongRepository.getInstance().getCachedSongs();

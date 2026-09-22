@@ -100,8 +100,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
         stopPresenceListener();
         if (guestAuthenticatedEventListener != null) {
             if (currentPartyId != null) {
-                DatabaseReference authRef = databaseReference.child(PARTIES_NODE)
-                        .child(currentPartyId)
+                DatabaseReference authRef = databaseReference.child(currentPartyId)
                         .child("authenticatedUsers")
                         .child(getCurrentUserId());
                 authRef.removeEventListener(guestAuthenticatedEventListener);
@@ -110,16 +109,14 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
         }
         if (hostedPartyEventListener != null) {
             if (currentPartyId != null) {
-                DatabaseReference partyRef = databaseReference.child(PARTIES_NODE)
-                        .child(currentPartyId);
+                DatabaseReference partyRef = databaseReference.child(currentPartyId);
                 partyRef.removeEventListener(hostedPartyEventListener);
             }
             hostedPartyEventListener = null;
         }
         if (connectedGuestsEventListener != null) {
             if (currentPartyId != null) {
-                DatabaseReference guestsRef = databaseReference.child(PARTIES_NODE)
-                        .child(currentPartyId)
+                DatabaseReference guestsRef = databaseReference.child(currentPartyId)
                         .child("connectedGuests");
                 guestsRef.removeEventListener(connectedGuestsEventListener);
             }
@@ -662,61 +659,35 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
         guestAuthenticatedLiveData.postValue(false);
         partyErrorLiveData.postValue(null);
 
-        // Listen for authentication success from the host
+        // PIN already validated: guest self-registers (no host-side auth gate required)
         DatabaseReference partyRef = databaseReference.child(currentPartyId);
         String currentUserId = getCurrentUserId();
-        DatabaseReference authRef = partyRef.child("authenticatedUsers").child(currentUserId);
-
-        if (guestAuthenticatedEventListener != null) {
-            authRef.removeEventListener(guestAuthenticatedEventListener);
+        if (currentUserId == null) {
+            partyErrorLiveData.postValue("Please sign in to join a party");
+            return;
         }
 
-        guestAuthenticatedEventListener = new ValueEventListener() {
-            @Override
-            public void onDataChange(@NonNull DataSnapshot snapshot) {
-                try {
-                    Boolean authenticated = snapshot.getValue(Boolean.class);
-                    if (Boolean.TRUE.equals(authenticated)) {
-                        Log.d(TAG, "Successfully authenticated to party: " + host.getPartyName());
-                        guestAuthenticatedLiveData.postValue(true);
-                        connectedHostLiveData.postValue(host);
+        DatabaseReference authRef = partyRef.child("authenticatedUsers").child(currentUserId);
+        if (guestAuthenticatedEventListener != null) {
+            authRef.removeEventListener(guestAuthenticatedEventListener);
+            guestAuthenticatedEventListener = null;
+        }
 
-                        // Update presence
-                        updateUserPresence(getCurrentUserId(), true);
-
-                        // Start listening to members for this party
-                        startListeningToMembers(currentPartyId);
-                    } else {
-                        guestAuthenticatedLiveData.postValue(false);
-                        partyErrorLiveData.postValue("Authentication failed");
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error processing auth response", e);
-                    guestAuthenticatedLiveData.postValue(false);
-                    partyErrorLiveData.postValue("Authentication error");
-                }
-            }
-
-            @Override
-            public void onCancelled(@NonNull DatabaseError error) {
-                Log.e(TAG, "Auth listener cancelled: " + error.getMessage());
-                guestAuthenticatedLiveData.postValue(false);
-                partyErrorLiveData.postValue("Authentication failed: " + error.getMessage());
-            }
-        };
-
-        authRef.addValueEventListener(guestAuthenticatedEventListener);
-
-        // Add user to members list with additional metadata
         DatabaseSession session = createGuestSession(host);
-        DatabaseReference membersRef = partyRef.child("members");
-        String userId = getCurrentUserId();
 
-        membersRef.child(userId).setValue(session)
+        // 1) Mark self authenticated under this party (rules: $uid == auth.uid)
+        authRef.setValue(true)
+                .addOnFailureListener(e -> Log.w(TAG, "authenticatedUsers write: " + e.getMessage()));
+
+        // 2) Join members list
+        partyRef.child("members").child(currentUserId).setValue(session)
                 .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "Successfully joined party as member: " + host.getPartyName());
-                    // Set up listener for the specific party to monitor changes
+                    Log.d(TAG, "Joined party as member: " + host.getPartyName());
+                    guestAuthenticatedLiveData.postValue(true);
+                    connectedHostLiveData.postValue(host);
+                    startListeningToMembers(currentPartyId);
                     setupPartyListener(currentPartyId);
+                    partyErrorLiveData.postValue(null);
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to join party as member", e);
@@ -824,8 +795,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
         // Clean up any existing listener
         stopListeningToMembers();
 
-        DatabaseReference membersRef = databaseReference.child(PARTIES_NODE)
-                .child(partyId)
+        DatabaseReference membersRef = databaseReference.child(partyId)
                 .child("members");
 
         membersEventListener = new ChildEventListener() {
@@ -894,8 +864,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
      */
     private void stopListeningToMembers() {
         if (membersEventListener != null && currentPartyId != null) {
-            DatabaseReference membersRef = databaseReference.child(PARTIES_NODE)
-                    .child(currentPartyId)
+            DatabaseReference membersRef = databaseReference.child(currentPartyId)
                     .child("members");
             membersRef.removeEventListener(membersEventListener);
             membersEventListener = null;
@@ -915,7 +884,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
         // Clean up any existing listener
         cleanupPartyListener();
 
-        DatabaseReference partyRef = databaseReference.child(PARTIES_NODE).child(partyId);
+        DatabaseReference partyRef = databaseReference.child(partyId);
 
         partyEventListener = new ValueEventListener() {
             @Override
@@ -956,7 +925,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
      */
     private void cleanupPartyListener() {
         if (partyEventListener != null && currentPartyId != null) {
-            DatabaseReference partyRef = databaseReference.child(PARTIES_NODE).child(currentPartyId);
+            DatabaseReference partyRef = databaseReference.child(currentPartyId);
             partyRef.removeEventListener(partyEventListener);
             partyEventListener = null;
             Log.d(TAG, "Cleaned up party listener for: " + currentPartyId);
@@ -1002,8 +971,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
         }
 
         // Validate the user to kick is actually a member
-        DatabaseReference membersRef = databaseReference.child(PARTIES_NODE)
-                .child(currentPartyId)
+        DatabaseReference membersRef = databaseReference.child(currentPartyId)
                 .child("members")
                 .child(userIdToKick);
 
@@ -1073,8 +1041,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
         }
 
         // Verify the newHostUserId is a member of the party
-        DatabaseReference membersRef = databaseReference.child(PARTIES_NODE)
-                .child(currentPartyId)
+        DatabaseReference membersRef = databaseReference.child(currentPartyId)
                 .child("members")
                 .child(newHostUserId);
 
@@ -1086,7 +1053,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
                     Log.d(TAG, "Host transferring host role to user: " + newHostUserId);
 
                     // Update the ownerId in Firebase
-                    DatabaseReference partyRef = databaseReference.child(PARTIES_NODE).child(currentPartyId);
+                    DatabaseReference partyRef = databaseReference.child(currentPartyId);
                     Map<String, Object> updates = new HashMap<>();
                     updates.put("ownerId", newHostUserId);
                     updates.put("timestamp", ServerValue.TIMESTAMP); // Update timestamp

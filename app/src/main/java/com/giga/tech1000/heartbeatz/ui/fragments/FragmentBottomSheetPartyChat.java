@@ -59,6 +59,7 @@ public class FragmentBottomSheetPartyChat extends Fragment {
 
     private boolean pickerOpen;
     private boolean hostMode = true;
+    @Nullable private View noPartyOverlay;
 
     /** Required by {@link com.giga.tech1000.heartbeatz.ui.adapters.StateFragmentAdapter}. */
     public FragmentBottomSheetPartyChat() {}
@@ -86,8 +87,11 @@ public class FragmentBottomSheetPartyChat extends Fragment {
         searchField = view.findViewById(R.id.party_song_picker_search);
         pickerRecycler = view.findViewById(R.id.party_song_picker_recycler);
         pickerTitle = view.findViewById(R.id.party_song_picker_title);
+        noPartyOverlay = view.findViewById(R.id.party_chat_no_party);
 
         setupSongPicker();
+        updateNoPartyOverlay();
+
         resolveHostMode();
         applyHostGuestChrome();
         loadLibraryIntoPicker();
@@ -122,6 +126,22 @@ public class FragmentBottomSheetPartyChat extends Fragment {
             songPickerLayout.setVisibility(View.GONE);
             songPickerLayout.setAlpha(0f);
         }
+    }
+
+    private void updateNoPartyOverlay() {
+        boolean inParty = false;
+        try {
+            PartySession session = HeartBeatzApp.container(requireContext()).partySession();
+            inParty = session.isInParty();
+        } catch (Exception ignored) { }
+        if (noPartyOverlay != null) {
+            noPartyOverlay.setVisibility(inParty ? View.GONE : View.VISIBLE);
+        }
+        // Disable dock while not in party
+        if (btnSongPicker != null) btnSongPicker.setEnabled(inParty);
+        View dock = getView() != null ? getView().findViewById(R.id.chat_dock_composer_card) : null;
+        if (dock != null) dock.setAlpha(inParty ? 1f : 0.4f);
+        if (dock != null) dock.setEnabled(inParty);
     }
 
     private void resolveHostMode() {
@@ -239,6 +259,14 @@ public class FragmentBottomSheetPartyChat extends Fragment {
 
     public boolean isSongPickerOpen() {
         return pickerOpen;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        updateNoPartyOverlay();
+        resolveHostMode();
+        applyHostGuestChrome();
     }
 
     /** Clear local party track buffer when leaving party. */

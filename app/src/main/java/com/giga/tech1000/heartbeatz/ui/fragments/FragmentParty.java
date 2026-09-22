@@ -40,6 +40,7 @@ import com.giga.tech1000.heartbeatz.LoginActivity;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.giga.tech1000.heartbeatz.R;
+import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
 import com.giga.tech1000.heartbeatz.ui.adapters.GuestListAdapter;
 import com.giga.tech1000.heartbeatz.view_models.extended_models.PartyViewModel;
 import com.giga.tech1000.heartbeatz.views.knobs.DiscoveryIndicatorManager;
@@ -963,11 +964,25 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
     }
 
     public boolean onBackPressed() {
-        if (viewModel.getPartyState().getValue() != PartyState.IDLE) {
+        PartyState state = viewModel.getPartyState().getValue();
+        if (state != null && state != PartyState.IDLE) {
+            // Searching / scanner / connected: leave party flow and return to Home tab
             viewModel.leaveParty();
+            navigateToHomeTab();
             return true;
         }
         return false;
+    }
+
+    private void navigateToHomeTab() {
+        try {
+            var nav = HeartBeatzApp.container(requireContext()).requireUiThread().getNavigationPanel();
+            if (nav != null) {
+                nav.selectTab(R.id.nav_home);
+            }
+        } catch (Exception e) {
+            // Activity may not have UIThread ready
+        }
     }
 
     @Override

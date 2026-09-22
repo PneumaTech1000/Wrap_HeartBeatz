@@ -43,8 +43,8 @@
           ".read": "auth != null",
           "$memberId": {
             ".read": "auth != null",
-            ".write": "auth != null && (root.child('parties').child($partyId).child('ownerId').val() == auth.uid || $memberId == auth.uid)",
-            ".validate": "newData.hasChildren(['userId']) && newData.child('userId').val() == $memberId"
+            ".write": "auth != null && ($memberId == auth.uid || root.child('parties').child($partyId).child('ownerId').val() == auth.uid)",
+            ".validate": "!newData.exists() || (newData.hasChildren(['userId']) && newData.child('userId').val() == $memberId)"
           }
         },
 
