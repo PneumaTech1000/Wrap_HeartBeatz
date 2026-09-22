@@ -156,6 +156,27 @@ public class BottomSheetView {
         }
     }
 
+
+    /** Party live: drive the shared Queue tab with party tracks. */
+    public void submitPartyQueue(@NonNull java.util.List<com.giga.tech1000.media_player.models.Song> songs, int currentIndex) {
+        FragmentBottomSheetQueue fragment = adapter.getFragment(FragmentBottomSheetQueue.class);
+        if (fragment != null) {
+            fragment.submitPartySongs(songs, currentIndex);
+        }
+    }
+
+    public void clearPartyQueueMode() {
+        FragmentBottomSheetQueue fragment = adapter.getFragment(FragmentBottomSheetQueue.class);
+        if (fragment != null) {
+            fragment.clearPartyMode();
+        }
+    }
+
+    @Nullable
+    public FragmentBottomSheetQueue getQueueFragment() {
+        return adapter != null ? adapter.getFragment(FragmentBottomSheetQueue.class) : null;
+    }
+
     public void openQueueFragment() {
         openBottomSheet();
         if (viewPager != null) viewPager.setCurrentItem(QUEUE_FRAGMENT, true);

@@ -2,6 +2,8 @@ package com.giga.tech1000.heartbeatz.ui.adapters;
 
 import android.view.ViewGroup;
 
+import androidx.recyclerview.widget.RecyclerView;
+
 import androidx.annotation.NonNull;
 
 import com.giga.tech1000.heartbeatz.ui.adapters.helpers.BaseViewHelper;
@@ -12,6 +14,7 @@ import com.giga.tech1000.heartbeatz.ui.adapters.view_holders.BottomSheetQueueVie
 import com.giga.tech1000.heartbeatz.view_models.extended_models.PlaybackCacheViewModel;
 import com.giga.tech1000.media_player.utils.enums.ItemSource;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class BottomSheetQueueViewAdapter extends BaseRecyclerViewAdapter {
@@ -46,9 +49,14 @@ public class BottomSheetQueueViewAdapter extends BaseRecyclerViewAdapter {
         holder.onPlayingStateViewHolder(getPlayingCacheInfo(), item);
 
         holder.itemView.setOnClickListener(v -> {
-            if (playbackViewModel != null) {
-                playbackViewModel.play(holder.getBindingAdapterPosition(), getQueue(), getPlayingCacheInfo().getSource());
-            }
+            if (playbackViewModel == null) return;
+            int pos = holder.getBindingAdapterPosition();
+            if (pos == RecyclerView.NO_POSITION) return;
+            var cache = getPlayingCacheInfo();
+            var source = cache != null ? cache.getSource() : ItemSource.SONGS;
+            List<Integer> q = getQueue();
+            if (q == null) q = new ArrayList<>();
+            playbackViewModel.play(pos, q, source);
         });
     }
 
