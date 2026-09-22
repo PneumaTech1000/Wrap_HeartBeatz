@@ -31,11 +31,11 @@ public final class PartyMediaConfig {
     // ─── Supabase (testing) — EDIT THESE ───────────────────────────────────
     /** Project URL, e.g. https://xxxxxxxx.supabase.co */
     @NonNull
-    public String supabaseUrl = "https://YOUR_PROJECT_REF.supabase.co";
+    public String supabaseUrl = "https://ruvstbznpsrylfxqhbfe.supabase.co";
 
     /** Storage bucket name, e.g. party-tracks */
     @NonNull
-    public String supabaseBucket = "party-tracks";
+    public String supabaseBucket = "HeartBeatz_Party_tracks";
 
     /**
      * Service role or upload-capable key.
@@ -43,7 +43,7 @@ public final class PartyMediaConfig {
      * REPLACE: paste anon or service key for testing (never ship service role in release).
      */
     @NonNull
-    public String supabaseApiKey = "YOUR_SUPABASE_ANON_OR_SERVICE_KEY";
+    public String supabaseApiKey = "sb_publishable_9TO559VPA8U4OlH3MyD39g_YIf8mRgE";
 
     // ─── Cloudflare R2 (production) — EDIT WHEN MIGRATING ──────────────────
     /** Account endpoint, e.g. https://&lt;ACCOUNT_ID&gt;.r2.cloudflarestorage.com */
