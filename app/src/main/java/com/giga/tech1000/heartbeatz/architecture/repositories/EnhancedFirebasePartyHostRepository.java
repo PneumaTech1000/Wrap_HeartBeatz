@@ -579,8 +579,10 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
                 .addOnSuccessListener(aVoid -> {
                     Log.d(TAG, "Party stopped successfully: " + currentPartyId);
                     hostedPartyLiveData.postValue(null);
+                    connectedHostLiveData.postValue(null);
                     connectedGuestsLiveData.postValue(new ArrayList<>());
                     guestCountLiveData.postValue(0);
+                    guestAuthenticatedLiveData.postValue(false);
                     isHosting = false;
                     currentPartyId = null;
 
@@ -652,8 +654,9 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
         currentPartyId = host.getPartyId();
         isHosting = false;
 
-        // Update hosted party info (what we're connecting to)
-        hostedPartyLiveData.postValue(host);
+        // Guest connects TO this host — never mark as hosted party (that implies HOSTING)
+        connectedHostLiveData.postValue(host);
+        hostedPartyLiveData.postValue(null);
 
         // Mark as attempting to connect
         guestAuthenticatedLiveData.postValue(false);
@@ -749,14 +752,12 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
 
         DatabaseReference partyRef = databaseReference.child(currentPartyId);
 
-        // Remove user from members list using their user ID as key
         if (userId != null) {
-            DatabaseReference memberRef = partyRef.child("members").child(userId);
-            memberRef.removeValue()
+            partyRef.child("members").child(userId).removeValue();
+            partyRef.child("authenticatedUsers").child(userId).removeValue()
                     .addOnSuccessListener(aVoid -> {
                         Log.d(TAG, "Successfully left party");
-                        // Update presence
-                        updateUserPresence(getCurrentUserId(), false);
+                        updateUserPresence(userId, false);
                     })
                     .addOnFailureListener(e -> {
                         Log.e(TAG, "Failed to leave party", e);
@@ -1113,9 +1114,8 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
 
     @Override
     public boolean isGuest() {
-        return connectedHostLiveData.getValue() != null &&
-                guestAuthenticatedLiveData.getValue() != null &&
-                guestAuthenticatedLiveData.getValue();
+        // Guest = joined or joining a party we do not host
+        return !isHosting && currentPartyId != null;
     }
 
     @Override

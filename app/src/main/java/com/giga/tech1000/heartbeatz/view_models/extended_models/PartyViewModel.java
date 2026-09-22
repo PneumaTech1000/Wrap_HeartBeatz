@@ -156,46 +156,44 @@ public class PartyViewModel extends AndroidViewModel {
      */
     private void initializePlaybackObservers() {
         if (playbackState == null) return;
-        // Listen for party creation events from PlaybackState
-        playbackState.getPartyHost().observeForever(host -> {
-            if (host != null) {
-                partyState.postValue(PartyState.HOSTING);
-            }
-        });
+        // Do not drive PartyState from PlaybackState party host — repository is source of truth
     }
 
     private void initializeStateObservers() {
-        // Playback observers only when repo is available
         if (playbackState != null) {
             initializePlaybackObservers();
         }
 
-        // Listen to party host updates
+        // Host created a party successfully
         partyHost.getHostedParty().observeForever(host -> {
-            if (host != null) {
+            if (host != null && partyHost.isHosting()) {
                 partyState.postValue(PartyState.HOSTING);
                 pendingPartyName = host.getPartyName();
+                Log.d(TAG, "State → HOSTING (" + host.getPartyName() + ")");
             }
         });
 
+        // Guest: connected host is the party we joined (do NOT force IDLE on null)
         partyHost.getConnectedHost().observeForever(host -> {
-            if (host != null && partyState.getValue() == PartyState.CONNECTING) {
-                // Keep in JOINING state until authenticated
-            } else if (host == null) {
-                partyState.postValue(PartyState.IDLE);
+            if (host != null) {
+                PartyState cur = partyState.getValue();
+                if (cur == PartyState.CONNECTING || cur == PartyState.SEARCHING || cur == PartyState.FOUND) {
+                    // Stay CONNECTING until isGuestAuthenticated
+                    Log.d(TAG, "Connected host set while " + cur + " — waiting auth");
+                }
             }
+            // host == null: leaveParty / stopHosting owns transition to IDLE
         });
 
         partyHost.isGuestAuthenticated().observeForever(authenticated -> {
-            if (authenticated) {
+            if (Boolean.TRUE.equals(authenticated) && !partyHost.isHosting()) {
                 partyState.postValue(PartyState.JOINED);
+                Log.d(TAG, "State → JOINED");
             }
         });
 
-        // Observe network connectivity
         ((EnhancedFirebasePartyHostRepository) partyHost).isNetworkConnected().observeForever(isConnected -> {
-            if (!isConnected) {
-                // Handle network loss - pause discovery if active
+            if (!Boolean.TRUE.equals(isConnected)) {
                 if (isDiscovering()) {
                     stopDiscovery();
                     partyError.postValue("Lost network connection");
@@ -203,11 +201,16 @@ public class PartyViewModel extends AndroidViewModel {
             }
         });
 
-        // Observe party errors
         ((EnhancedFirebasePartyHostRepository) partyHost).getPartyError().observeForever(error -> {
-            if (error != null) {
+            if (error != null && !error.isEmpty()) {
                 partyError.postValue(error);
                 Log.e(TAG, "Party error: " + error);
+                PartyState cur = partyState.getValue();
+                if (cur == PartyState.CONNECTING) {
+                    partyState.postValue(PartyState.SEARCHING);
+                } else if (cur == PartyState.CREATING) {
+                    partyState.postValue(PartyState.IDLE);
+                }
             }
         });
     }
@@ -418,6 +421,8 @@ public class PartyViewModel extends AndroidViewModel {
      * Create and host a new party
      */
     public void createParty(@NonNull String partyName, @NonNull String pin) {
+        partyState.postValue(PartyState.CREATING);
+        partyError.postValue(null);
         Log.d(TAG, "Creating party: " + partyName);
         pendingPartyName = partyName;
         pendingPartyPin = pin;
@@ -442,8 +447,8 @@ public class PartyViewModel extends AndroidViewModel {
      * Leave current party (host or guest)
      */
     public void leaveParty() {
-        Log.d(TAG, "Leaving party");
-        partyState.postValue(PartyState.IDLE);
+        Log.d(TAG, "Leaving party (hosting=" + partyHost.isHosting()
+                + " guest=" + partyHost.isGuest() + ")");
         partyError.postValue(null);
 
         if (partyHost.isHosting()) {
@@ -451,6 +456,8 @@ public class PartyViewModel extends AndroidViewModel {
         } else if (partyHost.isGuest()) {
             partyHost.leaveParty();
         }
+        // Always clear UI state after teardown requested
+        partyState.postValue(PartyState.IDLE);
     }
 
     // ============ PLAYBACK COMMANDS ============
@@ -765,23 +772,14 @@ public class PartyViewModel extends AndroidViewModel {
     }
 
     // Helper method to get current user ID
+    @Nullable
     private String getCurrentUserId() {
-        // In a real implementation, this would come from Firebase Auth
-        // For now, we'll return a placeholder or try to get it from the hosted party
-        if (partyHost instanceof EnhancedFirebasePartyHostRepository) {
-            PartyHost hostedParty = ((EnhancedFirebasePartyHostRepository) partyHost).getHostedPartyValue();
-            if (hostedParty != null && hostedParty.getOwnerId() != null) {
-                return hostedParty.getOwnerId();
-            }
-
-            PartyHost connectedHost = ((EnhancedFirebasePartyHostRepository) partyHost).getConnectedHostValue();
-            if (connectedHost != null) {
-                // For guests, we'd need to get the actual user ID from auth
-                // This is a simplified implementation
-                return "current_user"; // Placeholder
-            }
-        }
-        return "current_user"; // Placeholder
+        try {
+            com.google.firebase.auth.FirebaseUser user =
+                    com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser();
+            if (user != null) return user.getUid();
+        } catch (Exception ignored) { }
+        return null;
     }
 
     // ============ LIFECYCLE ============
