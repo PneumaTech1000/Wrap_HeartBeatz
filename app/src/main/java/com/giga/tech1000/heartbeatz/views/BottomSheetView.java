@@ -19,6 +19,7 @@ import com.giga.tech1000.heartbeatz.ui.UIThread;
 import com.giga.tech1000.heartbeatz.ui.adapters.StateFragmentAdapter;
 import com.giga.tech1000.heartbeatz.ui.fragments.FragmentBottomSheetLyrics;
 import com.giga.tech1000.heartbeatz.ui.fragments.FragmentBottomSheetQueue;
+import com.giga.tech1000.heartbeatz.ui.fragments.FragmentBottomSheetPartyChat;
 import com.giga.tech1000.heartbeatz.views.panels.RootMediaPlayerPanel;
 import com.giga.tech1000.utils.interfaces.BottomSheetQueueAndIndexUpdate;
 import com.realgear.readable_bottom_bar.ReadableBottomBar;
@@ -38,6 +39,7 @@ public class BottomSheetView {
 
     private static final int LYRICS_FRAGMENT = 0;
     private static final int QUEUE_FRAGMENT = 1;
+    private static final int PARTY_CHAT_FRAGMENT = 2;
 
     private final MutableLiveData<Boolean> isVisible = new MutableLiveData<>(false);
 
@@ -54,6 +56,7 @@ public class BottomSheetView {
         adapter = new StateFragmentAdapter(p.getSupportFragmentManager(), p.getLifecycle());
         adapter.addFragment(FragmentBottomSheetLyrics.class, this);
         adapter.addFragment(FragmentBottomSheetQueue.class, this);
+        adapter.addFragment(FragmentBottomSheetPartyChat.class, this);
 
         FragmentBottomSheetQueue queueFrag = adapter.getFragment(FragmentBottomSheetQueue.class);
         playlistCallback = queueFrag != null ? queueFrag.getCallback() : null;
@@ -141,6 +144,15 @@ public class BottomSheetView {
         if (bottomBar != null && bottomBar.getTabs() != null
                 && bottomBar.getTabs().size() > LYRICS_FRAGMENT) {
             bottomBar.selectTab(bottomBar.getTabs().get(LYRICS_FRAGMENT), true);
+        }
+    }
+
+    public void openPartyChatFragment() {
+        openBottomSheet();
+        if (viewPager != null) viewPager.setCurrentItem(PARTY_CHAT_FRAGMENT, true);
+        if (bottomBar != null && bottomBar.getTabs() != null
+                && bottomBar.getTabs().size() > PARTY_CHAT_FRAGMENT) {
+            bottomBar.selectTab(bottomBar.getTabs().get(PARTY_CHAT_FRAGMENT), true);
         }
     }
 
