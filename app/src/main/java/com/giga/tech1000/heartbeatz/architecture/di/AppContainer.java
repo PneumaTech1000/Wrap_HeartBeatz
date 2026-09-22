@@ -6,6 +6,11 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.giga.tech1000.heartbeatz.architecture.repositories.PlaybackStateRepository;
+import com.giga.tech1000.heartbeatz.architecture.media.PartyMediaConfig;
+import com.giga.tech1000.heartbeatz.architecture.media.PartyMediaStore;
+import com.giga.tech1000.heartbeatz.architecture.media.PartyMediaStoreProvider;
+import com.giga.tech1000.heartbeatz.architecture.media.PartyTrackUploader;
+import com.giga.tech1000.heartbeatz.architecture.party.PartyPlaybackSyncRepository;
 import com.giga.tech1000.heartbeatz.architecture.session.FirebasePartySession;
 import com.giga.tech1000.heartbeatz.architecture.session.PartySession;
 import com.giga.tech1000.heartbeatz.observers.LibraryObservers;
@@ -24,6 +29,10 @@ public final class AppContainer {
 
     private final Context appContext;
     private final PartySession partySession;
+    private final PartyMediaConfig partyMediaConfig;
+    private final PartyMediaStore partyMediaStore;
+    private final PartyTrackUploader partyTrackUploader;
+    private final PartyPlaybackSyncRepository partyPlaybackSyncRepository;
 
     @Nullable private UIThread uiThread;
     @Nullable private PlaybackStateRepository playbackStateRepository;
@@ -35,6 +44,11 @@ public final class AppContainer {
     public AppContainer(@NonNull Context context) {
         this.appContext = context.getApplicationContext();
         this.partySession = new FirebasePartySession(appContext);
+        // §7 Party media: edit PartyMediaConfig (or switch backend to R2 for prod)
+        this.partyMediaConfig = PartyMediaConfig.debugDefaults();
+        this.partyMediaStore = PartyMediaStoreProvider.create(partyMediaConfig);
+        this.partyTrackUploader = new PartyTrackUploader(partyMediaStore);
+        this.partyPlaybackSyncRepository = new PartyPlaybackSyncRepository();
     }
 
     @NonNull
@@ -45,6 +59,28 @@ public final class AppContainer {
     @NonNull
     public PartySession partySession() {
         return partySession;
+    }
+
+    /** §7 — object storage (Supabase test / R2 prod). */
+    @NonNull
+    public PartyMediaStore partyMediaStore() {
+        return partyMediaStore;
+    }
+
+    @NonNull
+    public PartyMediaConfig partyMediaConfig() {
+        return partyMediaConfig;
+    }
+
+    @NonNull
+    public PartyTrackUploader partyTrackUploader() {
+        return partyTrackUploader;
+    }
+
+    /** Host writes / guests observe parties/{id}/sync */
+    @NonNull
+    public PartyPlaybackSyncRepository partyPlaybackSync() {
+        return partyPlaybackSyncRepository;
     }
 
     /**
