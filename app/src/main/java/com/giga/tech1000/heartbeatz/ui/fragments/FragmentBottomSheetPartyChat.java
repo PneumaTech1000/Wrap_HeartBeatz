@@ -2,7 +2,6 @@ package com.giga.tech1000.heartbeatz.ui.fragments;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
-import android.animation.ObjectAnimator;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -24,25 +23,20 @@ import com.giga.tech1000.heartbeatz.R;
 import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
 import com.giga.tech1000.heartbeatz.architecture.di.AppContainer;
 import com.giga.tech1000.heartbeatz.architecture.session.PartySession;
-import com.giga.tech1000.heartbeatz.ui.adapters.PartyQueueAdapter;
 import com.giga.tech1000.heartbeatz.ui.adapters.PartySongPickerAdapter;
-import com.giga.tech1000.heartbeatz.ui.party.PartyQueueItem;
 import com.giga.tech1000.heartbeatz.views.BottomSheetView;
 import com.giga.tech1000.media_player.models.Song;
 import com.giga.tech1000.media_player.repository.SongRepository;
 import com.google.android.material.button.MaterialButton;
-import com.google.android.material.card.MaterialCardView;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 /**
- * Party chat room UI inside the media-player custom bottom sheet.
+ * Party chat UI inside the media-player bottom sheet.
  * <p>
- * Song picker expands upward from {@code chat_dock_composer_card} over the chat stream.
- * Queue list is host-editable; guests see a faded read-only list.
- * Backend (upload / approve / Firebase chat) is wired in a later pass.
+ * Song picker expands inside {@code chat_dock_composer_card} above the composer row.
+ * Party track queue lives in {@link FragmentBottomSheetQueue} (Queue tab), not here.
  */
 @UnstableApi
 public class FragmentBottomSheetPartyChat extends Fragment {
@@ -50,19 +44,18 @@ public class FragmentBottomSheetPartyChat extends Fragment {
     @Nullable
     private BottomSheetView parentSheetView;
 
-    private MaterialCardView songPickerPanel;
-    private MaterialButton btnSongPicker;
-    private MaterialButton btnSongPickerClose;
-    private EditText searchField;
-    private RecyclerView pickerRecycler;
-    private RecyclerView queueRecycler;
-    private TextView queueCount;
-    private TextView queueEmpty;
-    private TextView queueGuestHint;
-    private View queueSection;
+    /** Collapsible picker block inside the dock card. */
+    @Nullable private View songPickerLayout;
+    @Nullable private MaterialButton btnSongPicker;
+    @Nullable private MaterialButton btnSongPickerClose;
+    @Nullable private EditText searchField;
+    @Nullable private RecyclerView pickerRecycler;
+    @Nullable private TextView pickerTitle;
 
     private PartySongPickerAdapter pickerAdapter;
-    private PartyQueueAdapter queueAdapter;
+
+    /** Host-side ordered list pushed to the shared Queue tab (UI until Firebase). */
+    private final List<Song> partyTracks = new ArrayList<>();
 
     private boolean pickerOpen;
     private boolean hostMode = true;
@@ -87,58 +80,26 @@ public class FragmentBottomSheetPartyChat extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        songPickerPanel = view.findViewById(R.id.party_song_picker_panel);
+        songPickerLayout = view.findViewById(R.id.party_chat_song_picker_layout);
         btnSongPicker = view.findViewById(R.id.btn_party_song_picker);
         btnSongPickerClose = view.findViewById(R.id.btn_party_song_picker_close);
         searchField = view.findViewById(R.id.party_song_picker_search);
         pickerRecycler = view.findViewById(R.id.party_song_picker_recycler);
-        queueRecycler = view.findViewById(R.id.party_queue_recycler);
-        queueCount = view.findViewById(R.id.party_queue_count);
-        queueEmpty = view.findViewById(R.id.party_queue_empty);
-        queueGuestHint = view.findViewById(R.id.party_queue_guest_hint);
-        queueSection = view.findViewById(R.id.party_queue_section);
+        pickerTitle = view.findViewById(R.id.party_song_picker_title);
 
-        setupQueue();
         setupSongPicker();
         resolveHostMode();
         applyHostGuestChrome();
         loadLibraryIntoPicker();
-        // Placeholder queue until backend
-        queueAdapter.submit(new ArrayList<>());
-        refreshQueueEmptyState();
-    }
-
-    private void setupQueue() {
-        queueAdapter = new PartyQueueAdapter();
-        queueRecycler.setLayoutManager(new LinearLayoutManager(requireContext()));
-        queueRecycler.setAdapter(queueAdapter);
-        queueRecycler.setNestedScrollingEnabled(false);
-        queueAdapter.setListener(new PartyQueueAdapter.Listener() {
-            @Override
-            public void onRemove(@NonNull PartyQueueItem item, int position) {
-                if (!hostMode || position < 0) return;
-                List<PartyQueueItem> next = queueAdapter.getItems();
-                if (position < next.size()) {
-                    next.remove(position);
-                    queueAdapter.submit(next);
-                    refreshQueueEmptyState();
-                }
-                // Backend: remove from Firebase queue later
-            }
-
-            @Override
-            public void onPlay(@NonNull PartyQueueItem item, int position) {
-                if (!hostMode) return;
-                // Backend: host forces this track → sync publish later
-            }
-        });
     }
 
     private void setupSongPicker() {
         pickerAdapter = new PartySongPickerAdapter();
-        pickerRecycler.setLayoutManager(new LinearLayoutManager(requireContext()));
-        pickerRecycler.setAdapter(pickerAdapter);
-        pickerAdapter.setListener(song -> onSongPicked(song));
+        if (pickerRecycler != null) {
+            pickerRecycler.setLayoutManager(new LinearLayoutManager(requireContext()));
+            pickerRecycler.setAdapter(pickerAdapter);
+        }
+        pickerAdapter.setListener(this::onSongPicked);
 
         if (btnSongPicker != null) {
             btnSongPicker.setOnClickListener(v -> toggleSongPicker());
@@ -150,15 +111,16 @@ public class FragmentBottomSheetPartyChat extends Fragment {
             searchField.addTextChangedListener(new TextWatcher() {
                 @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
                 @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-                    if (pickerAdapter != null) pickerAdapter.filter(s != null ? s.toString() : "");
+                    if (pickerAdapter != null) {
+                        pickerAdapter.filter(s != null ? s.toString() : "");
+                    }
                 }
                 @Override public void afterTextChanged(Editable s) {}
             });
         }
-        if (songPickerPanel != null) {
-            songPickerPanel.setVisibility(View.GONE);
-            songPickerPanel.setAlpha(0f);
-            songPickerPanel.setTranslationY(80f);
+        if (songPickerLayout != null) {
+            songPickerLayout.setVisibility(View.GONE);
+            songPickerLayout.setAlpha(0f);
         }
     }
 
@@ -166,26 +128,22 @@ public class FragmentBottomSheetPartyChat extends Fragment {
         try {
             AppContainer c = HeartBeatzApp.container(requireContext());
             PartySession session = c.partySession();
-            hostMode = session.isHosting();
-            // Guests who are in party → not host
-            if (session.isGuest()) hostMode = false;
-            // If not in party yet, treat as host chrome for layout preview
-            if (!session.isInParty()) hostMode = true;
+            if (session.isGuest()) {
+                hostMode = false;
+            } else if (session.isHosting()) {
+                hostMode = true;
+            } else {
+                // Not in party — preview as host chrome
+                hostMode = true;
+            }
         } catch (Exception ignored) {
             hostMode = true;
         }
     }
 
     private void applyHostGuestChrome() {
-        queueAdapter.setHostMode(hostMode);
-        if (queueGuestHint != null) {
-            queueGuestHint.setVisibility(hostMode ? View.GONE : View.VISIBLE);
-        }
-        if (songPickerPanel != null) {
-            TextView title = songPickerPanel.findViewById(R.id.party_song_picker_title);
-            if (title != null) {
-                title.setText(hostMode ? "Add to party" : "Request a track");
-            }
+        if (pickerTitle != null) {
+            pickerTitle.setText(hostMode ? "Add to party" : "Request a track");
         }
     }
 
@@ -193,29 +151,36 @@ public class FragmentBottomSheetPartyChat extends Fragment {
         try {
             SongRepository.getInstance().getSongs().observe(getViewLifecycleOwner(), tree -> {
                 List<Song> songs = new ArrayList<>();
-                if (tree != null) songs.addAll(tree.values());
-                if (pickerAdapter != null) pickerAdapter.submit(songs);
+                if (tree != null) {
+                    songs.addAll(tree.values());
+                }
+                if (pickerAdapter != null) {
+                    pickerAdapter.submit(songs);
+                }
             });
         } catch (Exception e) {
-            if (pickerAdapter != null) pickerAdapter.submit(new ArrayList<>());
+            if (pickerAdapter != null) {
+                pickerAdapter.submit(new ArrayList<>());
+            }
         }
     }
 
     private void toggleSongPicker() {
-        if (pickerOpen) collapseSongPicker();
-        else expandSongPicker();
+        if (pickerOpen) {
+            collapseSongPicker();
+        } else {
+            expandSongPicker();
+        }
     }
 
-    /** Expands picker upward over chat from the composer dock. */
+    /** Expands picker inside the dock card, above the composer row. */
     public void expandSongPicker() {
-        if (songPickerPanel == null || pickerOpen) return;
+        if (songPickerLayout == null || pickerOpen) return;
         pickerOpen = true;
-        songPickerPanel.setVisibility(View.VISIBLE);
-        songPickerPanel.setAlpha(0f);
-        songPickerPanel.setTranslationY(songPickerPanel.getHeight() > 0
-                ? songPickerPanel.getHeight() * 0.15f
-                : 120f);
-        songPickerPanel.animate()
+        songPickerLayout.setVisibility(View.VISIBLE);
+        songPickerLayout.setAlpha(0f);
+        songPickerLayout.setTranslationY(40f);
+        songPickerLayout.animate()
                 .alpha(1f)
                 .translationY(0f)
                 .setDuration(220)
@@ -228,18 +193,20 @@ public class FragmentBottomSheetPartyChat extends Fragment {
     }
 
     public void collapseSongPicker() {
-        if (songPickerPanel == null || !pickerOpen) return;
+        if (songPickerLayout == null || !pickerOpen) return;
         pickerOpen = false;
-        songPickerPanel.animate()
+        songPickerLayout.animate()
                 .alpha(0f)
-                .translationY(80f)
+                .translationY(40f)
                 .setDuration(180)
                 .setInterpolator(new DecelerateInterpolator())
                 .setListener(new AnimatorListenerAdapter() {
                     @Override
                     public void onAnimationEnd(Animator animation) {
-                        songPickerPanel.setVisibility(View.GONE);
-                        songPickerPanel.animate().setListener(null);
+                        if (songPickerLayout != null) {
+                            songPickerLayout.setVisibility(View.GONE);
+                            songPickerLayout.animate().setListener(null);
+                        }
                     }
                 })
                 .start();
@@ -254,56 +221,31 @@ public class FragmentBottomSheetPartyChat extends Fragment {
     private void onSongPicked(@NonNull Song song) {
         collapseSongPicker();
         if (hostMode) {
-            // Host: add to party-chat strip + shared Queue tab (party mode)
-            List<PartyQueueItem> next = queueAdapter.getItems();
-            next.add(new PartyQueueItem(
-                    UUID.randomUUID().toString(),
-                    song.getTitle() != null ? song.getTitle() : "Unknown",
-                    song.getArtist(),
-                    "You",
-                    song.getId(),
-                    null,
-                    null));
-            queueAdapter.submit(next);
-            refreshQueueEmptyState();
-            pushSharedPartyQueue(next);
-            // Backend: PartyTrackUploader + publishHostSync
-        } else {
-            // Guest: request only — host approves later (chat backend)
-        }
-    }
-
-    /** Mirror party queue into FragmentBottomSheetQueue (one surface when party is live). */
-    private void pushSharedPartyQueue(@NonNull List<PartyQueueItem> items) {
-        if (parentSheetView == null) return;
-        List<Song> songs = new ArrayList<>();
-        try {
-            var tree = SongRepository.getInstance().getCachedSongs();
-            for (PartyQueueItem qi : items) {
-                Song s = tree != null ? tree.get((int) qi.localSongId) : null;
-                if (s != null) songs.add(s);
+            // Host: append to party track list → shared Queue tab
+            partyTracks.add(song);
+            if (parentSheetView != null) {
+                parentSheetView.submitPartyQueue(new ArrayList<>(partyTracks), partyTracks.size() - 1);
             }
-        } catch (Exception ignored) { }
-        parentSheetView.submitPartyQueue(songs, 0);
-    }
-
-    private void refreshQueueEmptyState() {
-        boolean empty = queueAdapter.getItemCount() == 0;
-        if (queueEmpty != null) queueEmpty.setVisibility(empty ? View.VISIBLE : View.GONE);
-        if (queueRecycler != null) queueRecycler.setVisibility(empty ? View.GONE : View.VISIBLE);
-        if (queueCount != null) {
-            int n = queueAdapter.getItemCount();
-            queueCount.setText(n == 1 ? "1 track" : n + " tracks");
+            // Backend later: upload + Firebase queue/sync
         }
+        // Guest: song request via chat backend later
     }
 
     /** Call when party role changes (host/guest). */
     public void setHostMode(boolean host) {
         this.hostMode = host;
-        if (queueAdapter != null) applyHostGuestChrome();
+        applyHostGuestChrome();
     }
 
     public boolean isSongPickerOpen() {
         return pickerOpen;
+    }
+
+    /** Clear local party track buffer when leaving party. */
+    public void clearPartyTracks() {
+        partyTracks.clear();
+        if (parentSheetView != null) {
+            parentSheetView.clearPartyQueueMode();
+        }
     }
 }

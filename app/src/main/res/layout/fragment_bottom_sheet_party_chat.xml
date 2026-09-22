@@ -393,7 +393,7 @@
             <LinearLayout
                 android:id="@+id/party_chat_song_picker_layout"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_height="280dp"
                 android:orientation="vertical"
                 android:paddingTop="8dp"
                 android:visibility="gone">
