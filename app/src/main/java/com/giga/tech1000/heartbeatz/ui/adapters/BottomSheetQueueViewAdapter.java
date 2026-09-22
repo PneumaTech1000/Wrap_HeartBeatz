@@ -53,7 +53,7 @@ public class BottomSheetQueueViewAdapter extends BaseRecyclerViewAdapter {
             int pos = holder.getBindingAdapterPosition();
             if (pos == RecyclerView.NO_POSITION) return;
             var cache = getPlayingCacheInfo();
-            var source = cache != null ? cache.getSource() : ItemSource.SONGS;
+            var source = cache != null ? cache.getSource() : ItemSource.ALL_SONGS;
             List<Integer> q = getQueue();
             if (q == null) q = new ArrayList<>();
             playbackViewModel.play(pos, q, source);
