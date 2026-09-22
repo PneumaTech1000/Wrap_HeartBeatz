@@ -21,47 +21,51 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.giga.tech1000.heartbeatz.R;
 import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
-import com.giga.tech1000.heartbeatz.architecture.di.AppContainer;
 import com.giga.tech1000.heartbeatz.architecture.session.PartySession;
 import com.giga.tech1000.heartbeatz.ui.adapters.PartySongPickerAdapter;
 import com.giga.tech1000.heartbeatz.views.BottomSheetView;
 import com.giga.tech1000.media_player.models.Song;
 import com.giga.tech1000.media_player.repository.SongRepository;
+import com.giga.tech1000.party_mode.model.PartyHost;
 import com.google.android.material.button.MaterialButton;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Party chat UI inside the media-player bottom sheet.
- * <p>
- * Song picker expands inside {@code chat_dock_composer_card} above the composer row.
- * Party track queue lives in {@link FragmentBottomSheetQueue} (Queue tab), not here.
+ * Party chat inside the media-player bottom sheet.
+ * Observes {@link PartySession} so the UI unlocks when host/guest party becomes live.
  */
 @UnstableApi
 public class FragmentBottomSheetPartyChat extends Fragment {
 
-    @Nullable
-    private BottomSheetView parentSheetView;
+    @Nullable private BottomSheetView parentSheetView;
 
-    /** Collapsible picker block inside the dock card. */
     @Nullable private View songPickerLayout;
     @Nullable private MaterialButton btnSongPicker;
     @Nullable private MaterialButton btnSongPickerClose;
     @Nullable private EditText searchField;
+    @Nullable private EditText chatInput;
+    @Nullable private MaterialButton btnSend;
     @Nullable private RecyclerView pickerRecycler;
     @Nullable private TextView pickerTitle;
+    @Nullable private View noPartyOverlay;
+    @Nullable private View dockCard;
+
+    @Nullable private TextView headerTitle;
+    @Nullable private TextView headerSubtitle;
+    @Nullable private TextView headerLive;
+    @Nullable private TextView headerGuestCount;
 
     private PartySongPickerAdapter pickerAdapter;
-
-    /** Host-side ordered list pushed to the shared Queue tab (UI until Firebase). */
     private final List<Song> partyTracks = new ArrayList<>();
 
     private boolean pickerOpen;
     private boolean hostMode = true;
-    @Nullable private View noPartyOverlay;
+    private boolean inParty;
 
-    /** Required by {@link com.giga.tech1000.heartbeatz.ui.adapters.StateFragmentAdapter}. */
+    @Nullable private PartySession partySession;
+
     public FragmentBottomSheetPartyChat() {}
 
     public FragmentBottomSheetPartyChat(@NonNull BottomSheetView parent) {
@@ -88,13 +92,133 @@ public class FragmentBottomSheetPartyChat extends Fragment {
         pickerRecycler = view.findViewById(R.id.party_song_picker_recycler);
         pickerTitle = view.findViewById(R.id.party_song_picker_title);
         noPartyOverlay = view.findViewById(R.id.party_chat_no_party);
+        dockCard = view.findViewById(R.id.chat_dock_composer_card);
+        chatInput = view.findViewById(R.id.chat_input_text_field);
+        btnSend = view.findViewById(R.id.btn_send_chat);
+
+        headerTitle = view.findViewById(R.id.chat_header_title);
+        headerSubtitle = view.findViewById(R.id.chat_header_subtitle);
+        headerLive = view.findViewById(R.id.chat_header_live);
+        headerGuestCount = view.findViewById(R.id.chat_header_guest_count);
 
         setupSongPicker();
-        updateNoPartyOverlay();
-
-        resolveHostMode();
-        applyHostGuestChrome();
         loadLibraryIntoPicker();
+        observePartySession();
+        refreshPartyUi(null, null);
+    }
+
+    private void observePartySession() {
+        try {
+            partySession = HeartBeatzApp.container(requireContext()).partySession();
+        } catch (Exception e) {
+            partySession = null;
+            return;
+        }
+
+        PartySession session = partySession;
+        // Host creates party
+        session.getHostedParty().observe(getViewLifecycleOwner(), host -> refreshPartyUi(host, null));
+        // Guest joins
+        session.getConnectedHost().observe(getViewLifecycleOwner(), host -> refreshPartyUi(null, host));
+        session.isGuestAuthenticated().observe(getViewLifecycleOwner(), auth -> {
+            if (Boolean.TRUE.equals(auth)) {
+                refreshPartyUi(null, session.getConnectedHost().getValue());
+            } else if (!session.isHosting()) {
+                refreshPartyUi(null, null);
+            }
+        });
+        session.getGuestCount().observe(getViewLifecycleOwner(), count -> {
+            if (headerGuestCount != null && count != null) {
+                headerGuestCount.setText(String.valueOf(count));
+            }
+        });
+        session.getConnectedGuests().observe(getViewLifecycleOwner(), guests -> {
+            if (headerGuestCount != null && guests != null) {
+                headerGuestCount.setText(String.valueOf(guests.size()));
+            }
+        });
+    }
+
+    /**
+     * Recompute in-party / host mode and update chrome.
+     * @param hosted preferred host party snapshot (may be null)
+     * @param connected preferred guest host snapshot (may be null)
+     */
+    private void refreshPartyUi(@Nullable PartyHost hosted, @Nullable PartyHost connected) {
+        PartySession session = partySession;
+        boolean hosting = session != null && session.isHosting();
+        boolean guestAuthed = session != null
+                && Boolean.TRUE.equals(session.isGuestAuthenticated().getValue());
+
+        // Chat is live only when hosting or fully joined as guest
+        inParty = hosting || guestAuthed;
+        hostMode = hosting;
+
+        PartyHost active = null;
+        if (hosting) {
+            active = hosted != null ? hosted
+                    : (session != null ? session.getHostedParty().getValue() : null);
+        } else if (guestAuthed) {
+            active = connected != null ? connected
+                    : (session != null ? session.getConnectedHost().getValue() : null);
+        }
+
+        applyPartyChrome(active);
+    }
+
+    private void applyPartyChrome(@Nullable PartyHost party) {
+        if (noPartyOverlay != null) {
+            noPartyOverlay.setVisibility(inParty ? View.GONE : View.VISIBLE);
+        }
+
+        boolean enableDock = inParty;
+        if (dockCard != null) {
+            dockCard.setAlpha(enableDock ? 1f : 0.45f);
+            dockCard.setEnabled(enableDock);
+        }
+        if (btnSongPicker != null) btnSongPicker.setEnabled(enableDock);
+        if (chatInput != null) {
+            chatInput.setEnabled(enableDock);
+            chatInput.setFocusable(enableDock);
+            chatInput.setFocusableInTouchMode(enableDock);
+        }
+        if (btnSend != null) btnSend.setEnabled(enableDock);
+
+        if (headerTitle != null) {
+            if (inParty && party != null && party.getPartyName() != null) {
+                headerTitle.setText(party.getPartyName());
+            } else if (inParty) {
+                headerTitle.setText(hostMode ? "Your party" : "Party chat");
+            } else {
+                headerTitle.setText("Party chat");
+            }
+        }
+        if (headerSubtitle != null) {
+            if (inParty && party != null && party.getPartyId() != null) {
+                String id = party.getPartyId();
+                String shortId = id.length() > 8 ? id.substring(id.length() - 8) : id;
+                headerSubtitle.setText("#" + shortId);
+            } else {
+                headerSubtitle.setText(inParty ? (hostMode ? "HOST" : "GUEST") : "—");
+            }
+        }
+        if (headerLive != null) {
+            if (!inParty) {
+                headerLive.setText("•  Offline");
+            } else {
+                headerLive.setText(hostMode ? "•  HOST · LIVE" : "•  GUEST · LIVE");
+            }
+        }
+        if (pickerTitle != null) {
+            pickerTitle.setText(hostMode ? "Add to party" : "Request a track");
+        }
+
+        if (!inParty && pickerOpen) {
+            collapseSongPicker();
+        }
+        if (!inParty) {
+            partyTracks.clear();
+        }
     }
 
     private void setupSongPicker() {
@@ -106,7 +230,10 @@ public class FragmentBottomSheetPartyChat extends Fragment {
         pickerAdapter.setListener(this::onSongPicked);
 
         if (btnSongPicker != null) {
-            btnSongPicker.setOnClickListener(v -> toggleSongPicker());
+            btnSongPicker.setOnClickListener(v -> {
+                if (!inParty) return;
+                toggleSongPicker();
+            });
         }
         if (btnSongPickerClose != null) {
             btnSongPickerClose.setOnClickListener(v -> collapseSongPicker());
@@ -128,74 +255,25 @@ public class FragmentBottomSheetPartyChat extends Fragment {
         }
     }
 
-    private void updateNoPartyOverlay() {
-        boolean inParty = false;
-        try {
-            PartySession session = HeartBeatzApp.container(requireContext()).partySession();
-            inParty = session.isInParty();
-        } catch (Exception ignored) { }
-        if (noPartyOverlay != null) {
-            noPartyOverlay.setVisibility(inParty ? View.GONE : View.VISIBLE);
-        }
-        // Disable dock while not in party
-        if (btnSongPicker != null) btnSongPicker.setEnabled(inParty);
-        View dock = getView() != null ? getView().findViewById(R.id.chat_dock_composer_card) : null;
-        if (dock != null) dock.setAlpha(inParty ? 1f : 0.4f);
-        if (dock != null) dock.setEnabled(inParty);
-    }
-
-    private void resolveHostMode() {
-        try {
-            AppContainer c = HeartBeatzApp.container(requireContext());
-            PartySession session = c.partySession();
-            if (session.isGuest()) {
-                hostMode = false;
-            } else if (session.isHosting()) {
-                hostMode = true;
-            } else {
-                // Not in party — preview as host chrome
-                hostMode = true;
-            }
-        } catch (Exception ignored) {
-            hostMode = true;
-        }
-    }
-
-    private void applyHostGuestChrome() {
-        if (pickerTitle != null) {
-            pickerTitle.setText(hostMode ? "Add to party" : "Request a track");
-        }
-    }
-
     private void loadLibraryIntoPicker() {
         try {
             SongRepository.getInstance().getSongs().observe(getViewLifecycleOwner(), tree -> {
                 List<Song> songs = new ArrayList<>();
-                if (tree != null) {
-                    songs.addAll(tree.values());
-                }
-                if (pickerAdapter != null) {
-                    pickerAdapter.submit(songs);
-                }
+                if (tree != null) songs.addAll(tree.values());
+                if (pickerAdapter != null) pickerAdapter.submit(songs);
             });
         } catch (Exception e) {
-            if (pickerAdapter != null) {
-                pickerAdapter.submit(new ArrayList<>());
-            }
+            if (pickerAdapter != null) pickerAdapter.submit(new ArrayList<>());
         }
     }
 
     private void toggleSongPicker() {
-        if (pickerOpen) {
-            collapseSongPicker();
-        } else {
-            expandSongPicker();
-        }
+        if (pickerOpen) collapseSongPicker();
+        else expandSongPicker();
     }
 
-    /** Expands picker inside the dock card, above the composer row. */
     public void expandSongPicker() {
-        if (songPickerLayout == null || pickerOpen) return;
+        if (songPickerLayout == null || pickerOpen || !inParty) return;
         pickerOpen = true;
         songPickerLayout.setVisibility(View.VISIBLE);
         songPickerLayout.setAlpha(0f);
@@ -207,9 +285,7 @@ public class FragmentBottomSheetPartyChat extends Fragment {
                 .setInterpolator(new DecelerateInterpolator())
                 .setListener(null)
                 .start();
-        if (btnSongPicker != null) {
-            btnSongPicker.setSelected(true);
-        }
+        if (btnSongPicker != null) btnSongPicker.setSelected(true);
     }
 
     public void collapseSongPicker() {
@@ -230,50 +306,48 @@ public class FragmentBottomSheetPartyChat extends Fragment {
                     }
                 })
                 .start();
-        if (btnSongPicker != null) {
-            btnSongPicker.setSelected(false);
-        }
-        if (searchField != null) {
-            searchField.setText("");
-        }
+        if (btnSongPicker != null) btnSongPicker.setSelected(false);
+        if (searchField != null) searchField.setText("");
     }
 
     private void onSongPicked(@NonNull Song song) {
+        if (!inParty) return;
         collapseSongPicker();
         if (hostMode) {
-            // Host: append to party track list → shared Queue tab
             partyTracks.add(song);
             if (parentSheetView != null) {
                 parentSheetView.submitPartyQueue(new ArrayList<>(partyTracks), partyTracks.size() - 1);
             }
-            // Backend later: upload + Firebase queue/sync
         }
-        // Guest: song request via chat backend later
+        // Guest request → chat backend later
     }
 
-    /** Call when party role changes (host/guest). */
     public void setHostMode(boolean host) {
         this.hostMode = host;
-        applyHostGuestChrome();
+        applyPartyChrome(null);
     }
 
     public boolean isSongPickerOpen() {
         return pickerOpen;
     }
 
+    public void clearPartyTracks() {
+        partyTracks.clear();
+        if (parentSheetView != null) parentSheetView.clearPartyQueueMode();
+    }
+
     @Override
     public void onResume() {
         super.onResume();
-        updateNoPartyOverlay();
-        resolveHostMode();
-        applyHostGuestChrome();
-    }
-
-    /** Clear local party track buffer when leaving party. */
-    public void clearPartyTracks() {
-        partyTracks.clear();
-        if (parentSheetView != null) {
-            parentSheetView.clearPartyQueueMode();
+        if (partySession != null) {
+            refreshPartyUi(partySession.getHostedParty().getValue(),
+                    partySession.getConnectedHost().getValue());
+        } else {
+            observePartySession();
+            if (partySession != null) {
+                refreshPartyUi(partySession.getHostedParty().getValue(),
+                        partySession.getConnectedHost().getValue());
+            }
         }
     }
 }
