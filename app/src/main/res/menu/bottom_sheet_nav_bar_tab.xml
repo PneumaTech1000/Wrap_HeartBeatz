@@ -10,7 +10,7 @@
         android:title="Queue" />
 
     <item android:id="@+id/tab_party"
-        android:icon="@drawable/album_24px"
+        android:icon="@drawable/celebration_24px"
         android:title="Party" />
 
 
