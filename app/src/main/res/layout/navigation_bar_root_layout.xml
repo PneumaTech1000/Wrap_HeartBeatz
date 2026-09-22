@@ -17,8 +17,8 @@
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/root_navigation_bar"
         android:layout_width="match_parent"
-        android:layout_height="@dimen/navigation_bar_height"
-        android:background="@android:color/transparent"
+        android:layout_height="wrap_content"
+        android:background="?attr/colorSurface"
         app:menu="@menu/bottom_nav_menu"
         app:labelVisibilityMode="labeled"
         app:itemIconTint="@drawable/bottom_nav_item_color"

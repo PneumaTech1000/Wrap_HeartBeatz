@@ -7,6 +7,7 @@ import android.graphics.drawable.Icon;
 import android.net.Uri;
 import android.os.SystemClock;
 
+import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.media3.common.Player;
 
 import android.view.View;
@@ -47,7 +48,7 @@ public class MediaPlayerBarView {
 
     private final LinearLayout backgroundView;
     private final LinearProgressIndicator progressIndicator;
-    private final LinearLayout constraintLayout;
+    private final ConstraintLayout constraintLayout;
 
     private final GradientImageView albumImageView;
     private final TextView titleText;
@@ -117,24 +118,25 @@ public class MediaPlayerBarView {
      */
     public void onSliding(float slidingOffset, int state) {
         float fadeStart = 0.25F;
-        float alpha;
-        if (state == STATE_PARTIAL) {
-            alpha = MathUtils.clamp(slidingOffset / fadeStart, 0F, 1F);
-            // PARTIAL from lyrics sheet — keep mini responsive
-            this.rootView.setAlpha(1F - alpha);
+        float alpha = (slidingOffset / fadeStart);
+        alpha = MathUtils.clamp(alpha, 0.0F, 1.0F);
+
+        if (state == STATE_NORMAL) {
+            float barAlpha = 1F - alpha;
+            this.rootView.setAlpha(barAlpha);
+            this.rootView.setVisibility(barAlpha > 0 ? View.VISIBLE : View.GONE);
+
+            this.backgroundView.setAlpha(barAlpha);
+            this.progressIndicator.setAlpha(1F);
+            this.constraintLayout.setAlpha(1F);
         } else {
-            // NORMAL: panel expand offset 0=collapsed 1=expanded
-            if (slidingOffset <= fadeStart) {
-                this.rootView.setAlpha(1F);
-            } else {
-                float t = (slidingOffset - fadeStart) / (1F - fadeStart);
-                this.rootView.setAlpha(1F - MathUtils.clamp(t, 0F, 1F));
-            }
+            this.rootView.setAlpha(alpha);
+            this.rootView.setVisibility(alpha > 0 ? View.VISIBLE : View.GONE);
+
+            this.backgroundView.setAlpha(alpha);
+            this.progressIndicator.setAlpha(alpha);
+            this.constraintLayout.setAlpha(alpha);
         }
-        float a = this.rootView.getAlpha();
-        this.rootView.setVisibility(a > 0.02F ? View.VISIBLE : View.GONE);
-        if (backgroundView != null) backgroundView.setAlpha(a);
-        if (constraintLayout != null) constraintLayout.setAlpha(1F);
     }
 
     public void showAsMini() {

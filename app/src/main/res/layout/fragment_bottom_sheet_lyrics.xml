@@ -6,6 +6,22 @@
     android:layout_height="match_parent"
     android:background="?attr/colorSurface">
 
+    <TextView
+        android:id="@+id/lyrics_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Song title"
+        android:textColor="?attr/colorOnSurface"
+        android:textStyle="bold"
+        android:textSize="20sp"
+        android:paddingVertical="12dp"
+        android:paddingHorizontal="8dp"
+        android:maxLines="1"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/lyrics_recycler_view"/>
+
     <com.google.android.material.progressindicator.CircularProgressIndicator
         android:id="@+id/lyrics_loading_indicator"
         android:layout_width="wrap_content"
@@ -15,7 +31,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@+id/lyrics_title"/>
 
     <TextView
         android:id="@+id/lyrics_error_text"
@@ -30,12 +46,12 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@+id/lyrics_title"/>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/lyrics_recycler_view"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
         android:clipToPadding="false"
         android:paddingTop="30dp"
         android:paddingBottom="100dp"
@@ -44,7 +60,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/lyrics_title"
         tools:listitem="@layout/item_lyric_line" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

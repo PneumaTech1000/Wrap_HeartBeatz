@@ -146,7 +146,7 @@ public class MediaPlayerView {
 
     private void init() {
         //playPauseButtonView.setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN);
-        albumImageView.setPaletteColor(R.attr.kv_colorSurface);
+        albumImageView.setPaletteColor(Color.WHITE);
 
         int surfaceColor = MaterialColors.getColor(rootView.getContext(), R.attr.kv_primaryColor, Color.WHITE);
         audioVisualizer.setColor(withAlpha(surfaceColor, 0.7f));
@@ -233,19 +233,15 @@ public class MediaPlayerView {
      */
     public void onSliding(float slidingOffset, int state) {
         float fadeStart = 0.25F;
-        float alpha;
-        if (state == STATE_PARTIAL) {
-            alpha = MathUtils.clamp(slidingOffset, 0F, 1F);
+        float alpha = (slidingOffset - fadeStart) * (1F / (1F - fadeStart));
+        alpha = MathUtils.clamp(alpha, 0.0F, 1.0F);
+
+        if (state == STATE_NORMAL) {
+            this.rootView.setAlpha(alpha);
+            this.rootView.setVisibility(alpha > 0 ? View.VISIBLE : View.GONE);
+            this.constraintLayout.setAlpha(1F);
         } else {
-            if (slidingOffset <= fadeStart) {
-                alpha = 0F;
-            } else {
-                alpha = MathUtils.clamp((slidingOffset - fadeStart) / (1F - fadeStart), 0F, 1F);
-            }
-        }
-        if (rootView != null) {
-            rootView.setAlpha(alpha);
-            rootView.setVisibility(alpha > 0.02F ? View.VISIBLE : View.INVISIBLE);
+            this.constraintLayout.setAlpha(1F - alpha);
         }
     }
 

@@ -50,6 +50,7 @@ public class FragmentBottomSheetLyrics extends Fragment {
     private LyricsAdapter adapter;
     private CircularProgressIndicator loadingIndicator;
     private TextView errorText;
+    private TextView songLyricsTitle;
 
     private final OkHttpClient client = new OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
@@ -84,6 +85,7 @@ public class FragmentBottomSheetLyrics extends Fragment {
         recyclerView = view.findViewById(R.id.lyrics_recycler_view);
         loadingIndicator = view.findViewById(R.id.lyrics_loading_indicator);
         errorText = view.findViewById(R.id.lyrics_error_text);
+        songLyricsTitle = view.findViewById(R.id.lyrics_title);
 
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         adapter = new LyricsAdapter();
@@ -116,6 +118,8 @@ public class FragmentBottomSheetLyrics extends Fragment {
         Log.d("LyricsFragment", "handleSongChange: song=" + song.title + ", id=" + songId + ", last=" + lastFetchedSongId);
         if (songId.equals(lastFetchedSongId)) return;
 
+        // Set song title as header
+        songLyricsTitle.setText((song.displayName == null) ? song.title : song.displayName);
         lastFetchedSongId = songId;
         fetchLyrics(song);
     }
@@ -153,21 +157,21 @@ public class FragmentBottomSheetLyrics extends Fragment {
                 if (response.isSuccessful()) {
                     String json = response.body().string();
                     Log.v("LyricsFragment", "fetchLyrics: JSON=" + json);
-                    
+
                     // Search returns an array
                     LrcLibResponse[] results = gson.fromJson(json, LrcLibResponse[].class);
-                    
+
                     if (results != null && results.length > 0) {
                         // Pick the best match based on duration proximity
                         LrcLibResponse bestMatch = results[0];
                         long targetDurationSec = song.duration / 1000;
-                        
+
                         for (LrcLibResponse res : results) {
                             if (Math.abs(res.duration - targetDurationSec) < Math.abs(bestMatch.duration - targetDurationSec)) {
                                 bestMatch = res;
                             }
                         }
-                        
+
                         LrcLibResponse finalBestMatch = bestMatch;
                         mainHandler.post(() -> processLyrics(finalBestMatch));
                     } else {
@@ -337,6 +341,7 @@ public class FragmentBottomSheetLyrics extends Fragment {
 
             if (position == currentIndex) {
                 holder.text.setAlpha(1.0f);
+                holder.text.setTextColor(androidx.appcompat.R.attr.colorPrimary);
                 holder.text.animate().scaleX(1.1f).scaleY(1.1f).setDuration(200).start();
             } else {
                 holder.text.setAlpha(0.4f);

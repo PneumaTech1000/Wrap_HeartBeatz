@@ -14,7 +14,7 @@ import androidx.appcompat.widget.AppCompatImageView;
 public class GradientImageView extends AppCompatImageView {
 
     private final Paint overlayPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private int paletteColor = 0x00000000;
+    private int paletteColor = 0x00ffffff;
     private boolean hasColor = false;
 
     public GradientImageView(Context context) {
@@ -61,7 +61,7 @@ public class GradientImageView extends AppCompatImageView {
         // bottom solid area height: 7%  -> solid region
         // fade starts at 20% from bottom (transparent) and ends at 7% from bottom (opaque)
         final float solidPct = 0.07f;   // 7%
-        final float topFadePct = 0.2f; // 20%
+        final float topFadePct = 0.3f; // 30%
 
         float ySolidStart = h * (1f - solidPct);   // e.g., 0.93*h
         float yFadeStart  = h * (1f - topFadePct); // e.g., 0.80*h
