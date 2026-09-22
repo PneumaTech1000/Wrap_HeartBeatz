@@ -158,8 +158,8 @@ So: the **result you want is achievable without MultiSlidingUpPanel owning navig
 
 ## 7. Party media migration — cloud URL + DB sync (last)
 
-**Status:** `OPEN`  
-**Priority:** **Do last** — after §1–6 foundations are stable.
+**Status:** `IN PROGRESS` — abstraction + Supabase/R2/NoOp stores, sync repo, AppContainer wiring (see `CLOUD_MEDIA.md`). Host play→upload UI and guest Media3 apply still to wire.  
+**Priority:** foundations §1–6 done; complete host/guest Media3 path next.
 
 ### Decision (replaces old “TURN/SFU” and “dual transport” items)
 
@@ -234,3 +234,4 @@ Design storage behind a single abstraction so swapping Supabase → R2 is config
 | 2026-09-20 | Removed old §2 dual-transport and §3 TURN/SFU; replaced with **§7 cloud URL + DB sync** (last). Renumbered §2–6. |
 | 2026-09-20 | §3 UI: PlayerChromeController, UIInfoLog DEBUG-only, Material bottom nav polish |
 | | Prior fixes already in tree: shared playback path, drawer in Activity, tab show/hide, presence rules in `firebase.rules`, various NPEs |
+| 2026-09-22 | §7 scaffold: PartyMediaStore (Supabase/R2/NoOp), PartyPlaybackSyncRepository, CLOUD_MEDIA.md |
