@@ -231,7 +231,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginStart="12dp"
                         android:layout_marginTop="2dp"
-                        android:text="M83 • 14 synced"
+                        android:text="M83 • 14 songs synced"
                         android:textAppearance="@style/TextAppearance.Material3.BodySmall"
                         android:textColor="?attr/colorOnSurfaceVariant"
                         app:layout_constraintEnd_toStartOf="@id/btn_vote_next"
@@ -384,6 +384,7 @@
             android:paddingHorizontal="6dp">
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/party_chat_song_picker"
                 style="@style/Widget.Material3.Button.IconButton"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
