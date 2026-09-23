@@ -11,6 +11,7 @@ import com.giga.tech1000.heartbeatz.architecture.media.PartyMediaStore;
 import com.giga.tech1000.heartbeatz.architecture.media.PartyMediaStoreProvider;
 import com.giga.tech1000.heartbeatz.architecture.media.PartyTrackUploader;
 import com.giga.tech1000.heartbeatz.architecture.party.PartyPlaybackSyncRepository;
+import com.giga.tech1000.heartbeatz.architecture.party.PartyLiveBridge;
 import com.giga.tech1000.heartbeatz.architecture.session.FirebasePartySession;
 import com.giga.tech1000.heartbeatz.architecture.session.PartySession;
 import com.giga.tech1000.heartbeatz.observers.LibraryObservers;
@@ -33,6 +34,7 @@ public final class AppContainer {
     private final PartyMediaStore partyMediaStore;
     private final PartyTrackUploader partyTrackUploader;
     private final PartyPlaybackSyncRepository partyPlaybackSyncRepository;
+    private final PartyLiveBridge partyLiveBridge;
 
     @Nullable private UIThread uiThread;
     @Nullable private PlaybackStateRepository playbackStateRepository;
@@ -49,6 +51,7 @@ public final class AppContainer {
         this.partyMediaStore = PartyMediaStoreProvider.create(partyMediaConfig);
         this.partyTrackUploader = new PartyTrackUploader(partyMediaStore);
         this.partyPlaybackSyncRepository = new PartyPlaybackSyncRepository();
+        this.partyLiveBridge = new PartyLiveBridge(partyTrackUploader, partyPlaybackSyncRepository);
     }
 
     @NonNull
@@ -81,6 +84,11 @@ public final class AppContainer {
     @NonNull
     public PartyPlaybackSyncRepository partyPlaybackSync() {
         return partyPlaybackSyncRepository;
+    }
+
+    @NonNull
+    public PartyLiveBridge partyLiveBridge() {
+        return partyLiveBridge;
     }
 
     /**

@@ -374,6 +374,26 @@ public class RootMediaPlayerPanel extends BasePanelView implements OnBackPressed
 
 
 
+    /** Dim full/mini player when current user is a party guest. */
+    public void bindPartyGuestChrome(@NonNull androidx.lifecycle.LifecycleOwner owner) {
+        try {
+            com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp.container(getContext())
+                    .partyLiveBridge()
+                    .isGuestPlayerLocked()
+                    .observe(owner, locked -> {
+                        boolean on = Boolean.TRUE.equals(locked);
+                        if (mediaPlayerView != null) {
+                            mediaPlayerView.setPartyGuestLocked(on);
+                        }
+                        if (mediaPlayerBarView != null) {
+                            mediaPlayerBarView.setAlpha(on ? 0.72f : 1f);
+                        }
+                    });
+        } catch (Exception e) {
+            android.util.Log.w("RootMediaPlayer", "party guest chrome skipped", e);
+        }
+    }
+
     @Override
     public boolean onBackPressed() {
         if (Boolean.TRUE.equals(bottomSheetView.isViewVisibility().getValue())) {

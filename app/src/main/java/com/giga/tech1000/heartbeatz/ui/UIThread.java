@@ -139,6 +139,11 @@ public class UIThread implements IPlaybackCallback {
         silentObserver();
 
         uiReady = true;
+        try {
+            if (getMediaPlayerPanel() != null && activity != null) {
+                getMediaPlayerPanel().bindPartyGuestChrome(activity);
+            }
+        } catch (Exception ignored) { }
     }
 
     public boolean isPlayerBarVisible() {
