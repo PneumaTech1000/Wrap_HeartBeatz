@@ -27,6 +27,11 @@ public final class PartyLiveBridge {
 
     private static final String TAG = "PartyLiveBridge";
     private static final long HEARTBEAT_MS = 2000L;
+    /** Guests schedule against this horizon (matches packet lookahead). */
+    private static final long LOOKAHEAD_MS = PartyPlaybackSync.DEFAULT_LOOKAHEAD_MS;
+
+    private final PartySyncTimeline guestTimeline = new PartySyncTimeline();
+    private final MutableLiveData<Long> idealPositionLive = new MutableLiveData<>(0L);
 
     private final PartyTrackUploader uploader;
     private final PartyPlaybackSyncRepository syncRepo;
@@ -69,6 +74,17 @@ public final class PartyLiveBridge {
     @NonNull
     public LiveData<PartyPlaybackSync> getLatestSync() {
         return latestSync;
+    }
+
+    /** Guest: ideal track position from server timeline (updated on each sync packet). */
+    @NonNull
+    public LiveData<Long> getIdealPositionMs() {
+        return idealPositionLive;
+    }
+
+    @NonNull
+    public PartySyncTimeline getGuestTimeline() {
+        return guestTimeline;
     }
 
     /** Guests should show blurred / non-seekable player chrome. */
@@ -124,6 +140,8 @@ public final class PartyLiveBridge {
         lastUploadedTrackId = null;
         guestLockedUi.postValue(false);
         latestSync.postValue(null);
+        idealPositionLive.postValue(0L);
+        guestTimeline.reset();
     }
 
     private void bindHostObservers() {
@@ -194,10 +212,11 @@ public final class PartyLiveBridge {
         }
         if (file == null || !file.exists()) {
             // Still publish metadata without URL so guests see title
-            PartyPlaybackSync meta = PartyPlaybackSync.of(
-                    null, null, trackId, lastTitle, lastArtist,
-                    playback != null ? playback.getCurrentPositionSync() : 0,
-                    playback != null && playback.isPlayingSync());
+            long pos = playback != null ? playback.getCurrentPositionSync() : 0;
+            long dur = playback != null ? playback.getCurrentDurationSync() : 0;
+            boolean playing = playback != null && playback.isPlayingSync();
+            PartyPlaybackSync meta = PartyPlaybackSync.schedule(
+                    null, null, trackId, lastTitle, lastArtist, pos, dur, playing);
             latestSync.postValue(meta);
             syncRepo.publishHostSync(activePartyId, meta);
             Log.w(TAG, "No file to upload for track " + trackId);
@@ -216,22 +235,40 @@ public final class PartyLiveBridge {
     private void publishFullSync(boolean isPlaying) {
         if (!hosting || activePartyId == null || playback == null) return;
         long pos = playback.getCurrentPositionSync();
-        PartyPlaybackSync sync = PartyPlaybackSync.of(
+        long dur = 0;
+        try {
+            dur = playback.getCurrentDurationSync();
+        } catch (Exception ignored) { }
+        // positionMs = now; targetPositionMs = position 5s ahead (if playing)
+        PartyPlaybackSync sync = PartyPlaybackSync.schedule(
                 lastObjectKey,
                 lastMediaUrl,
                 lastUploadedTrackId,
                 lastTitle,
                 lastArtist,
                 pos,
+                dur,
                 isPlaying);
         latestSync.postValue(sync);
+        // updatedAt filled by repo with ServerValue.TIMESTAMP (not phone clock)
         syncRepo.publishHostSync(activePartyId, sync);
+        Log.d(TAG, "sync published pos=" + pos + " targetPos=" + sync.targetPositionMs
+                + " lookahead=" + sync.lookaheadMs + " playing=" + isPlaying);
     }
 
     private void onGuestSync(@Nullable PartyPlaybackSync sync) {
         if (hosting) return;
+        if (sync != null) {
+            if (sync.receivedAtDeviceMs <= 0) {
+                sync.receivedAtDeviceMs = System.currentTimeMillis();
+            }
+            guestTimeline.onPacketReceived(sync);
+            long ideal = guestTimeline.idealPositionMs(sync);
+            idealPositionLive.postValue(ideal);
+            Log.d(TAG, "guest sync idealPos=" + ideal
+                    + " targetPos=" + sync.targetPositionMs
+                    + " serverWrite=" + sync.serverWriteTimeMs());
+        }
         latestSync.postValue(sync);
-        // Media3 apply is optional here — PlaybackStateRepository may not yet support remote URL.
-        // UI (chat, player metadata, blur) reacts via latestSync + guestLockedUi.
     }
 }
