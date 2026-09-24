@@ -318,6 +318,7 @@ public class PlaybackStateManager implements PlaybackStateRepository {
             @Nullable String mediaId,
             @Nullable String title,
             @Nullable String artist,
+            @Nullable String album,
             long positionMs,
             boolean playWhenReady) {
         try {
@@ -326,17 +327,18 @@ public class PlaybackStateManager implements PlaybackStateRepository {
             if (c == null) {
                 Log.w(TAG, "playPartyStream: MediaController null — retry in 400ms");
                 new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() ->
-                        playPartyStream(mediaUrl, mediaId, title, artist, positionMs, playWhenReady), 400);
+                        playPartyStream(mediaUrl, mediaId, title, artist, album, positionMs, playWhenReady), 400);
                 return;
             }
-            // Skip known non-playable stub URLs from NoOp store
             if (mediaUrl.contains("example.invalid")) {
-                Log.w(TAG, "playPartyStream: stub URL (configure Supabase/R2 for real audio): " + mediaUrl);
+                Log.w(TAG, "playPartyStream: stub URL: " + mediaUrl);
+                updatePartyMetadata(title, artist, album, 0);
                 return;
             }
             MediaMetadata.Builder meta = new MediaMetadata.Builder();
             if (title != null) meta.setTitle(title);
             if (artist != null) meta.setArtist(artist);
+            if (album != null) meta.setAlbumTitle(album);
             MediaItem item = new MediaItem.Builder()
                     .setUri(Uri.parse(mediaUrl))
                     .setMediaId(mediaId != null ? mediaId : "party-stream")
@@ -347,10 +349,79 @@ public class PlaybackStateManager implements PlaybackStateRepository {
             if (positionMs > 0) c.seekTo(positionMs);
             if (playWhenReady) c.play();
             else c.pause();
+
+            // Force UI metadata (mini + full) via LiveData + UIThread panels
+            Song synthetic = buildPartySong(mediaId, title, artist, album, mediaUrl, 0);
+            currentSong.postValue(synthetic);
+            isPlaying.postValue(playWhenReady);
+            if (positionMs > 0) currentPosition.postValue(positionMs);
+            notifyUiSongChanged(synthetic);
+
             Log.d(TAG, "playPartyStream url=" + mediaUrl + " pos=" + positionMs + " play=" + playWhenReady);
         } catch (Exception e) {
             Log.e(TAG, "playPartyStream failed", e);
         }
+    }
+
+    @Override
+    public void updatePartyMetadata(
+            @Nullable String title,
+            @Nullable String artist,
+            @Nullable String album,
+            long durationMs) {
+        Song synthetic = buildPartySong("party-meta", title, artist, album, null, durationMs);
+        currentSong.postValue(synthetic);
+        if (durationMs > 0) currentDuration.postValue(durationMs);
+        notifyUiSongChanged(synthetic);
+    }
+
+        private void notifyUiSongChanged(@NonNull Song song) {
+        try {
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                try {
+                    if (playerThread != null && playerThread.getActivity() != null) {
+                        HeartBeatzApp.container(playerThread.getActivity())
+                                .requireUiThread()
+                                .onSongChanged(song);
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "notifyUiSongChanged: " + e.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            Log.w(TAG, "notifyUiSongChanged failed", e);
+        }
+    }
+
+    @NonNull
+    private Song buildPartySong(
+            @Nullable String mediaId,
+            @Nullable String title,
+            @Nullable String artist,
+            @Nullable String album,
+            @Nullable String mediaUrl,
+            long durationMs) {
+        Song s = new Song();
+        try {
+            if (mediaId != null) {
+                try { s.setId(Long.parseLong(mediaId.replaceAll("[^0-9]", "").isEmpty()
+                        ? "0" : mediaId.replaceAll("[^0-9]", ""))); } catch (Exception ignored) {
+                    s.setId(mediaId.hashCode() & 0x7fffffff);
+                }
+            }
+        } catch (Exception ignored) { }
+        s.setTitle(title != null ? title : "");
+        s.setArtist(artist != null ? artist : "");
+        s.setAlbum(album != null && !album.isEmpty() ? album : null);
+        s.setDuration(durationMs);
+        if (mediaUrl != null && !mediaUrl.isEmpty()) {
+            try {
+                s.setUri(Uri.parse(mediaUrl));
+                s.setData(mediaUrl);
+            } catch (Exception ignored) { }
+        }
+        // albumArt left null → UI uses default album_launcher
+        return s;
     }
 
     public void seekTo(long positionMs) {

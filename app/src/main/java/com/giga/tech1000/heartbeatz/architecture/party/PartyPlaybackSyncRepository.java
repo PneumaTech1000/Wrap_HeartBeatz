@@ -75,6 +75,7 @@ public final class PartyPlaybackSyncRepository {
         map.put("trackId", sync.trackId);
         map.put("title", sync.title);
         map.put("artist", sync.artist);
+        map.put("album", sync.album);
         map.put("positionMs", sync.positionMs);
         map.put("targetPositionMs", sync.targetPositionMs);
         map.put("lookaheadMs", sync.lookaheadMs > 0

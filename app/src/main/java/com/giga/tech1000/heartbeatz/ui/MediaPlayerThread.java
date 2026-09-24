@@ -15,10 +15,16 @@ public class MediaPlayerThread {
 
     private final CorePlayer corePlayer;
     private final IPlayerCallback callback;
+    private final MainActivity activity;
 
     public MediaPlayerThread(MainActivity activity, IPlaybackCallback uiCallback) {
+        this.activity = activity;
         this.corePlayer = new CorePlayer(activity, uiCallback);
         this.callback = this.corePlayer.getCallback();
+    }
+
+    public MainActivity getActivity() {
+        return activity;
     }
 
     public CorePlayer getCorePlayer() { return corePlayer; }

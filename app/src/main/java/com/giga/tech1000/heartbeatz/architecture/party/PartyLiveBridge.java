@@ -52,6 +52,7 @@ public final class PartyLiveBridge {
     @Nullable private String lastObjectKey;
     @Nullable private String lastTitle;
     @Nullable private String lastArtist;
+    @Nullable private String lastAlbum;
 
     private final MutableLiveData<PartyPlaybackSync> latestSync = new MutableLiveData<>(null);
     private final MutableLiveData<Boolean> guestLockedUi = new MutableLiveData<>(false);
@@ -110,6 +111,7 @@ public final class PartyLiveBridge {
         this.hosting = true;
         this.playback = playbackRepo;
         guestLockedUi.postValue(false);
+        PartyServerClock.get().start();
         syncRepo.stopObserving();
         bindHostObservers();
         // Process current song immediately
@@ -129,6 +131,7 @@ public final class PartyLiveBridge {
         this.activePartyId = partyId;
         this.hosting = false;
         guestLockedUi.postValue(true);
+        PartyServerClock.get().start();
         lastAppliedMediaUrl = null;
         lastSeekAtDeviceMs = 0;
         syncRepo.observeParty(partyId);
@@ -201,6 +204,7 @@ public final class PartyLiveBridge {
         String trackId = String.valueOf(song.getId());
         lastTitle = song.getTitle();
         lastArtist = song.getArtist();
+        try { lastAlbum = song.getAlbum(); } catch (Exception e) { lastAlbum = null; }
         if (Objects.equals(trackId, lastUploadedTrackId) && lastMediaUrl != null) {
             publishFullSync(playback != null && playback.isPlayingSync());
             return;
@@ -224,7 +228,7 @@ public final class PartyLiveBridge {
             long dur = playback != null ? playback.getCurrentDurationSync() : 0;
             boolean playing = playback != null && playback.isPlayingSync();
             PartyPlaybackSync meta = PartyPlaybackSync.schedule(
-                    null, null, trackId, lastTitle, lastArtist, pos, dur, playing);
+                    null, null, trackId, lastTitle, lastArtist, lastAlbum, pos, dur, playing);
             latestSync.postValue(meta);
             syncRepo.publishHostSync(activePartyId, meta);
             Log.w(TAG, "No file to upload for track " + trackId);
@@ -262,6 +266,7 @@ public final class PartyLiveBridge {
                 lastUploadedTrackId,
                 lastTitle,
                 lastArtist,
+                lastAlbum,
                 pos,
                 dur,
                 isPlaying);
@@ -287,46 +292,65 @@ public final class PartyLiveBridge {
     }
 
     private void applyGuestPlayback(@NonNull PartyPlaybackSync sync, long idealPos) {
-        if (playback == null) {
-            try {
-                // Lazy attach may happen after JOINED
-            } catch (Exception ignored) { }
-        }
         if (playback == null) return;
 
         String url = sync.mediaUrl;
         boolean urlChanged = url != null && !url.isEmpty()
                 && !url.equals(lastAppliedMediaUrl);
+
         if (urlChanged) {
             lastAppliedMediaUrl = url;
+            long seekTo = idealPos >= 0 ? idealPos : Math.max(0, sync.positionMs);
             playback.playPartyStream(
                     url,
                     sync.trackId,
                     sync.title,
                     sync.artist,
-                    Math.max(0, idealPos),
+                    sync.album,
+                    seekTo,
                     sync.isPlaying);
             lastSeekAtDeviceMs = System.currentTimeMillis();
+            lastAppliedPlaying = sync.isPlaying;
             return;
         }
-        // Same track: correct drift + play/pause
-        if (url != null && !url.isEmpty()) {
-            long now = System.currentTimeMillis();
-            if (now - lastSeekAtDeviceMs > 1500L && idealPos >= 0) {
-                try {
-                    long local = playback.getCurrentPositionSync();
-                    if (Math.abs(local - idealPos) > PartySyncTimeline.SEEK_THRESHOLD_MS) {
-                        playback.seekTo(idealPos);
-                        lastSeekAtDeviceMs = now;
-                    }
-                } catch (Exception ignored) { }
-            }
-            try {
-                boolean localPlaying = playback.isPlayingSync();
-                if (sync.isPlaying && !localPlaying) playback.play();
-                else if (!sync.isPlaying && localPlaying) playback.pause();
-            } catch (Exception ignored) { }
+
+        if (url == null || url.isEmpty()) {
+            // Metadata-only packet still updates UI
+            playback.updatePartyMetadata(sync.title, sync.artist, sync.album, sync.durationMs);
+            return;
         }
+
+        // isPlaying — always honor host flag
+        try {
+            boolean localPlaying = playback.isPlayingSync();
+            if (sync.isPlaying != localPlaying) {
+                if (sync.isPlaying) playback.play();
+                else playback.pause();
+                lastAppliedPlaying = sync.isPlaying;
+            }
+        } catch (Exception ignored) { }
+
+        // Keep mini/full metadata in sync with host packet
+        try {
+            playback.updatePartyMetadata(sync.title, sync.artist, sync.album, sync.durationMs);
+        } catch (Exception ignored) { }
+
+        // Position — correct to ideal (server timeline → same ms as host schedule)
+        if (idealPos < 0) return;
+        long now = System.currentTimeMillis();
+        try {
+            long local = playback.getCurrentPositionSync();
+            long drift = Math.abs(local - idealPos);
+            boolean hard = drift > PartySyncTimeline.HARD_SEEK_THRESHOLD_MS;
+            boolean soft = drift > PartySyncTimeline.SEEK_THRESHOLD_MS
+                    && (now - lastSeekAtDeviceMs) > 800L;
+            if (hard || soft) {
+                playback.seekTo(idealPos);
+                lastSeekAtDeviceMs = now;
+                Log.d(TAG, "guest seek local=" + local + " ideal=" + idealPos
+                        + " drift=" + drift + " playing=" + sync.isPlaying);
+            }
+        } catch (Exception ignored) { }
     }
 
     public void attachPlaybackForGuest(@Nullable PlaybackStateRepository repo) {

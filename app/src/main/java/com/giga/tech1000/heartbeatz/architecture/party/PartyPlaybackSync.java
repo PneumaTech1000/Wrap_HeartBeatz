@@ -27,6 +27,8 @@ public class PartyPlaybackSync {
     @Nullable public String title;
     @Nullable public String artist;
 
+    @Nullable public String album;
+
     /** Host position at the moment this packet was authored (ms into track). */
     public long positionMs;
 
@@ -66,6 +68,7 @@ public class PartyPlaybackSync {
             @Nullable String trackId,
             @Nullable String title,
             @Nullable String artist,
+            @Nullable String album,
             long positionMs,
             long durationMs,
             boolean isPlaying) {
@@ -75,6 +78,7 @@ public class PartyPlaybackSync {
         s.trackId = trackId;
         s.title = title;
         s.artist = artist;
+        s.album = album;
         s.positionMs = Math.max(0, positionMs);
         s.durationMs = Math.max(0, durationMs);
         s.isPlaying = isPlaying;
@@ -101,7 +105,7 @@ public class PartyPlaybackSync {
             @Nullable String artist,
             long positionMs,
             boolean isPlaying) {
-        return schedule(objectKey, mediaUrl, trackId, title, artist, positionMs, 0, isPlaying);
+        return schedule(objectKey, mediaUrl, trackId, title, artist, null, positionMs, 0, isPlaying);
     }
 
     /** Server write time as long, or -1 if missing. */

@@ -128,8 +128,16 @@ public interface PlaybackStateRepository {
             @Nullable String mediaId,
             @Nullable String title,
             @Nullable String artist,
+            @Nullable String album,
             long positionMs,
             boolean playWhenReady);
+
+    /** Guest: push title/artist/album into currentSong LiveData without changing media. */
+    void updatePartyMetadata(
+            @Nullable String title,
+            @Nullable String artist,
+            @Nullable String album,
+            long durationMs);
 
     
     /**
