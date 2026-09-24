@@ -963,6 +963,43 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
         }
     }
 
+    private void onGuestJoinedUi() {
+        if (progressSync != null) progressSync.setVisibility(android.view.View.GONE);
+        try {
+            com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp.container(requireContext())
+                    .partyLiveBridge()
+                    .getLatestSync()
+                    .observe(getViewLifecycleOwner(), sync -> {
+                        if (sync == null) return;
+                        if (progressSync != null) progressSync.setVisibility(android.view.View.GONE);
+                        if (tvPartySongTitle != null && sync.title != null) {
+                            tvPartySongTitle.setText(sync.title);
+                        }
+                        if (tvPartyArtist != null) {
+                            tvPartyArtist.setText(sync.artist != null ? sync.artist : "");
+                        }
+                        if (sync.mediaUrl != null && !sync.mediaUrl.isEmpty()) {
+                            expandFullPlayerForParty();
+                        }
+                    });
+        } catch (Exception e) {
+            android.util.Log.w("FragmentParty", "guest sync UI observe failed", e);
+        }
+    }
+
+    private void expandFullPlayerForParty() {
+        try {
+            var panel = com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp.container(requireContext())
+                    .requireUiThread()
+                    .getMediaPlayerPanel();
+            if (panel != null) {
+                panel.expandPlayer();
+            }
+        } catch (Exception e) {
+            android.util.Log.w("FragmentParty", "expand player skipped", e);
+        }
+    }
+
     @Override
     public void onDestroyView() {
         super.onDestroyView();
