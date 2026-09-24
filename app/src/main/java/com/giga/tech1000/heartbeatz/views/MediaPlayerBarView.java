@@ -222,4 +222,12 @@ public class MediaPlayerBarView {
         int alpha = Math.round(255 * alphaPercent);
         return (color & 0x00FFFFFF) | (alpha << 24);
     }
+
+    /** Party guest: dim mini player bar. */
+    public void setPartyGuestLocked(boolean locked) {
+        if (rootView == null) return;
+        rootView.setAlpha(locked ? 0.72f : 1f);
+        rootView.setEnabled(!locked);
+    }
+
 }
