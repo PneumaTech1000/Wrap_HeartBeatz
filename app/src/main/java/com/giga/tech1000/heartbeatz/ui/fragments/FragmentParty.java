@@ -70,6 +70,9 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
 
     private PartyViewModel viewModel;
     private PartyState currentState = PartyState.IDLE;
+    /** Prevent QR tab from re-selecting on every LiveData emission (causes tab bounce / heat). */
+    private boolean hostQrAutoOpened;
+
 
     private ConstraintLayout partyRoot;
 
@@ -289,10 +292,16 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
 
     private void observeViewModel() {
         viewModel.getPartyState().observe(getViewLifecycleOwner(), state -> {
+            if (state == PartyState.IDLE) {
+                hostQrAutoOpened = false;
+            }
             if (state == PartyState.IDLE && currentState == PartyState.CONNECTING) {
                 Toast.makeText(requireContext(), "Connection failed or host disconnected", Toast.LENGTH_SHORT).show();
             }
             renderState(state);
+            if (state == PartyState.JOINED) {
+                onGuestJoinedUi();
+            }
         });
 
         // This ensures the host-side UI (QR code, tab switch) updates when the session is ready
@@ -698,22 +707,15 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
                 if (state == PartyState.JOINED) {
                     pulseInfoText.setText(R.string.connected_to_party);
                     if (partyTitle != null) partyTitle.setText(R.string.party_joined);
+                    // Do not keep "Streaming audio" forever — real metadata comes from sync
                     if (tvPartySongTitle != null)
-                        tvPartySongTitle.setText(R.string.streaming_audio);
-
-                    Boolean authenticated = viewModel.isGuestAuthenticated().getValue();
-                    if (tvPartyArtist != null) {
-                        if (authenticated != null && authenticated) {
-                            tvPartyArtist.setText(R.string.waiting_for_music);
-                            progressSync.setVisibility(View.GONE);
-                        } else {
-                            tvPartyArtist.setText(R.string.syncing_with_host);
-                            progressSync.setVisibility(View.VISIBLE);
-                        }
-                    }
+                        tvPartySongTitle.setText(R.string.waiting_for_music);
+                    if (tvPartyArtist != null)
+                        tvPartyArtist.setText(R.string.connected_to_party);
+                    if (progressSync != null) progressSync.setVisibility(View.GONE);
 
                     if (partyTabs != null) {
-                        partyTabs.setVisibility(View.VISIBLE);
+                        partyTabs.setVisibility(View.GONE); // guests: no host QR/guests tabs
                     }
                 } else {
                     String partyName = getString(R.string.hosting_party) + viewModel.getPartyName();
@@ -948,10 +950,12 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
     private void onPartyCreated(PartyHost host) {
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {
-                // Ensure UI reflects the hosting state immediately
-                renderState(PartyState.HOSTING);
-
-                if (partyTabs != null) {
+                if (currentState != PartyState.HOSTING) {
+                    renderState(PartyState.HOSTING);
+                }
+                // Only open QR once per party — do not yank user back from Guests tab
+                if (!hostQrAutoOpened && partyTabs != null) {
+                    hostQrAutoOpened = true;
                     TabLayout.Tab qrTab = partyTabs.getTabAt(1);
                     if (qrTab != null) qrTab.select();
                 }
