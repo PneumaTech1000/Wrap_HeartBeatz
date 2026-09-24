@@ -19,6 +19,7 @@ import androidx.annotation.IdRes;
 import androidx.appcompat.widget.AppCompatSeekBar;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.content.ContextCompat;
+import androidx.core.content.res.ResourcesCompat;
 import androidx.core.math.MathUtils;
 import androidx.media3.common.util.UnstableApi;
 

@@ -34,6 +34,7 @@ public final class PartyLiveBridge {
     private final MutableLiveData<Long> idealPositionLive = new MutableLiveData<>(0L);
     @Nullable private String lastAppliedMediaUrl;
     private long lastSeekAtDeviceMs;
+    private boolean lastAppliedPlaying;
     private long lastPublishedPos = -1;
     private boolean lastPublishedPlaying;
 
