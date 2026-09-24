@@ -484,7 +484,12 @@ public class PartyViewModel extends AndroidViewModel {
     private void startGuestBridge(@Nullable String partyId) {
         if (partyId == null) return;
         try {
-            HeartBeatzApp.container(getApplication()).partyLiveBridge().startGuest(partyId);
+            var bridge = HeartBeatzApp.container(getApplication()).partyLiveBridge();
+            PlaybackStateRepository repo = null;
+            try { repo = requirePlayback(); } catch (Exception ignored) { }
+            bridge.attachPlaybackForGuest(repo);
+            bridge.attachPlayback(repo);
+            bridge.startGuest(partyId);
         } catch (Exception e) {
             Log.e(TAG, "startGuestBridge failed", e);
         }

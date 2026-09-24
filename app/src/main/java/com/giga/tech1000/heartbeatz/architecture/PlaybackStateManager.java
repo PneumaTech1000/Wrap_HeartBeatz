@@ -310,6 +310,39 @@ public class PlaybackStateManager implements PlaybackStateRepository {
     }
     
     @Override
+    public void playPartyStream(
+            @NonNull String mediaUrl,
+            @Nullable String mediaId,
+            @Nullable String title,
+            @Nullable String artist,
+            long positionMs,
+            boolean playWhenReady) {
+        try {
+            if (playerThread == null || playerThread.getCorePlayer() == null) return;
+            MediaController c = playerThread.getCorePlayer().getMediaController();
+            if (c == null) {
+                Log.w(TAG, "playPartyStream: MediaController null");
+                return;
+            }
+            MediaMetadata.Builder meta = new MediaMetadata.Builder();
+            if (title != null) meta.setTitle(title);
+            if (artist != null) meta.setArtist(artist);
+            MediaItem item = new MediaItem.Builder()
+                    .setUri(Uri.parse(mediaUrl))
+                    .setMediaId(mediaId != null ? mediaId : "party-stream")
+                    .setMediaMetadata(meta.build())
+                    .build();
+            c.setMediaItem(item);
+            c.prepare();
+            if (positionMs > 0) c.seekTo(positionMs);
+            if (playWhenReady) c.play();
+            else c.pause();
+            Log.d(TAG, "playPartyStream url=" + mediaUrl + " pos=" + positionMs + " play=" + playWhenReady);
+        } catch (Exception e) {
+            Log.e(TAG, "playPartyStream failed", e);
+        }
+    }
+
     public void seekTo(long positionMs) {
         try {
             if (playerThread != null) {

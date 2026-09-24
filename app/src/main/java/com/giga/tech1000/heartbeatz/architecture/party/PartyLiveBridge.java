@@ -26,12 +26,18 @@ import java.util.Objects;
 public final class PartyLiveBridge {
 
     private static final String TAG = "PartyLiveBridge";
-    private static final long HEARTBEAT_MS = 2000L;
+    private static final long HEARTBEAT_MS = 3500L; // was 2s — lower host CPU/network heat
     /** Guests schedule against this horizon (matches packet lookahead). */
     private static final long LOOKAHEAD_MS = PartyPlaybackSync.DEFAULT_LOOKAHEAD_MS;
 
     private final PartySyncTimeline guestTimeline = new PartySyncTimeline();
     private final MutableLiveData<Long> idealPositionLive = new MutableLiveData<>(0L);
+    @Nullable private String lastAppliedMediaUrl;
+    private long lastSeekAtDeviceMs;
+    private long lastPublishedPos = -1;
+    private boolean lastPublishedPlaying;
+
+
 
     private final PartyTrackUploader uploader;
     private final PartyPlaybackSyncRepository syncRepo;
@@ -123,6 +129,8 @@ public final class PartyLiveBridge {
         this.activePartyId = partyId;
         this.hosting = false;
         guestLockedUi.postValue(true);
+        lastAppliedMediaUrl = null;
+        lastSeekAtDeviceMs = 0;
         syncRepo.observeParty(partyId);
         syncRepo.getSync().observeForever(this::onGuestSync);
         Log.d(TAG, "Guest bridge started party=" + partyId);
@@ -229,7 +237,15 @@ public final class PartyLiveBridge {
     private void publishPositionOnly() {
         if (!hosting || activePartyId == null || playback == null) return;
         if (lastMediaUrl == null && lastUploadedTrackId == null) return;
-        publishFullSync(playback.isPlayingSync());
+        boolean playing = playback.isPlayingSync();
+        long pos = playback.getCurrentPositionSync();
+        // Skip redundant Firebase writes to reduce host heat / radio use
+        if (playing == lastPublishedPlaying && Math.abs(pos - lastPublishedPos) < 400) {
+            return;
+        }
+        lastPublishedPos = pos;
+        lastPublishedPlaying = playing;
+        publishFullSync(playing);
     }
 
     private void publishFullSync(boolean isPlaying) {
@@ -265,10 +281,55 @@ public final class PartyLiveBridge {
             guestTimeline.onPacketReceived(sync);
             long ideal = guestTimeline.idealPositionMs(sync);
             idealPositionLive.postValue(ideal);
-            Log.d(TAG, "guest sync idealPos=" + ideal
-                    + " targetPos=" + sync.targetPositionMs
-                    + " serverWrite=" + sync.serverWriteTimeMs());
+            applyGuestPlayback(sync, ideal);
         }
         latestSync.postValue(sync);
+    }
+
+    private void applyGuestPlayback(@NonNull PartyPlaybackSync sync, long idealPos) {
+        if (playback == null) {
+            try {
+                // Lazy attach may happen after JOINED
+            } catch (Exception ignored) { }
+        }
+        if (playback == null) return;
+
+        String url = sync.mediaUrl;
+        boolean urlChanged = url != null && !url.isEmpty()
+                && !url.equals(lastAppliedMediaUrl);
+        if (urlChanged) {
+            lastAppliedMediaUrl = url;
+            playback.playPartyStream(
+                    url,
+                    sync.trackId,
+                    sync.title,
+                    sync.artist,
+                    Math.max(0, idealPos),
+                    sync.isPlaying);
+            lastSeekAtDeviceMs = System.currentTimeMillis();
+            return;
+        }
+        // Same track: correct drift + play/pause
+        if (url != null && !url.isEmpty()) {
+            long now = System.currentTimeMillis();
+            if (now - lastSeekAtDeviceMs > 1500L && idealPos >= 0) {
+                try {
+                    long local = playback.getCurrentPositionSync();
+                    if (Math.abs(local - idealPos) > PartySyncTimeline.SEEK_THRESHOLD_MS) {
+                        playback.seekTo(idealPos);
+                        lastSeekAtDeviceMs = now;
+                    }
+                } catch (Exception ignored) { }
+            }
+            try {
+                boolean localPlaying = playback.isPlayingSync();
+                if (sync.isPlaying && !localPlaying) playback.play();
+                else if (!sync.isPlaying && localPlaying) playback.pause();
+            } catch (Exception ignored) { }
+        }
+    }
+
+    public void attachPlaybackForGuest(@Nullable PlaybackStateRepository repo) {
+        this.playback = repo;
     }
 }

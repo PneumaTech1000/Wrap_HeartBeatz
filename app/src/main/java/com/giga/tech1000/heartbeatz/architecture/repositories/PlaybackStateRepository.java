@@ -119,6 +119,18 @@ public interface PlaybackStateRepository {
      * Seek to specific position in current song
      */
     void seekTo(long positionMs);
+
+    /**
+     * Guest party stream: play remote HTTP(S) URL via Media3 (not local library index).
+     */
+    void playPartyStream(
+            @NonNull String mediaUrl,
+            @Nullable String mediaId,
+            @Nullable String title,
+            @Nullable String artist,
+            long positionMs,
+            boolean playWhenReady);
+
     
     /**
      * Play next song in queue
