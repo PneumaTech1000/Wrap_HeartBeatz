@@ -175,6 +175,11 @@ public class UIThread implements IPlaybackCallback {
     public void onPlaybackStateChanged(boolean isPlaying, int playbackState) {
         this.lastIsPlaying = isPlaying;
         this.lastPlaybackState = playbackState;
+        try {
+            if (activity != null) {
+                activity.setKeepScreenOnWhilePlaying(isPlaying);
+            }
+        } catch (Exception ignored) { }
 
         updatePlaybackUI();
         playerCache.cachePlaybackStateChanged(isPlaying, playbackState);

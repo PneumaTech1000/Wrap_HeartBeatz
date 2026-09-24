@@ -18,10 +18,12 @@ import androidx.annotation.Nullable;
 public final class PartySyncTimeline {
 
     /** Seek if local position drifts more than this from ideal. */
-    public static final long SEEK_THRESHOLD_MS = 120L;
+    /** Soft correction via rate; seek only above this. */
+    public static final long SEEK_THRESHOLD_MS = 900L;
 
     /** Hard resync (ignore soft throttle). */
-    public static final long HARD_SEEK_THRESHOLD_MS = 500L;
+    /** Hard seek (audible jump) only when badly out of sync. */
+    public static final long HARD_SEEK_THRESHOLD_MS = 1800L;
 
     private final PartyServerClock clock = PartyServerClock.get();
 

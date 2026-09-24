@@ -3,6 +3,7 @@ package com.giga.tech1000.heartbeatz;
 import android.content.Intent;
 import android.util.Log;
 import android.os.Bundle;
+import android.view.WindowManager;
 import android.view.View;
 import android.widget.Toast;
 
@@ -541,6 +542,18 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
         if (btnLogout != null) {
             btnLogout.setVisibility(isGuest ? View.GONE : View.VISIBLE);
         }
+    }
+
+
+    /** Keep screen awake while media is playing (party + local). */
+    public void setKeepScreenOnWhilePlaying(boolean playing) {
+        runOnUiThread(() -> {
+            if (playing) {
+                getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            } else {
+                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            }
+        });
     }
 
 }

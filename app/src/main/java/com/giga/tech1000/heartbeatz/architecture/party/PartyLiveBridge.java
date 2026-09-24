@@ -335,20 +335,32 @@ public final class PartyLiveBridge {
             playback.updatePartyMetadata(sync.title, sync.artist, sync.album, sync.durationMs);
         } catch (Exception ignored) { }
 
-        // Position — correct to ideal (server timeline → same ms as host schedule)
+        // Position — prefer rate nudge over seek to avoid audio glitches
         if (idealPos < 0) return;
         long now = System.currentTimeMillis();
         try {
             long local = playback.getCurrentPositionSync();
-            long drift = Math.abs(local - idealPos);
-            boolean hard = drift > PartySyncTimeline.HARD_SEEK_THRESHOLD_MS;
-            boolean soft = drift > PartySyncTimeline.SEEK_THRESHOLD_MS
-                    && (now - lastSeekAtDeviceMs) > 800L;
-            if (hard || soft) {
+            long drift = local - idealPos; // positive = guest ahead
+            long abs = Math.abs(drift);
+            if (abs > PartySyncTimeline.HARD_SEEK_THRESHOLD_MS
+                    && (now - lastSeekAtDeviceMs) > 2000L) {
                 playback.seekTo(idealPos);
+                playback.setPlaybackSpeed(1.0f);
                 lastSeekAtDeviceMs = now;
-                Log.d(TAG, "guest seek local=" + local + " ideal=" + idealPos
-                        + " drift=" + drift + " playing=" + sync.isPlaying);
+                Log.d(TAG, "guest HARD seek drift=" + drift);
+            } else if (abs > 60 && abs < PartySyncTimeline.SEEK_THRESHOLD_MS && sync.isPlaying) {
+                // Micro-correct with slight speed change (no click)
+                float rate = drift > 0 ? 0.97f : 1.03f;
+                playback.setPlaybackSpeed(rate);
+            } else if (abs <= 60) {
+                playback.setPlaybackSpeed(1.0f);
+            } else if (abs >= PartySyncTimeline.SEEK_THRESHOLD_MS
+                    && abs <= PartySyncTimeline.HARD_SEEK_THRESHOLD_MS
+                    && (now - lastSeekAtDeviceMs) > 4000L) {
+                // Rare mid seek
+                playback.seekTo(idealPos);
+                playback.setPlaybackSpeed(1.0f);
+                lastSeekAtDeviceMs = now;
             }
         } catch (Exception ignored) { }
     }

@@ -302,14 +302,32 @@ public class MediaPlayerView {
     public void onSongChanged(@androidx.annotation.Nullable Song song) {
         if (song == null) return;
         songName.setText(song.getTitle() != null ? song.getTitle() : "");
-        artistName.setText(song.getArtist());
+        if (artistName != null) {
+            String ar = song.getArtist();
+            String al = song.getAlbum();
+            if (ar != null && !ar.isEmpty() && al != null && !al.isEmpty()) {
+                artistName.setText(ar + " · " + al);
+            } else if (ar != null && !ar.isEmpty()) {
+                artistName.setText(ar);
+            } else if (al != null && !al.isEmpty()) {
+                artistName.setText(al);
+            } else {
+                artistName.setText("");
+            }
+        }
 
-        ImageLoader.load(albumImageView, song.getAlbumArt());
-
+        if (song.getAlbumArt() != null) {
+            ImageLoader.load(albumImageView, song.getAlbumArt());
+        } else {
+            albumImageView.setImageDrawable(ResourcesCompat.getDrawable(
+                    rootView.getResources(), R.drawable.album_launcher, rootView.getContext().getTheme()));
+        }
 
         long duration = song.getDuration();
-        seekBar.setMax((int) duration);
-        totalTimeText.setText(TimeConverter.formatTime(duration));
+        if (duration > 0) {
+            seekBar.setMax((int) duration);
+            totalTimeText.setText(TimeConverter.formatTime(duration));
+        }
 
         LibraryRepository repository = HeartBeatzApp.container(rootView.getContext()).requireUiThread().getLibrarySetViewModel().getRepo();
         String songId = String.valueOf(song.getId());

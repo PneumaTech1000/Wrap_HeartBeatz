@@ -351,11 +351,14 @@ public class PlaybackStateManager implements PlaybackStateRepository {
             else c.pause();
 
             // Force UI metadata (mini + full) via LiveData + UIThread panels
+            // Duration may arrive on later sync packets; start with 0 then updatePartyMetadata
             Song synthetic = buildPartySong(mediaId, title, artist, album, mediaUrl, 0);
             currentSong.postValue(synthetic);
             isPlaying.postValue(playWhenReady);
-            if (positionMs > 0) currentPosition.postValue(positionMs);
+            currentPosition.postValue(Math.max(0, positionMs));
             notifyUiSongChanged(synthetic);
+            // Media3 often reports duration after buffer — poll briefly
+            pollPartyDuration(c, synthetic, 0);
 
             Log.d(TAG, "playPartyStream url=" + mediaUrl + " pos=" + positionMs + " play=" + playWhenReady);
         } catch (Exception e) {
@@ -369,13 +372,40 @@ public class PlaybackStateManager implements PlaybackStateRepository {
             @Nullable String artist,
             @Nullable String album,
             long durationMs) {
-        Song synthetic = buildPartySong("party-meta", title, artist, album, null, durationMs);
+        Song prev = currentSong.getValue();
+        String url = prev != null && prev.getData() != null ? prev.getData() : null;
+        String id = prev != null ? String.valueOf(prev.getId()) : "party-meta";
+        Song synthetic = buildPartySong(id, title, artist, album, url, durationMs);
+        if (durationMs <= 0 && prev != null && prev.getDuration() > 0) {
+            synthetic.setDuration(prev.getDuration());
+        }
         currentSong.postValue(synthetic);
-        if (durationMs > 0) currentDuration.postValue(durationMs);
+        long d = synthetic.getDuration();
+        if (d > 0) currentDuration.postValue(d);
         notifyUiSongChanged(synthetic);
     }
 
-        private void notifyUiSongChanged(@NonNull Song song) {
+        private void pollPartyDuration(
+            @NonNull MediaController c,
+            @NonNull Song song,
+            int attempt) {
+        if (attempt > 8) return;
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            try {
+                long d = c.getDuration();
+                if (d > 0 && d != androidx.media3.common.C.TIME_UNSET) {
+                    song.setDuration(d);
+                    currentDuration.postValue(d);
+                    currentSong.postValue(song);
+                    notifyUiSongChanged(song);
+                    return;
+                }
+            } catch (Exception ignored) { }
+            pollPartyDuration(c, song, attempt + 1);
+        }, 250);
+    }
+
+    private void notifyUiSongChanged(@NonNull Song song) {
         try {
             new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
                 try {

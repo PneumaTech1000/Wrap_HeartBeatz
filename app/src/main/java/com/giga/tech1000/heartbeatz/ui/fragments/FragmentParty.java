@@ -90,6 +90,11 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
     private android.widget.ImageButton btnTogglePartyPin;
     private boolean pinRevealed;
     private boolean guestMetaBannerShown;
+    @Nullable private androidx.appcompat.app.AlertDialog partyListDialog;
+    @Nullable private androidx.appcompat.app.AlertDialog pinEntryDialog;
+    @Nullable private androidx.appcompat.app.AlertDialog guestLoadingDialog;
+    private boolean guestPlayerExpanded;
+
 
     private TextView partyTitle;
     private TextView deviceCount;
@@ -306,6 +311,12 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
         viewModel.getPartyState().observe(getViewLifecycleOwner(), state -> {
             if (state == PartyState.IDLE) {
                 hostQrAutoOpened = false;
+                guestPlayerExpanded = false;
+                dismissPartyDialogs();
+                dismissGuestLoadingDialog();
+            }
+            if (state == PartyState.CONNECTING || state == PartyState.JOINED) {
+                dismissPartyDialogs();
             }
             if (state == PartyState.IDLE && currentState == PartyState.CONNECTING) {
                 Toast.makeText(requireContext(), "Connection failed or host disconnected", Toast.LENGTH_SHORT).show();
@@ -665,20 +676,45 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
                 .show();
     }
 
+    private void dismissPartyDialogs() {
+        try {
+            if (partyListDialog != null && partyListDialog.isShowing()) partyListDialog.dismiss();
+        } catch (Exception ignored) { }
+        partyListDialog = null;
+        try {
+            if (pinEntryDialog != null && pinEntryDialog.isShowing()) pinEntryDialog.dismiss();
+        } catch (Exception ignored) { }
+        pinEntryDialog = null;
+    }
+
     private void showPartySelectionDialog(List<PartyHost> hosts) {
+        if (hosts == null || hosts.isEmpty()) return;
+        dismissPartyDialogs();
+
         String[] names = new String[hosts.size()];
         for (int i = 0; i < hosts.size(); i++) {
-            names[i] = hosts.get(i).partyName;
+            names[i] = hosts.get(i).partyName != null ? hosts.get(i).partyName : "Party";
         }
 
-        new MaterialAlertDialogBuilder(requireContext())
+        partyListDialog = new MaterialAlertDialogBuilder(requireContext())
                 .setTitle("Select a Party")
                 .setItems(names, (dialog, which) -> {
+                    dialog.dismiss();
+                    partyListDialog = null;
                     showPinEntryDialog(hosts.get(which));
                 })
-                .setNegativeButton("Cancel", (dialog, which) -> viewModel.leaveParty())
-                .setCancelable(false)
-                .show();
+                .setNegativeButton("Cancel", (dialog, which) -> {
+                    dialog.dismiss();
+                    partyListDialog = null;
+                    viewModel.leaveParty();
+                })
+                .setOnCancelListener(d -> {
+                    partyListDialog = null;
+                    viewModel.leaveParty();
+                })
+                .setCancelable(true)
+                .create();
+        partyListDialog.show();
     }
 
     private void showPinEntryDialog(PartyHost host) {
@@ -687,15 +723,24 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
         nameLayout.setVisibility(View.GONE);
         TextInputEditText pinEditText = dialogView.findViewById(R.id.partyPinEditText);
 
-        new MaterialAlertDialogBuilder(requireContext())
+        pinEntryDialog = new MaterialAlertDialogBuilder(requireContext())
                 .setTitle("Enter Party PIN")
                 .setView(dialogView)
                 .setPositiveButton("Join", (dialog, which) -> {
-                    String pin = pinEditText.getText().toString();
+                    String pin = pinEditText.getText() != null
+                            ? pinEditText.getText().toString() : "";
+                    dialog.dismiss();
+                    pinEntryDialog = null;
+                    dismissPartyDialogs();
                     viewModel.joinParty(host, pin);
                 })
-                .setNegativeButton("Cancel", null)
-                .show();
+                .setNegativeButton("Cancel", (dialog, which) -> {
+                    dialog.dismiss();
+                    pinEntryDialog = null;
+                })
+                .setOnDismissListener(d -> pinEntryDialog = null)
+                .create();
+        pinEntryDialog.show();
     }
 
     private void renderState(PartyState newState) {
@@ -1002,10 +1047,15 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
 
     private void onGuestJoinedUi() {
         guestMetaBannerShown = false;
+        guestPlayerExpanded = false;
+        dismissPartyDialogs();
+
         if (cardNowPlaying != null) cardNowPlaying.setVisibility(android.view.View.VISIBLE);
         if (progressSync != null) progressSync.setVisibility(android.view.View.VISIBLE);
         if (tvPartySongTitle != null) tvPartySongTitle.setText(R.string.streaming_audio);
         if (tvPartyArtist != null) tvPartyArtist.setText(R.string.syncing_with_host);
+
+        showGuestLoadingDialog("Preparing party track…");
 
         try {
             com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp.container(requireContext())
@@ -1013,45 +1063,106 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
                     .getLatestSync()
                     .observe(getViewLifecycleOwner(), sync -> {
                         if (sync == null) return;
-                        if (tvPartySongTitle != null) {
-                            tvPartySongTitle.setText(sync.title != null ? sync.title : getString(R.string.streaming_audio));
+                        if (tvPartySongTitle != null && sync.title != null) {
+                            tvPartySongTitle.setText(sync.title);
                         }
                         if (tvPartyArtist != null) {
                             String artist = sync.artist != null ? sync.artist : "";
-                            long dur = sync.durationMs;
-                            if (dur > 0) {
-                                long sec = (dur / 1000) % 60;
-                                long min = (dur / 1000) / 60;
-                                artist = artist + (artist.isEmpty() ? "" : " · ")
+                            if (sync.album != null && !sync.album.isEmpty()) {
+                                artist = artist.isEmpty() ? sync.album : artist + " · " + sync.album;
+                            }
+                            if (sync.durationMs > 0) {
+                                long sec = (sync.durationMs / 1000) % 60;
+                                long min = (sync.durationMs / 1000) / 60;
+                                artist = (artist.isEmpty() ? "" : artist + " · ")
                                         + min + ":" + String.format("%02d", sec);
                             }
-                            tvPartyArtist.setText(artist.isEmpty() ? getString(R.string.connected_to_party) : artist);
+                            tvPartyArtist.setText(artist);
                         }
-                        // Show metadata banner briefly, then dismiss and open full player
-                        if (!guestMetaBannerShown) {
-                            guestMetaBannerShown = true;
-                            if (cardNowPlaying != null) cardNowPlaying.setVisibility(android.view.View.VISIBLE);
-                            if (progressSync != null) progressSync.setVisibility(android.view.View.GONE);
+
+                        boolean metaReady = sync.title != null && !sync.title.isEmpty()
+                                && sync.mediaUrl != null && !sync.mediaUrl.isEmpty();
+                        if (metaReady) {
+                            updateGuestLoadingMessage("Buffering “" + sync.title + "”…");
+                        }
+
+                        // Expand only once when metadata is ready (title + url)
+                        if (metaReady && !guestPlayerExpanded) {
+                            guestPlayerExpanded = true;
+                            // Short delay so Media3 can start buffering
                             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                                 if (!isAdded()) return;
+                                dismissGuestLoadingDialog();
                                 if (cardNowPlaying != null) cardNowPlaying.setVisibility(android.view.View.GONE);
                                 if (progressSync != null) progressSync.setVisibility(android.view.View.GONE);
                                 expandFullPlayerForParty();
-                            }, 2000);
-                        } else if (sync.mediaUrl != null && !sync.mediaUrl.isEmpty()) {
-                            // Subsequent updates: keep player open
-                            expandFullPlayerForParty();
+                            }, 600);
                         }
                     });
+
+            // Also observe song LiveData for duration/position UI readiness
+            viewModel.getCurrentSong().observe(getViewLifecycleOwner(), song -> {
+                if (song == null) return;
+                if (tvPartySongTitle != null && song.getTitle() != null) {
+                    tvPartySongTitle.setText(song.getTitle());
+                }
+            });
         } catch (Exception e) {
             android.util.Log.w("FragmentParty", "guest sync UI observe failed", e);
-            // Fallback dismiss after 2s even without sync
-            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                if (!isAdded()) return;
-                if (cardNowPlaying != null) cardNowPlaying.setVisibility(android.view.View.GONE);
-                if (progressSync != null) progressSync.setVisibility(android.view.View.GONE);
-            }, 2000);
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+                    this::dismissGuestLoadingDialog, 4000);
         }
+    }
+
+    private void showGuestLoadingDialog(@NonNull String message) {
+        if (!isAdded()) return;
+        dismissGuestLoadingDialog();
+        android.widget.LinearLayout box = new android.widget.LinearLayout(requireContext());
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
+        int pad = (int) (24 * getResources().getDisplayMetrics().density);
+        box.setPadding(pad, pad, pad, pad);
+        android.widget.ProgressBar bar = new android.widget.ProgressBar(requireContext());
+        bar.setIndeterminate(true);
+        android.widget.TextView msg = new android.widget.TextView(requireContext());
+        msg.setText(message);
+        msg.setId(android.view.View.generateViewId());
+        msg.setPadding(0, pad / 2, 0, 0);
+        box.addView(bar);
+        box.addView(msg);
+        guestLoadingDialog = new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Party stream")
+                .setView(box)
+                .setCancelable(false)
+                .create();
+        guestLoadingDialog.show();
+        guestLoadingDialog.setOnDismissListener(d -> guestLoadingDialog = null);
+        // stash message view tag
+        guestLoadingDialog.setTitle("Party stream");
+        box.setTag(msg);
+        if (guestLoadingDialog.getWindow() != null) {
+            guestLoadingDialog.getWindow().getDecorView().setTag(msg);
+        }
+    }
+
+    private void updateGuestLoadingMessage(@NonNull String message) {
+        if (guestLoadingDialog == null || !guestLoadingDialog.isShowing()) return;
+        try {
+            android.view.View decor = guestLoadingDialog.getWindow() != null
+                    ? guestLoadingDialog.getWindow().getDecorView() : null;
+            Object tag = decor != null ? decor.getTag() : null;
+            if (tag instanceof android.widget.TextView) {
+                ((android.widget.TextView) tag).setText(message);
+            }
+        } catch (Exception ignored) { }
+    }
+
+    private void dismissGuestLoadingDialog() {
+        try {
+            if (guestLoadingDialog != null && guestLoadingDialog.isShowing()) {
+                guestLoadingDialog.dismiss();
+            }
+        } catch (Exception ignored) { }
+        guestLoadingDialog = null;
     }
 
     private void expandFullPlayerForParty() {
@@ -1070,6 +1181,8 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        dismissPartyDialogs();
+        dismissGuestLoadingDialog();
         viewModel.setUiCallback(null);
     }
 
