@@ -397,6 +397,15 @@ public class PlaybackStateManager implements PlaybackStateRepository {
     }
     
     @Override
+    public long getCurrentDurationSync() {
+        try {
+            Long d = getCurrentDuration().getValue();
+            return d != null ? d : 0L;
+        } catch (Exception e) {
+            return 0L;
+        }
+    }
+
     public long getCurrentPositionSync() {
         Long pos = currentPosition.getValue();
         return pos != null ? pos : 0L;

@@ -162,6 +162,8 @@ public interface PlaybackStateRepository {
      * Get current position immediately
      */
     long getCurrentPositionSync();
+
+    long getCurrentDurationSync();
     
     /**
      * Get current queue immediately

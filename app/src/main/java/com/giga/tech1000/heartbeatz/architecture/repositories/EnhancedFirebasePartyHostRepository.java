@@ -539,6 +539,16 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
                     // Update presence
                     updateUserPresence(getCurrentUserId(), true);
 
+                    // Register host in members (display name for roster)
+                    String hostUid = getCurrentUserId();
+                    if (hostUid != null) {
+                        DatabaseSession hostSession = new DatabaseSession();
+                        hostSession.setUserId(hostUid);
+                        hostSession.setDisplayName(resolveDisplayName(hostUid));
+                        hostSession.setJoinedAt(System.currentTimeMillis());
+                        partyRef.child("members").child(hostUid).setValue(hostSession);
+                    }
+
                     // Start listening to members for this party
                     startListeningToMembers(partyId);
                     // Set up listener for the specific party to monitor changes
@@ -699,6 +709,25 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
                 });
     }
 
+    @NonNull
+    private String resolveDisplayName(@Nullable String userId) {
+        try {
+            com.google.firebase.auth.FirebaseUser u = auth.getCurrentUser();
+            if (u != null && u.getDisplayName() != null && !u.getDisplayName().trim().isEmpty()) {
+                return u.getDisplayName().trim();
+            }
+            if (u != null && u.getEmail() != null && !u.getEmail().isEmpty()) {
+                String e = u.getEmail();
+                int at = e.indexOf('@');
+                return at > 0 ? e.substring(0, at) : e;
+            }
+        } catch (Exception ignored) { }
+        if (userId != null && userId.length() > 6) {
+            return "Guest " + userId.substring(0, 6);
+        }
+        return "Guest";
+    }
+
     private DatabaseSession createGuestSession(PartyHost host) {
         long joinTime = System.currentTimeMillis();
         String userId = getCurrentUserId();
@@ -711,6 +740,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
         session.setUserAgent("HeartBeatz/" + BuildConfig.VERSION_NAME);
         session.setDeviceModel(Build.MODEL);
         session.setOsVersion(String.valueOf(Build.VERSION.SDK_INT));
+        session.setDisplayName(resolveDisplayName(userId));
 
         return session;
     }
@@ -802,45 +832,49 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
         membersEventListener = new ChildEventListener() {
             @Override
             public void onChildAdded(@NonNull DataSnapshot snapshot, @Nullable String previousChildName) {
-                // A member has joined the party
                 String userId = snapshot.getKey();
-                if (userId != null) {
-                    // Update the guest list
-                    List<String> currentGuests = connectedGuestsLiveData.getValue();
-                    if (currentGuests == null) {
-                        currentGuests = new ArrayList<>();
-                    }
-                    if (!currentGuests.contains(userId)) {
-                        currentGuests.add(userId);
-                        updateGuestListAndCount(currentGuests);
-                    }
+                if (userId == null) return;
+                // Skip listing the host as a "guest" row when host is also under members
+                if (isHosting && userId.equals(getCurrentUserId())) {
+                    return;
                 }
+                String label = userId;
+                try {
+                    DatabaseSession session = snapshot.getValue(DatabaseSession.class);
+                    if (session != null && session.getDisplayName() != null
+                            && !session.getDisplayName().trim().isEmpty()) {
+                        label = session.getDisplayName().trim();
+                    } else {
+                        // Fallback: users/{uid}/displayName
+                        label = fetchUserDisplayNameSync(userId);
+                    }
+                } catch (Exception e) {
+                    label = "Guest " + userId.substring(0, Math.min(6, userId.length()));
+                }
+                memberUidToName.put(userId, label);
+                publishGuestNames();
             }
 
             @Override
             public void onChildChanged(@NonNull DataSnapshot snapshot, @Nullable String previousChildName) {
-                // Member data updated (could be used for updating member info)
-                // For now, we just ensure they're still in the list
                 String userId = snapshot.getKey();
-                if (userId != null) {
-                    List<String> currentGuests = connectedGuestsLiveData.getValue();
-                    if (currentGuests != null && !currentGuests.contains(userId)) {
-                        currentGuests.add(userId);
-                        updateGuestListAndCount(currentGuests);
+                if (userId == null) return;
+                try {
+                    DatabaseSession session = snapshot.getValue(DatabaseSession.class);
+                    if (session != null && session.getDisplayName() != null
+                            && !session.getDisplayName().trim().isEmpty()) {
+                        memberUidToName.put(userId, session.getDisplayName().trim());
+                        publishGuestNames();
                     }
-                }
+                } catch (Exception ignored) { }
             }
 
             @Override
             public void onChildRemoved(@NonNull DataSnapshot snapshot) {
-                // A member has left the party
                 String userId = snapshot.getKey();
                 if (userId != null) {
-                    List<String> currentGuests = connectedGuestsLiveData.getValue();
-                    if (currentGuests != null) {
-                        currentGuests.remove(userId);
-                        updateGuestListAndCount(currentGuests);
-                    }
+                    memberUidToName.remove(userId);
+                    publishGuestNames();
                 }
             }
 
@@ -871,6 +905,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
             membersEventListener = null;
             Log.d(TAG, "Stopped listening to members for party: " + currentPartyId);
         }
+        memberUidToName.clear();
     }
 
     /**
@@ -937,6 +972,30 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
      * Update the guest list and count in LiveData
      * @param guestList The updated list of guest user IDs
      */
+    private void publishGuestNames() {
+        List<String> names = new ArrayList<>(memberUidToName.values());
+        java.util.Collections.sort(names, String.CASE_INSENSITIVE_ORDER);
+        updateGuestListAndCount(names);
+    }
+
+    @NonNull
+    private String fetchUserDisplayNameSync(@NonNull String uid) {
+        try {
+            return "Guest " + uid.substring(0, Math.min(6, uid.length()));
+        } catch (Exception e) {
+            return "Guest";
+        }
+    }
+
+    @Nullable
+    public String findMemberUidByDisplayName(@Nullable String name) {
+        if (name == null) return null;
+        for (java.util.Map.Entry<String, String> e : memberUidToName.entrySet()) {
+            if (name.equals(e.getValue())) return e.getKey();
+        }
+        return null;
+    }
+
     private void updateGuestListAndCount(List<String> guestList) {
         connectedGuestsLiveData.postValue(new ArrayList<>(guestList));
         guestCountLiveData.postValue(guestList.size());
@@ -1327,9 +1386,18 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
         private String userAgent;
         private String deviceModel;
         private String osVersion;
+        private String displayName;
 
         public String getUserId() {
             return userId;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+
+        public void setDisplayName(String displayName) {
+            this.displayName = displayName;
         }
 
         public void setUserId(String userId) {

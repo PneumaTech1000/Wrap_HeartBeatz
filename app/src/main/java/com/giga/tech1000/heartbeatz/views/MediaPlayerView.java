@@ -403,4 +403,13 @@ public class MediaPlayerView {
         int alpha = Math.round(255 * alphaPercent);
         return (color & 0x00FFFFFF) | (alpha << 24);
     }
+
+
+    /** Party guest: dim full player chrome (host remains fully interactive). */
+    public void setPartyGuestLocked(boolean locked) {
+        float a = locked ? 0.55f : 1f;
+        setAlpha(a);
+        setEnabled(!locked);
+    }
+
 }

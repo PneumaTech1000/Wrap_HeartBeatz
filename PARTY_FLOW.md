@@ -1,31 +1,58 @@
-# Party mode flow (corrected)
+# Party mode — solid process
 
-## Roles
-| Role | Firebase | UI state |
-|------|----------|----------|
-| **Host** | Creates `/parties/{id}`, `isHosting=true` | `HOSTING` |
-| **Guest** | Writes `members/{uid}` + `authenticatedUsers/{uid}` | `CONNECTING` → `JOINED` |
+## 1. Auth
+Both host and guest must be signed in (Firebase Auth). Display name comes from Auth profile (signup full name).
 
-## Host path
-1. User signs in → createParty(name, pin)
-2. State `CREATING` → Firebase `setValue` party root
-3. Success → `hostedParty` LiveData → state `HOSTING` → connected UI + QR
-4. Leave → `stopHosting()` deletes party node → `IDLE`
+## 2. Host creates party
+1. `createParty(name, pin)` → writes `/parties/{id}` root  
+2. Writes host into `/parties/{id}/members/{uid}` with **displayName**  
+3. State **HOSTING** → `PartyLiveBridge.startHost`  
+4. Guest list shows **display names** (not raw UIDs)
 
-## Guest path
-1. Discovery or QR → PartyHost (id + pin from payload)
-2. `joinParty(host, pin)` → state `CONNECTING`
-3. PIN validated **locally** against host.pin
-4. Guest writes `authenticatedUsers/{uid}=true` and `members/{uid}`
-5. Success → `isGuestAuthenticated` → state `JOINED`
-6. Leave → remove members + authenticatedUsers → `IDLE`
+## 3. Host plays a song (automatic party track)
+1. `PlaybackStateRepository` current song changes  
+2. Bridge uploads file in background (`PartyTrackUploader` → Supabase/R2/NoOp)  
+3. On success writes `/parties/{id}/sync` with mediaUrl, title, artist, position, isPlaying  
+4. Heartbeat every 2s updates position while playing  
 
-## Misconceptions fixed
-- Guest must **not** post to `hostedParty` (that forced HOSTING UI)
-- `connectedHost == null` must **not** force IDLE (raced over HOSTING)
-- Host leave uses `stopHosting`, not `leaveParty` (leaveParty blocked hosts)
-- `isGuest` = in a party we do not host (includes connecting)
-- Auth uid from FirebaseAuth, not placeholder `"current_user"`
+## 4. Guest joins
+1. Scan QR / discovery + PIN  
+2. Writes `authenticatedUsers/{uid}=true` and `members/{uid}` (+ displayName)  
+3. State **JOINED** → `PartyLiveBridge.startGuest`  
+4. Observes `/parties/{id}/sync`  
+5. Chat banner shows host track metadata  
+6. Full player **dimmed/locked** (guest chrome)
 
-## Rules
-Publish `firebase.rules`: parent write is create/delete only so guests can write members.
+## 5. Leave
+- Host: `stopHosting` deletes party node, stops bridge  
+- Guest: removes members + auth entry, stops bridge  
+
+## 6. Chat
+Unlocks when HOSTING or JOINED; track line follows `PartyPlaybackSync`.
+
+## Still later
+- Guest Media3 play from remote URL (needs PlaybackStateRepository remote play API)
+- Chat message Firebase stream
+- Approve guest track requests
+
+
+## Sync timeline (multi-device)
+
+Every **2 seconds** the host publishes:
+
+| Field | Meaning |
+|-------|---------|
+| `positionMs` | Host position *now* (at write) |
+| `targetPositionMs` | Position **5 seconds ahead** if playing (else same as position) |
+| `lookaheadMs` | Always `5000` |
+| `updatedAt` | **Firebase ServerValue.TIMESTAMP** (UTC on Google servers — not phone clock) |
+| `isPlaying` | Play/pause |
+
+**Target server time** = `updatedAt + lookaheadMs`.
+
+Guests:
+1. Learn clock offset: `server - device` from each packet
+2. `serverNow = deviceNow + offset`
+3. `idealPosition = targetPositionMs - (targetServerTime - serverNow)`
+
+This keeps devices aligned even when local GMT is wrong.

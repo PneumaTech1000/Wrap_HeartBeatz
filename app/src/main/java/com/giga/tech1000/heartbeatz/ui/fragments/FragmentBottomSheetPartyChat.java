@@ -27,6 +27,7 @@ import com.giga.tech1000.heartbeatz.views.BottomSheetView;
 import com.giga.tech1000.media_player.models.Song;
 import com.giga.tech1000.media_player.repository.SongRepository;
 import com.giga.tech1000.party_mode.model.PartyHost;
+import com.giga.tech1000.heartbeatz.architecture.party.PartyPlaybackSync;
 import com.google.android.material.button.MaterialButton;
 
 import java.util.ArrayList;
@@ -137,6 +138,26 @@ public class FragmentBottomSheetPartyChat extends Fragment {
                 headerGuestCount.setText(String.valueOf(guests.size()));
             }
         });
+
+        try {
+            HeartBeatzApp.container(requireContext()).partyLiveBridge()
+                    .getLatestSync()
+                    .observe(getViewLifecycleOwner(), this::applySyncMetadata);
+        } catch (Exception ignored) { }
+    }
+
+    private void applySyncMetadata(@Nullable PartyPlaybackSync sync) {
+        View root = getView();
+        if (root == null) return;
+        TextView trackTitle = root.findViewById(R.id.track_title_text);
+        if (trackTitle == null) return;
+        if (sync == null) {
+            trackTitle.setText(inParty ? "Waiting for track…" : "No party");
+            return;
+        }
+        String title = sync.title != null ? sync.title : "Unknown track";
+        String artist = sync.artist != null ? sync.artist : "";
+        trackTitle.setText(artist.isEmpty() ? title : title + " — " + artist);
     }
 
     /**

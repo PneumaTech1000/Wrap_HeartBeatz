@@ -180,6 +180,8 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
         guestsRecycler.setAdapter(guestListAdapter);
 
         guestListAdapter.setOnGuestClickListener(name -> {
+            // name is display name; ViewModel/repo resolve uid when kicking
+
             if (viewModel.getPartyState().getValue() == PartyState.HOSTING) {
                 showHostActionDialog(name);
             }

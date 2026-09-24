@@ -23,6 +23,8 @@ import com.giga.tech1000.media_player.models.Song;
 import com.giga.tech1000.party_mode.core.PartyState;
 import com.giga.tech1000.party_mode.model.PartyHost;
 import com.giga.tech1000.party_mode.model.SyncPacket;
+import com.giga.tech1000.heartbeatz.architecture.party.PartyLiveBridge;
+import com.giga.tech1000.heartbeatz.architecture.party.PartyPlaybackSync;
 import com.giga.tech1000.utils.interfaces.PartyModeUICallback;
 
 /**
@@ -170,6 +172,7 @@ public class PartyViewModel extends AndroidViewModel {
                 partyState.postValue(PartyState.HOSTING);
                 pendingPartyName = host.getPartyName();
                 Log.d(TAG, "State → HOSTING (" + host.getPartyName() + ")");
+                startHostBridge(host.getPartyId());
             }
         });
 
@@ -189,6 +192,12 @@ public class PartyViewModel extends AndroidViewModel {
             if (Boolean.TRUE.equals(authenticated) && !partyHost.isHosting()) {
                 partyState.postValue(PartyState.JOINED);
                 Log.d(TAG, "State → JOINED");
+                PartyHost ch = partyHost.getConnectedHost().getValue();
+                if (ch != null && ch.getPartyId() != null) {
+                    startGuestBridge(ch.getPartyId());
+                }
+            } else if (!Boolean.TRUE.equals(authenticated) && !partyHost.isHosting()) {
+                stopPartyBridge();
             }
         });
 
@@ -450,14 +459,51 @@ public class PartyViewModel extends AndroidViewModel {
         Log.d(TAG, "Leaving party (hosting=" + partyHost.isHosting()
                 + " guest=" + partyHost.isGuest() + ")");
         partyError.postValue(null);
+        stopPartyBridge();
 
         if (partyHost.isHosting()) {
             partyHost.stopHosting();
         } else if (partyHost.isGuest()) {
             partyHost.leaveParty();
         }
-        // Always clear UI state after teardown requested
         partyState.postValue(PartyState.IDLE);
+    }
+
+    private void startHostBridge(@Nullable String partyId) {
+        if (partyId == null) return;
+        try {
+            PartyLiveBridge bridge = HeartBeatzApp.container(getApplication()).partyLiveBridge();
+            PlaybackStateRepository repo = null;
+            try { repo = requirePlayback(); } catch (Exception ignored) { }
+            bridge.startHost(partyId, repo);
+        } catch (Exception e) {
+            Log.e(TAG, "startHostBridge failed", e);
+        }
+    }
+
+    private void startGuestBridge(@Nullable String partyId) {
+        if (partyId == null) return;
+        try {
+            HeartBeatzApp.container(getApplication()).partyLiveBridge().startGuest(partyId);
+        } catch (Exception e) {
+            Log.e(TAG, "startGuestBridge failed", e);
+        }
+    }
+
+    private void stopPartyBridge() {
+        try {
+            HeartBeatzApp.container(getApplication()).partyLiveBridge().stopAll();
+        } catch (Exception ignored) { }
+    }
+
+    @NonNull
+    public LiveData<PartyPlaybackSync> getPartyPlaybackSync() {
+        return HeartBeatzApp.container(getApplication()).partyLiveBridge().getLatestSync();
+    }
+
+    @NonNull
+    public LiveData<Boolean> isGuestPlayerLocked() {
+        return HeartBeatzApp.container(getApplication()).partyLiveBridge().isGuestPlayerLocked();
     }
 
     // ============ PLAYBACK COMMANDS ============

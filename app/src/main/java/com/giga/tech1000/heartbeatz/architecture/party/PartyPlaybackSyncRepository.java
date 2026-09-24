@@ -18,38 +18,36 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Reads/writes host playback sync at {@code parties/{partyId}/sync}.
- * Host writes; guests observe and align Media3.
+ * Host writes / guests observe {@code parties/{partyId}/sync}.
+ * {@code updatedAt} is always {@link ServerValue#TIMESTAMP} (Firebase server UTC ms).
  */
 public final class PartyPlaybackSyncRepository {
 
     private static final String TAG = "PartyPlaybackSyncRepo";
 
-    private final FirebaseDatabase db;
+    private final FirebaseDatabase db = FirebaseDatabase.getInstance();
     private final MutableLiveData<PartyPlaybackSync> syncLive = new MutableLiveData<>(null);
 
-    @Nullable private String activePartyId;
-    @Nullable private ValueEventListener listener;
     @Nullable private DatabaseReference syncRef;
-
-    public PartyPlaybackSyncRepository() {
-        this.db = FirebaseDatabase.getInstance();
-    }
+    @Nullable private ValueEventListener listener;
 
     @NonNull
     public LiveData<PartyPlaybackSync> getSync() {
         return syncLive;
     }
 
-    /** Start listening to a party's sync node (guests + host). */
     public void observeParty(@NonNull String partyId) {
         stopObserving();
-        activePartyId = partyId;
-        syncRef = db.getReference(PartyFirebasePaths.PARTIES).child(partyId).child(PartyFirebasePaths.SYNC);
+        syncRef = db.getReference(PartyFirebasePaths.PARTIES)
+                .child(partyId)
+                .child(PartyFirebasePaths.SYNC);
         listener = new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 PartyPlaybackSync s = snapshot.getValue(PartyPlaybackSync.class);
+                if (s != null) {
+                    s.receivedAtDeviceMs = System.currentTimeMillis();
+                }
                 syncLive.postValue(s);
             }
 
@@ -65,14 +63,11 @@ public final class PartyPlaybackSyncRepository {
         if (syncRef != null && listener != null) {
             syncRef.removeEventListener(listener);
         }
-        syncRef = null;
         listener = null;
-        activePartyId = null;
+        syncRef = null;
     }
 
-    /**
-     * Host publishes a new authoritative snapshot (e.g. after upload or seek/play).
-     */
+    /** Full host packet including 5s lookahead fields + server timestamp. */
     public void publishHostSync(@NonNull String partyId, @NonNull PartyPlaybackSync sync) {
         Map<String, Object> map = new HashMap<>();
         map.put("objectKey", sync.objectKey);
@@ -81,8 +76,12 @@ public final class PartyPlaybackSyncRepository {
         map.put("title", sync.title);
         map.put("artist", sync.artist);
         map.put("positionMs", sync.positionMs);
+        map.put("targetPositionMs", sync.targetPositionMs);
+        map.put("lookaheadMs", sync.lookaheadMs > 0
+                ? sync.lookaheadMs
+                : PartyPlaybackSync.DEFAULT_LOOKAHEAD_MS);
         map.put("isPlaying", sync.isPlaying);
-        map.put("updatedAtClientMs", System.currentTimeMillis());
+        map.put("durationMs", sync.durationMs);
         map.put("updatedAt", ServerValue.TIMESTAMP);
 
         db.getReference(PartyFirebasePaths.PARTIES)
@@ -90,19 +89,6 @@ public final class PartyPlaybackSyncRepository {
                 .child(PartyFirebasePaths.SYNC)
                 .updateChildren(map)
                 .addOnFailureListener(e -> Log.e(TAG, "publish sync failed", e));
-    }
-
-    /** Lightweight position heartbeat while playing (throttle in caller). */
-    public void publishPosition(@NonNull String partyId, long positionMs, boolean isPlaying) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("positionMs", positionMs);
-        map.put("isPlaying", isPlaying);
-        map.put("updatedAtClientMs", System.currentTimeMillis());
-        map.put("updatedAt", ServerValue.TIMESTAMP);
-        db.getReference(PartyFirebasePaths.PARTIES)
-                .child(partyId)
-                .child(PartyFirebasePaths.SYNC)
-                .updateChildren(map);
     }
 
     public void clearSync(@NonNull String partyId) {
