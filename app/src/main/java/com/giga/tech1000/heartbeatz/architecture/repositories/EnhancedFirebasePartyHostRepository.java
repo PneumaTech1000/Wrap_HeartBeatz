@@ -55,6 +55,8 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
     // LiveData for UI observation
     private final MutableLiveData<List<PartyHost>> discoveredHostsLiveData = new MutableLiveData<>(new ArrayList<>());
     private final MutableLiveData<PartyHost> hostedPartyLiveData = new MutableLiveData<>(null);
+    /** uid → display name for guest roster UI */
+    private final java.util.Map<String, String> memberUidToName = new java.util.concurrent.ConcurrentHashMap<>();
     private final MutableLiveData<List<String>> connectedGuestsLiveData = new MutableLiveData<>(new ArrayList<>());
     private final MutableLiveData<Integer> guestCountLiveData = new MutableLiveData<>(0);
     private final MutableLiveData<PartyHost> connectedHostLiveData = new MutableLiveData<>(null);

@@ -407,9 +407,10 @@ public class MediaPlayerView {
 
     /** Party guest: dim full player chrome (host remains fully interactive). */
     public void setPartyGuestLocked(boolean locked) {
+        if (rootView == null) return;
         float a = locked ? 0.55f : 1f;
-        setAlpha(a);
-        setEnabled(!locked);
+        rootView.setAlpha(a);
+        rootView.setEnabled(!locked);
     }
 
 }

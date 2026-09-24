@@ -386,7 +386,7 @@ public class RootMediaPlayerPanel extends BasePanelView implements OnBackPressed
                             mediaPlayerView.setPartyGuestLocked(on);
                         }
                         if (mediaPlayerBarView != null) {
-                            mediaPlayerBarView.setAlpha(on ? 0.72f : 1f);
+                            mediaPlayerBarView.setPartyGuestLocked(on);
                         }
                     });
         } catch (Exception e) {
