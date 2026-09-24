@@ -79,9 +79,18 @@ public final class R2PartyMediaStore implements PartyMediaStore {
         MediaType mediaType = MediaType.parse(mimeType);
         if (mediaType == null) mediaType = MediaType.parse("application/octet-stream");
 
+        final MediaType mMediaType = mediaType;
         RequestBody body = new RequestBody() {
-            @Override public MediaType contentType() { return mediaType; }
-            @Override public long contentLength() { return contentLength >= 0 ? contentLength : -1; }
+            @Override
+            public MediaType contentType() {
+                return mMediaType;
+            }
+
+            @Override
+            public long contentLength() {
+                return contentLength >= 0 ? contentLength : -1;
+            }
+
             @Override
             public void writeTo(@NonNull BufferedSink sink) throws IOException {
                 try (Source source = Okio.source(data)) {

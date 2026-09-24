@@ -66,6 +66,8 @@ public class MediaPlayerView {
     private final ImageButton btnParty;
     private final ImageButton btnFavorite;
     private final ImageButton btnRepeat;
+    private final ImageButton eqBtn;
+    private final ImageButton btnMore;
     private final GradientImageView albumImageView;
     private final AppCompatSeekBar seekBar;
     private boolean lastIsPlaying;
@@ -115,6 +117,8 @@ public class MediaPlayerView {
         this.btnLyrics = findViewById(R.id.btn_lyric);
         this.btnParty = findViewById(R.id.btn_party);
         this.btnFavorite = findViewById(R.id.btn_favorite);
+        this.btnMore = findViewById(R.id.btn_vert);
+        this.eqBtn = findViewById(R.id.btn_equalizer);
 
         this.seekBar = findViewById(R.id.seek_bar);
         this.albumImageView = findViewById(R.id.album_art);
@@ -153,9 +157,10 @@ public class MediaPlayerView {
     }
 
     private void onInitView(RootMediaPlayerPanel panel, SettingEntity s) {
-        //btnParty.setOnClickListener(v -> {});
+        btnParty.setOnClickListener(v -> panel.getBottomSheetView().openPartyChatFragment());
         btnLyrics.setOnClickListener(v -> panel.getBottomSheetView().openLyricsFragment());
         playListButton.setOnClickListener(v -> panel.getBottomSheetView().openQueueFragment());
+
         playPauseButtonView.setOnClickListener(v -> playbackViewModel.togglePlayPause());
         previousButton.setOnClickListener(v -> playbackViewModel.previous());
         nextButton.setOnClickListener(v -> playbackViewModel.next());
@@ -167,7 +172,6 @@ public class MediaPlayerView {
         shuffleButton.setOnClickListener(v -> playbackViewModel.toggleShuffle());
 
         // Equalizer: collapse player then open EQ from Home (nav bridge)
-        View eqBtn = findViewById(R.id.btn_equalizer);
         if (eqBtn != null) {
             eqBtn.setOnClickListener(v -> {
                 panel.collapsePlayer();
@@ -189,12 +193,10 @@ public class MediaPlayerView {
         }
 
         // Ensure play/pause does not propagate to sheet drag / collapse
-        if (playPauseButtonView != null) {
-            playPauseButtonView.setOnClickListener(v -> {
-                v.playSoundEffect(android.view.SoundEffectConstants.CLICK);
-                playbackViewModel.togglePlayPause();
-            });
-        }
+        playPauseButtonView.setOnClickListener(v -> {
+            v.playSoundEffect(android.view.SoundEffectConstants.CLICK);
+            playbackViewModel.togglePlayPause();
+        });
 
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             boolean isMediaSeeking = false;
