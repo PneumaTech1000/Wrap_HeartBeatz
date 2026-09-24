@@ -473,8 +473,7 @@ public class PartyViewModel extends AndroidViewModel {
         if (partyId == null) return;
         try {
             PartyLiveBridge bridge = HeartBeatzApp.container(getApplication()).partyLiveBridge();
-            PlaybackStateRepository repo = null;
-            try { repo = requirePlayback(); } catch (Exception ignored) { }
+            PlaybackStateRepository repo = requirePlayback();
             bridge.startHost(partyId, repo);
         } catch (Exception e) {
             Log.e(TAG, "startHostBridge failed", e);
@@ -484,11 +483,10 @@ public class PartyViewModel extends AndroidViewModel {
     private void startGuestBridge(@Nullable String partyId) {
         if (partyId == null) return;
         try {
-            var bridge = HeartBeatzApp.container(getApplication()).partyLiveBridge();
+            PartyLiveBridge bridge = HeartBeatzApp.container(getApplication()).partyLiveBridge();
             PlaybackStateRepository repo = null;
             try { repo = requirePlayback(); } catch (Exception ignored) { }
             bridge.attachPlaybackForGuest(repo);
-            bridge.attachPlayback(repo);
             bridge.startGuest(partyId);
         } catch (Exception e) {
             Log.e(TAG, "startGuestBridge failed", e);
@@ -508,7 +506,12 @@ public class PartyViewModel extends AndroidViewModel {
 
     @NonNull
     public LiveData<Boolean> isGuestPlayerLocked() {
-        return HeartBeatzApp.container(getApplication()).partyLiveBridge().isGuestPlayerLocked();
+        return HeartBeatzApp.container(getApplication()).partyLiveBridge().getGuestLockedUi();
+    }
+
+    @NonNull
+    public LiveData<Boolean> getGuestReadyForUi() {
+        return HeartBeatzApp.container(getApplication()).partyLiveBridge().getGuestReadyForUi();
     }
 
     // ============ PLAYBACK COMMANDS ============

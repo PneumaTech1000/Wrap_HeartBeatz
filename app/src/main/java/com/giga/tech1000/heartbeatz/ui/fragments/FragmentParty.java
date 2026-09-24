@@ -1058,49 +1058,37 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
         showGuestLoadingDialog("Preparing party track…");
 
         try {
-            com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp.container(requireContext())
-                    .partyLiveBridge()
-                    .getLatestSync()
-                    .observe(getViewLifecycleOwner(), sync -> {
-                        if (sync == null) return;
-                        if (tvPartySongTitle != null && sync.title != null) {
-                            tvPartySongTitle.setText(sync.title);
-                        }
-                        if (tvPartyArtist != null) {
-                            String artist = sync.artist != null ? sync.artist : "";
-                            if (sync.album != null && !sync.album.isEmpty()) {
-                                artist = artist.isEmpty() ? sync.album : artist + " · " + sync.album;
-                            }
-                            if (sync.durationMs > 0) {
-                                long sec = (sync.durationMs / 1000) % 60;
-                                long min = (sync.durationMs / 1000) / 60;
-                                artist = (artist.isEmpty() ? "" : artist + " · ")
-                                        + min + ":" + String.format("%02d", sec);
-                            }
-                            tvPartyArtist.setText(artist);
-                        }
+            var bridge = com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp.container(requireContext())
+                    .partyLiveBridge();
 
-                        boolean metaReady = sync.title != null && !sync.title.isEmpty()
-                                && sync.mediaUrl != null && !sync.mediaUrl.isEmpty();
-                        if (metaReady) {
-                            updateGuestLoadingMessage("Buffering “" + sync.title + "”…");
-                        }
+            bridge.getLatestSync().observe(getViewLifecycleOwner(), sync -> {
+                if (sync == null) return;
+                if (tvPartySongTitle != null && sync.title != null) {
+                    tvPartySongTitle.setText(sync.title);
+                }
+                if (tvPartyArtist != null) {
+                    String artist = sync.artist != null ? sync.artist : "";
+                    if (sync.album != null && !sync.album.isEmpty()) {
+                        artist = artist.isEmpty() ? sync.album : artist + " · " + sync.album;
+                    }
+                    tvPartyArtist.setText(artist);
+                }
+                if (sync.title != null && !sync.title.isEmpty()) {
+                    updateGuestLoadingMessage("Buffering “" + sync.title + "”…");
+                }
+            });
 
-                        // Expand only once when metadata is ready (title + url)
-                        if (metaReady && !guestPlayerExpanded) {
-                            guestPlayerExpanded = true;
-                            // Short delay so Media3 can start buffering
-                            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                                if (!isAdded()) return;
-                                dismissGuestLoadingDialog();
-                                if (cardNowPlaying != null) cardNowPlaying.setVisibility(android.view.View.GONE);
-                                if (progressSync != null) progressSync.setVisibility(android.view.View.GONE);
-                                expandFullPlayerForParty();
-                            }, 600);
-                        }
-                    });
+            // Expand only after TimeEngine RELEASE (buffer + arm complete)
+            bridge.getGuestReadyForUi().observe(getViewLifecycleOwner(), ready -> {
+                if (!Boolean.TRUE.equals(ready) || guestPlayerExpanded) return;
+                guestPlayerExpanded = true;
+                if (!isAdded()) return;
+                dismissGuestLoadingDialog();
+                if (cardNowPlaying != null) cardNowPlaying.setVisibility(android.view.View.GONE);
+                if (progressSync != null) progressSync.setVisibility(android.view.View.GONE);
+                expandFullPlayerForParty();
+            });
 
-            // Also observe song LiveData for duration/position UI readiness
             viewModel.getCurrentSong().observe(getViewLifecycleOwner(), song -> {
                 if (song == null) return;
                 if (tvPartySongTitle != null && song.getTitle() != null) {
@@ -1110,7 +1098,7 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
         } catch (Exception e) {
             android.util.Log.w("FragmentParty", "guest sync UI observe failed", e);
             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
-                    this::dismissGuestLoadingDialog, 4000);
+                    this::dismissGuestLoadingDialog, 5000);
         }
     }
 

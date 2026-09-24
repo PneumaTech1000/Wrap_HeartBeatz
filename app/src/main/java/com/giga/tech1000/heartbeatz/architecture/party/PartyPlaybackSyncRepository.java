@@ -3,7 +3,6 @@ package com.giga.tech1000.heartbeatz.architecture.party;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
@@ -18,18 +17,17 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Host writes / guests observe {@code parties/{partyId}/sync}.
- * {@code updatedAt} is always {@link ServerValue#TIMESTAMP} (Firebase server UTC ms).
+ * Firebase delivery for TimeEngine anchors under {@code parties/{id}/sync}.
  */
-public final class PartyPlaybackSyncRepository {
+public class PartyPlaybackSyncRepository {
 
-    private static final String TAG = "PartyPlaybackSyncRepo";
+    private static final String TAG = "PartySyncRepo";
 
     private final FirebaseDatabase db = FirebaseDatabase.getInstance();
     private final MutableLiveData<PartyPlaybackSync> syncLive = new MutableLiveData<>(null);
 
-    @Nullable private DatabaseReference syncRef;
-    @Nullable private ValueEventListener listener;
+    private DatabaseReference syncRef;
+    private ValueEventListener listener;
 
     @NonNull
     public LiveData<PartyPlaybackSync> getSync() {
@@ -67,7 +65,7 @@ public final class PartyPlaybackSyncRepository {
         syncRef = null;
     }
 
-    /** Full host packet including 5s lookahead fields + server timestamp. */
+    /** Publish full TimeEngine-aligned anchor. */
     public void publishHostSync(@NonNull String partyId, @NonNull PartyPlaybackSync sync) {
         Map<String, Object> map = new HashMap<>();
         map.put("objectKey", sync.objectKey);
@@ -76,6 +74,7 @@ public final class PartyPlaybackSyncRepository {
         map.put("title", sync.title);
         map.put("artist", sync.artist);
         map.put("album", sync.album);
+        map.put("scheduleId", sync.scheduleId);
         map.put("positionMs", sync.positionMs);
         map.put("targetPositionMs", sync.targetPositionMs);
         map.put("lookaheadMs", sync.lookaheadMs > 0
@@ -83,6 +82,8 @@ public final class PartyPlaybackSyncRepository {
                 : PartyPlaybackSync.DEFAULT_LOOKAHEAD_MS);
         map.put("isPlaying", sync.isPlaying);
         map.put("durationMs", sync.durationMs);
+        map.put("hostMonoMs", sync.hostMonoMs);
+        map.put("targetHostMonoMs", sync.targetHostMonoMs);
         map.put("updatedAt", ServerValue.TIMESTAMP);
 
         db.getReference(PartyFirebasePaths.PARTIES)

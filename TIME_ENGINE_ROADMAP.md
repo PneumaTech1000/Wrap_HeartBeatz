@@ -159,3 +159,18 @@ Host records a future instant: e.g. at wall/server sense of `T0` position `P0`, 
 ---
 
 *Recorded for HeartBeatz party sync. Implementation starts at build order step 1 when approved.*
+
+---
+
+## Implementation status (v1)
+
+| Step | Status |
+|------|--------|
+| 1. TimeEngine API + phases | Done — `architecture/timeengine/TimeEngine.java` |
+| 2. Anchor model + Firebase payload | Done — `TimeAnchor`, `scheduleId`, `hostMonoMs`, repo fields |
+| 3. Host publisher | Done — `PartyLiveBridge` heartbeat 2s + force schedule on transport |
+| 4. Guest BUFFER → ARM → RELEASE | Done — `TimeEnginePlayerBridge` |
+| 5. Drift policy (rate first) | Done — `TimeEngine.decideCorrection` |
+| 6. UI gate on ready | Done — `getGuestReadyForUi` + FragmentParty |
+| 7–8. Polish / metrics | Partial — Logcat tags `TimeEngine`, `TimeEnginePlayer`, `PartyLiveBridge` |
+

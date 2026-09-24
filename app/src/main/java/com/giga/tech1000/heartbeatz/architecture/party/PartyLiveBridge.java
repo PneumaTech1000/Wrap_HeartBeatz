@@ -2,6 +2,7 @@ package com.giga.tech1000.heartbeatz.architecture.party;
 
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -13,35 +14,28 @@ import androidx.lifecycle.Observer;
 import com.giga.tech1000.heartbeatz.architecture.media.PartyMediaObject;
 import com.giga.tech1000.heartbeatz.architecture.media.PartyTrackUploader;
 import com.giga.tech1000.heartbeatz.architecture.repositories.PlaybackStateRepository;
+import com.giga.tech1000.heartbeatz.architecture.timeengine.TimeAnchor;
+import com.giga.tech1000.heartbeatz.architecture.timeengine.TimeEngine;
+import com.giga.tech1000.heartbeatz.architecture.timeengine.TimeEnginePhase;
+import com.giga.tech1000.heartbeatz.architecture.timeengine.TimeEnginePlayerBridge;
 import com.giga.tech1000.media_player.models.Song;
 
 import java.io.File;
-import java.util.Objects;
 
 /**
- * Host: on each track change while hosting → background upload → write {@code parties/{id}/sync}.
- * Also heartbeats position while playing.
- * Guest: observes sync LiveData for UI / Media3 apply.
+ * Host: upload track + publish TimeEngine anchors (5s lookahead, scheduleId, host mono).
+ * Guest: {@link TimeEngine} + {@link TimeEnginePlayerBridge} (buffer → arm → release → lock).
  */
 public final class PartyLiveBridge {
 
     private static final String TAG = "PartyLiveBridge";
-    private static final long HEARTBEAT_MS = 3500L; // was 2s — lower host CPU/network heat
-    /** Guests schedule against this horizon (matches packet lookahead). */
-    private static final long LOOKAHEAD_MS = PartyPlaybackSync.DEFAULT_LOOKAHEAD_MS;
-
-    private final PartySyncTimeline guestTimeline = new PartySyncTimeline();
-    private final MutableLiveData<Long> idealPositionLive = new MutableLiveData<>(0L);
-    @Nullable private String lastAppliedMediaUrl;
-    private long lastSeekAtDeviceMs;
-    private boolean lastAppliedPlaying;
-    private long lastPublishedPos = -1;
-    private boolean lastPublishedPlaying;
-
-
+    /** Host heartbeat; balance heat vs schedule freshness. */
+    private static final long HEARTBEAT_MS = 2_000L;
 
     private final PartyTrackUploader uploader;
     private final PartyPlaybackSyncRepository syncRepo;
+    private final TimeEngine timeEngine = new TimeEngine();
+    private final TimeEnginePlayerBridge playerBridge = new TimeEnginePlayerBridge(timeEngine);
     private final Handler main = new Handler(Looper.getMainLooper());
 
     @Nullable private PlaybackStateRepository playback;
@@ -55,22 +49,28 @@ public final class PartyLiveBridge {
     @Nullable private String lastArtist;
     @Nullable private String lastAlbum;
 
+    private long lastPublishedPos = -1;
+    private boolean lastPublishedPlaying;
+    /** Bump scheduleId on transport changes so guests re-arm cleanly. */
+    private long forceScheduleId;
+
     private final MutableLiveData<PartyPlaybackSync> latestSync = new MutableLiveData<>(null);
     private final MutableLiveData<Boolean> guestLockedUi = new MutableLiveData<>(false);
+    private final MutableLiveData<Long> idealPositionLive = new MutableLiveData<>(0L);
+
+    @Nullable private Observer<Song> songObserver;
+    @Nullable private Observer<Boolean> playingObserver;
+    @Nullable private Observer<PartyTrackUploader.Status> uploadObserver;
 
     private final Runnable heartbeat = new Runnable() {
         @Override
         public void run() {
             if (hosting && activePartyId != null && playback != null) {
-                publishPositionOnly();
+                publishPositionOnly(false);
                 main.postDelayed(this, HEARTBEAT_MS);
             }
         }
     };
-
-    @Nullable private Observer<Song> songObserver;
-    @Nullable private Observer<Boolean> playingObserver;
-    @Nullable private Observer<PartyTrackUploader.Status> uploadObserver;
 
     public PartyLiveBridge(
             @NonNull PartyTrackUploader uploader,
@@ -80,47 +80,49 @@ public final class PartyLiveBridge {
     }
 
     @NonNull
+    public TimeEngine timeEngine() {
+        return timeEngine;
+    }
+
+    @NonNull
+    public TimeEnginePlayerBridge playerBridge() {
+        return playerBridge;
+    }
+
+    @NonNull
     public LiveData<PartyPlaybackSync> getLatestSync() {
         return latestSync;
     }
 
-    /** Guest: ideal track position from server timeline (updated on each sync packet). */
     @NonNull
-    public LiveData<Long> getIdealPositionMs() {
+    public LiveData<Boolean> getGuestLockedUi() {
+        return guestLockedUi;
+    }
+
+    @NonNull
+    public LiveData<Long> getIdealPosition() {
         return idealPositionLive;
     }
 
     @NonNull
-    public PartySyncTimeline getGuestTimeline() {
-        return guestTimeline;
+    public LiveData<Boolean> getGuestReadyForUi() {
+        return playerBridge.getReadyForUi();
     }
 
-    /** Guests should show blurred / non-seekable player chrome. */
-    @NonNull
-    public LiveData<Boolean> isGuestPlayerLocked() {
-        return guestLockedUi;
-    }
-
-    public void attachPlayback(@Nullable PlaybackStateRepository playback) {
-        this.playback = playback;
-    }
-
-    /** Call when entering HOSTING with party id. */
-    public void startHost(@NonNull String partyId, @Nullable PlaybackStateRepository playbackRepo) {
+    /** Call when host party is live. */
+    public void startHost(@NonNull String partyId, @NonNull PlaybackStateRepository playbackRepo) {
         stopAll();
         this.activePartyId = partyId;
         this.hosting = true;
         this.playback = playbackRepo;
         guestLockedUi.postValue(false);
         PartyServerClock.get().start();
-        syncRepo.stopObserving();
+        timeEngine.startSession();
+        playerBridge.attachPlayback(null);
         bindHostObservers();
-        // Process current song immediately
-        if (playback != null) {
-            Song song = playback.getCurrentSongSync();
-            if (song != null) {
-                onHostSong(song);
-            }
+        Song song = playback.getCurrentSongSync();
+        if (song != null) {
+            onHostSong(song);
         }
         main.postDelayed(heartbeat, HEARTBEAT_MS);
         Log.d(TAG, "Host bridge started party=" + partyId);
@@ -133,8 +135,8 @@ public final class PartyLiveBridge {
         this.hosting = false;
         guestLockedUi.postValue(true);
         PartyServerClock.get().start();
-        lastAppliedMediaUrl = null;
-        lastSeekAtDeviceMs = 0;
+        playerBridge.onSessionStart();
+        playerBridge.attachPlayback(playback);
         syncRepo.observeParty(partyId);
         syncRepo.getSync().observeForever(this::onGuestSync);
         Log.d(TAG, "Guest bridge started party=" + partyId);
@@ -147,13 +149,20 @@ public final class PartyLiveBridge {
         try {
             syncRepo.getSync().removeObserver(this::onGuestSync);
         } catch (Exception ignored) { }
+        playerBridge.reset();
         hosting = false;
         activePartyId = null;
         lastUploadedTrackId = null;
+        lastMediaUrl = null;
+        lastObjectKey = null;
         guestLockedUi.postValue(false);
         latestSync.postValue(null);
         idealPositionLive.postValue(0L);
-        guestTimeline.reset();
+    }
+
+    public void attachPlaybackForGuest(@Nullable PlaybackStateRepository repo) {
+        this.playback = repo;
+        playerBridge.attachPlayback(repo);
     }
 
     private void bindHostObservers() {
@@ -164,7 +173,8 @@ public final class PartyLiveBridge {
                 main.removeCallbacks(heartbeat);
                 main.post(heartbeat);
             }
-            publishPositionOnly();
+            // Transport change → new schedule id so guests re-lock
+            publishPositionOnly(true);
         };
         playback.getCurrentSong().observeForever(songObserver);
         playback.isPlaying().observeForever(playingObserver);
@@ -175,7 +185,7 @@ public final class PartyLiveBridge {
                 PartyMediaObject obj = status.result;
                 lastMediaUrl = obj.mediaUrl;
                 lastObjectKey = obj.objectKey;
-                publishFullSync(true);
+                publishFullSync(true, true);
             } else if (status.state == PartyTrackUploader.State.ERROR) {
                 Log.e(TAG, "Upload error: " + status.errorMessage);
             }
@@ -186,14 +196,20 @@ public final class PartyLiveBridge {
     private void unbindHostObservers() {
         if (playback != null) {
             if (songObserver != null) {
-                try { playback.getCurrentSong().removeObserver(songObserver); } catch (Exception ignored) { }
+                try {
+                    playback.getCurrentSong().removeObserver(songObserver);
+                } catch (Exception ignored) { }
             }
             if (playingObserver != null) {
-                try { playback.isPlaying().removeObserver(playingObserver); } catch (Exception ignored) { }
+                try {
+                    playback.isPlaying().removeObserver(playingObserver);
+                } catch (Exception ignored) { }
             }
         }
         if (uploadObserver != null) {
-            try { uploader.getStatus().removeObserver(uploadObserver); } catch (Exception ignored) { }
+            try {
+                uploader.getStatus().removeObserver(uploadObserver);
+            } catch (Exception ignored) { }
         }
         songObserver = null;
         playingObserver = null;
@@ -203,16 +219,14 @@ public final class PartyLiveBridge {
     private void onHostSong(@Nullable Song song) {
         if (!hosting || activePartyId == null || song == null) return;
         String trackId = String.valueOf(song.getId());
+        lastUploadedTrackId = trackId;
         lastTitle = song.getTitle();
         lastArtist = song.getArtist();
-        try { lastAlbum = song.getAlbum(); } catch (Exception e) { lastAlbum = null; }
-        if (Objects.equals(trackId, lastUploadedTrackId) && lastMediaUrl != null) {
-            publishFullSync(playback != null && playback.isPlayingSync());
-            return;
+        try {
+            lastAlbum = song.getAlbum();
+        } catch (Exception e) {
+            lastAlbum = null;
         }
-        lastUploadedTrackId = trackId;
-        lastMediaUrl = null;
-        lastObjectKey = null;
 
         File file = null;
         try {
@@ -224,7 +238,6 @@ public final class PartyLiveBridge {
             Log.w(TAG, "No local path for song", e);
         }
         if (file == null || !file.exists()) {
-            // Still publish metadata without URL so guests see title
             long pos = playback != null ? playback.getCurrentPositionSync() : 0;
             long dur = playback != null ? playback.getCurrentDurationSync() : 0;
             boolean playing = playback != null && playback.isPlayingSync();
@@ -239,28 +252,40 @@ public final class PartyLiveBridge {
         uploader.uploadAsync(activePartyId, trackId, file, "audio/*", null);
     }
 
-    private void publishPositionOnly() {
+    private void publishPositionOnly(boolean forceNewSchedule) {
         if (!hosting || activePartyId == null || playback == null) return;
         if (lastMediaUrl == null && lastUploadedTrackId == null) return;
         boolean playing = playback.isPlayingSync();
         long pos = playback.getCurrentPositionSync();
-        // Skip redundant Firebase writes to reduce host heat / radio use
-        if (playing == lastPublishedPlaying && Math.abs(pos - lastPublishedPos) < 400) {
+        if (!forceNewSchedule
+                && playing == lastPublishedPlaying
+                && Math.abs(pos - lastPublishedPos) < 350) {
             return;
         }
         lastPublishedPos = pos;
         lastPublishedPlaying = playing;
-        publishFullSync(playing);
+        publishFullSync(playing, forceNewSchedule);
     }
 
-    private void publishFullSync(boolean isPlaying) {
+    private void publishFullSync(boolean isPlaying, boolean forceNewSchedule) {
         if (!hosting || activePartyId == null || playback == null) return;
         long pos = playback.getCurrentPositionSync();
         long dur = 0;
         try {
             dur = playback.getCurrentDurationSync();
         } catch (Exception ignored) { }
-        // positionMs = now; targetPositionMs = position 5s ahead (if playing)
+
+        long scheduleId = forceNewSchedule
+                ? PartyPlaybackSync.nextScheduleId()
+                : (forceScheduleId > 0 ? forceScheduleId : PartyPlaybackSync.nextScheduleId());
+        if (forceNewSchedule) {
+            forceScheduleId = scheduleId;
+        } else if (forceScheduleId == 0) {
+            forceScheduleId = scheduleId;
+        } else {
+            scheduleId = forceScheduleId;
+        }
+
         PartyPlaybackSync sync = PartyPlaybackSync.schedule(
                 lastObjectKey,
                 lastMediaUrl,
@@ -270,103 +295,39 @@ public final class PartyLiveBridge {
                 lastAlbum,
                 pos,
                 dur,
-                isPlaying);
+                isPlaying,
+                scheduleId);
         latestSync.postValue(sync);
-        // updatedAt filled by repo with ServerValue.TIMESTAMP (not phone clock)
         syncRepo.publishHostSync(activePartyId, sync);
-        Log.d(TAG, "sync published pos=" + pos + " targetPos=" + sync.targetPositionMs
-                + " lookahead=" + sync.lookaheadMs + " playing=" + isPlaying);
+        Log.d(TAG, "sync scheduleId=" + scheduleId
+                + " pos=" + pos
+                + " target=" + sync.targetPositionMs
+                + " mono=" + sync.hostMonoMs
+                + " playing=" + isPlaying);
     }
 
     private void onGuestSync(@Nullable PartyPlaybackSync sync) {
         if (hosting) return;
-        if (sync != null) {
-            if (sync.receivedAtDeviceMs <= 0) {
-                sync.receivedAtDeviceMs = System.currentTimeMillis();
-            }
-            guestTimeline.onPacketReceived(sync);
-            long ideal = guestTimeline.idealPositionMs(sync);
+        if (sync == null) {
+            latestSync.postValue(null);
+            return;
+        }
+        if (sync.receivedAtDeviceMs <= 0) {
+            sync.receivedAtDeviceMs = System.currentTimeMillis();
+        }
+
+        TimeAnchor anchor = TimeAnchor.fromSync(sync, SystemClock.elapsedRealtime());
+        playerBridge.onAnchor(anchor);
+
+        long ideal = timeEngine.idealTrackPositionMs();
+        if (ideal >= 0) {
             idealPositionLive.postValue(ideal);
-            applyGuestPlayback(sync, ideal);
         }
         latestSync.postValue(sync);
-    }
 
-    private void applyGuestPlayback(@NonNull PartyPlaybackSync sync, long idealPos) {
-        if (playback == null) return;
-
-        String url = sync.mediaUrl;
-        boolean urlChanged = url != null && !url.isEmpty()
-                && !url.equals(lastAppliedMediaUrl);
-
-        if (urlChanged) {
-            lastAppliedMediaUrl = url;
-            long seekTo = idealPos >= 0 ? idealPos : Math.max(0, sync.positionMs);
-            playback.playPartyStream(
-                    url,
-                    sync.trackId,
-                    sync.title,
-                    sync.artist,
-                    sync.album,
-                    seekTo,
-                    sync.isPlaying);
-            lastSeekAtDeviceMs = System.currentTimeMillis();
-            lastAppliedPlaying = sync.isPlaying;
-            return;
-        }
-
-        if (url == null || url.isEmpty()) {
-            // Metadata-only packet still updates UI
-            playback.updatePartyMetadata(sync.title, sync.artist, sync.album, sync.durationMs);
-            return;
-        }
-
-        // isPlaying — always honor host flag
-        try {
-            boolean localPlaying = playback.isPlayingSync();
-            if (sync.isPlaying != localPlaying) {
-                if (sync.isPlaying) playback.play();
-                else playback.pause();
-                lastAppliedPlaying = sync.isPlaying;
-            }
-        } catch (Exception ignored) { }
-
-        // Keep mini/full metadata in sync with host packet
-        try {
-            playback.updatePartyMetadata(sync.title, sync.artist, sync.album, sync.durationMs);
-        } catch (Exception ignored) { }
-
-        // Position — prefer rate nudge over seek to avoid audio glitches
-        if (idealPos < 0) return;
-        long now = System.currentTimeMillis();
-        try {
-            long local = playback.getCurrentPositionSync();
-            long drift = local - idealPos; // positive = guest ahead
-            long abs = Math.abs(drift);
-            if (abs > PartySyncTimeline.HARD_SEEK_THRESHOLD_MS
-                    && (now - lastSeekAtDeviceMs) > 2000L) {
-                playback.seekTo(idealPos);
-                playback.setPlaybackSpeed(1.0f);
-                lastSeekAtDeviceMs = now;
-                Log.d(TAG, "guest HARD seek drift=" + drift);
-            } else if (abs > 60 && abs < PartySyncTimeline.SEEK_THRESHOLD_MS && sync.isPlaying) {
-                // Micro-correct with slight speed change (no click)
-                float rate = drift > 0 ? 0.97f : 1.03f;
-                playback.setPlaybackSpeed(rate);
-            } else if (abs <= 60) {
-                playback.setPlaybackSpeed(1.0f);
-            } else if (abs >= PartySyncTimeline.SEEK_THRESHOLD_MS
-                    && abs <= PartySyncTimeline.HARD_SEEK_THRESHOLD_MS
-                    && (now - lastSeekAtDeviceMs) > 4000L) {
-                // Rare mid seek
-                playback.seekTo(idealPos);
-                playback.setPlaybackSpeed(1.0f);
-                lastSeekAtDeviceMs = now;
-            }
-        } catch (Exception ignored) { }
-    }
-
-    public void attachPlaybackForGuest(@Nullable PlaybackStateRepository repo) {
-        this.playback = repo;
+        Log.d(TAG, "guest feed scheduleId=" + anchor.scheduleId
+                + " phase=" + timeEngine.phase()
+                + " ideal=" + ideal
+                + " untilRelease=" + timeEngine.msUntilRelease());
     }
 }
