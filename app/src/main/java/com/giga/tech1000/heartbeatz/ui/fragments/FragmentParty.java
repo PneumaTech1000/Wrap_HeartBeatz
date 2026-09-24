@@ -87,6 +87,10 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
     private LinearLayout tvNoGuests;
     private ImageView ivHostQrCode;
     private TextView tvPartyPin;
+    private android.widget.ImageButton btnTogglePartyPin;
+    private boolean pinRevealed;
+    private boolean guestMetaBannerShown;
+
     private TextView partyTitle;
     private TextView deviceCount;
     private Chip partyStatus;
@@ -193,6 +197,14 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
         tvNoGuests = connectedView.findViewById(R.id.tvNoGuests);
         ivHostQrCode = connectedView.findViewById(R.id.ivHostQrCode);
         tvPartyPin = connectedView.findViewById(R.id.tvPartyPin);
+        btnTogglePartyPin = connectedView.findViewById(R.id.btnTogglePartyPin);
+        if (btnTogglePartyPin != null) {
+            btnTogglePartyPin.setOnClickListener(v -> {
+                pinRevealed = !pinRevealed;
+                refreshPinLabel();
+            });
+        }
+
         partyTitle = connectedView.findViewById(R.id.partyTitle);
         deviceCount = connectedView.findViewById(R.id.deviceCount);
         partyStatus = connectedView.findViewById(R.id.partyStatus);
@@ -435,6 +447,13 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
         String partyPin = viewModel.getPartyPin();
         if (partyId == null || partyId.isEmpty()) return;
 
+        // Always refresh PIN label on main thread
+        if (getActivity() != null) {
+            getActivity().runOnUiThread(this::refreshPinLabel);
+        } else {
+            refreshPinLabel();
+        }
+
         new Thread(() -> {
             String qrContent = QrCodeUtil.formatPartyInvite(partyId, partyName, partyPin);
             Bitmap qrBitmap = QrCodeUtil.generateQrCode(qrContent, 512);
@@ -443,9 +462,27 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
                     if (ivHostQrCode != null) {
                         ivHostQrCode.setImageBitmap(qrBitmap);
                     }
+                    refreshPinLabel();
                 });
             }
         }).start();
+    }
+
+    private void refreshPinLabel() {
+        if (tvPartyPin == null || viewModel == null) return;
+        String pin = viewModel.getPartyPin();
+        if (pin == null || pin.isEmpty()) {
+            tvPartyPin.setText("PIN: —");
+            return;
+        }
+        if (pinRevealed) {
+            tvPartyPin.setText("PIN: " + pin);
+        } else {
+            // Mask: one bullet per digit
+            StringBuilder masked = new StringBuilder("PIN: ");
+            for (int i = 0; i < pin.length(); i++) masked.append('•');
+            tvPartyPin.setText(masked.toString());
+        }
     }
 
     private void showHostActionDialog(String guestName) {
@@ -964,26 +1001,56 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
     }
 
     private void onGuestJoinedUi() {
-        if (progressSync != null) progressSync.setVisibility(android.view.View.GONE);
+        guestMetaBannerShown = false;
+        if (cardNowPlaying != null) cardNowPlaying.setVisibility(android.view.View.VISIBLE);
+        if (progressSync != null) progressSync.setVisibility(android.view.View.VISIBLE);
+        if (tvPartySongTitle != null) tvPartySongTitle.setText(R.string.streaming_audio);
+        if (tvPartyArtist != null) tvPartyArtist.setText(R.string.syncing_with_host);
+
         try {
             com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp.container(requireContext())
                     .partyLiveBridge()
                     .getLatestSync()
                     .observe(getViewLifecycleOwner(), sync -> {
                         if (sync == null) return;
-                        if (progressSync != null) progressSync.setVisibility(android.view.View.GONE);
-                        if (tvPartySongTitle != null && sync.title != null) {
-                            tvPartySongTitle.setText(sync.title);
+                        if (tvPartySongTitle != null) {
+                            tvPartySongTitle.setText(sync.title != null ? sync.title : getString(R.string.streaming_audio));
                         }
                         if (tvPartyArtist != null) {
-                            tvPartyArtist.setText(sync.artist != null ? sync.artist : "");
+                            String artist = sync.artist != null ? sync.artist : "";
+                            long dur = sync.durationMs;
+                            if (dur > 0) {
+                                long sec = (dur / 1000) % 60;
+                                long min = (dur / 1000) / 60;
+                                artist = artist + (artist.isEmpty() ? "" : " · ")
+                                        + min + ":" + String.format("%02d", sec);
+                            }
+                            tvPartyArtist.setText(artist.isEmpty() ? getString(R.string.connected_to_party) : artist);
                         }
-                        if (sync.mediaUrl != null && !sync.mediaUrl.isEmpty()) {
+                        // Show metadata banner briefly, then dismiss and open full player
+                        if (!guestMetaBannerShown) {
+                            guestMetaBannerShown = true;
+                            if (cardNowPlaying != null) cardNowPlaying.setVisibility(android.view.View.VISIBLE);
+                            if (progressSync != null) progressSync.setVisibility(android.view.View.GONE);
+                            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                                if (!isAdded()) return;
+                                if (cardNowPlaying != null) cardNowPlaying.setVisibility(android.view.View.GONE);
+                                if (progressSync != null) progressSync.setVisibility(android.view.View.GONE);
+                                expandFullPlayerForParty();
+                            }, 2000);
+                        } else if (sync.mediaUrl != null && !sync.mediaUrl.isEmpty()) {
+                            // Subsequent updates: keep player open
                             expandFullPlayerForParty();
                         }
                     });
         } catch (Exception e) {
             android.util.Log.w("FragmentParty", "guest sync UI observe failed", e);
+            // Fallback dismiss after 2s even without sync
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                if (!isAdded()) return;
+                if (cardNowPlaying != null) cardNowPlaying.setVisibility(android.view.View.GONE);
+                if (progressSync != null) progressSync.setVisibility(android.view.View.GONE);
+            }, 2000);
         }
     }
 

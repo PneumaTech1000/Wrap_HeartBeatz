@@ -324,7 +324,14 @@ public class PlaybackStateManager implements PlaybackStateRepository {
             if (playerThread == null || playerThread.getCorePlayer() == null) return;
             MediaController c = playerThread.getCorePlayer().getMediaController();
             if (c == null) {
-                Log.w(TAG, "playPartyStream: MediaController null");
+                Log.w(TAG, "playPartyStream: MediaController null — retry in 400ms");
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() ->
+                        playPartyStream(mediaUrl, mediaId, title, artist, positionMs, playWhenReady), 400);
+                return;
+            }
+            // Skip known non-playable stub URLs from NoOp store
+            if (mediaUrl.contains("example.invalid")) {
+                Log.w(TAG, "playPartyStream: stub URL (configure Supabase/R2 for real audio): " + mediaUrl);
                 return;
             }
             MediaMetadata.Builder meta = new MediaMetadata.Builder();

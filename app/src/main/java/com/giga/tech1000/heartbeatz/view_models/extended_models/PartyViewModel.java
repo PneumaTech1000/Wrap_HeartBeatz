@@ -649,14 +649,17 @@ public class PartyViewModel extends AndroidViewModel {
 
     @NonNull
     public String getPartyPin() {
-        PartyHost host = partyHost.getHostedParty().getValue();
-        if (host == null) {
-            host = playbackState.getPartyHost().getValue();
+        if (pendingPartyPin != null && !pendingPartyPin.isEmpty()) {
+            return pendingPartyPin;
         }
-        if (host != null && host.isPasswordProtected()) {
+        PartyHost host = partyHost.getHostedParty().getValue();
+        if (host == null && playbackState != null) {
+            try { host = playbackState.getPartyHost().getValue(); } catch (Exception ignored) { }
+        }
+        if (host != null && host.getPin() != null && !host.getPin().isEmpty()) {
             return host.getPin();
         }
-        return pendingPartyPin;
+        return "";
     }
 
     // ============ SYNCHRONOUS QUERIES (for initial UI setup) ============
