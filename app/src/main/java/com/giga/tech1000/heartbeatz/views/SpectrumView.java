@@ -1,412 +1,330 @@
 package com.giga.tech1000.heartbeatz.views;
 
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
-import android.graphics.Color;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.Shader;
 import android.util.AttributeSet;
 import android.view.View;
+import android.view.animation.LinearInterpolator;
 
+import androidx.annotation.ColorInt;
 import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
+
+import com.giga.tech1000.heartbeatz.R;
 
 /**
- * Custom view for displaying audio spectrum (FFT) visualization.
- * Shows real-time frequency response with EQ curve overlay.
+ * Responsive FFT bar spectrum + EQ spline curve (DSPark-style).
+ * <p>
+ * Expects normalized magnitudes in {@code [0, 1]} from {@link #setFftData}.
+ * EQ curve points in {@code [0, 1]} map to −12…+12 dB vertical scale via {@link #setEqCurveData}.
  */
 public class SpectrumView extends View {
 
-    // Paint objects for drawing
-    private Paint gridPaint;
-    private Paint spectrumPaint;
-    private Paint eqCurvePaint;
-    private Paint peakHoldPaint;
-    private Paint axisPaint;
-    private Paint labelPaint;
+    private static final int BAR_COUNT = 48;
+    private static final float DB_RANGE = 12f; // ±12 dB for EQ curve
 
-    // Data arrays
-    private float[] fftMagnitudes; // Normalized FFT magnitudes (0-1)
-    private float[] eqCurve; // EQ curve values for each frequency bin
-    private float[] peakHold; // Peak hold values for each frequency bin
+    private final Paint gridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint midLinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint barPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint curvePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint nodePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint nodeStrokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path curvePath = new Path();
 
-    // Configuration
-    private int fftSize = 1024;
-    private int sampleRate = 44100;
-    private float decayRate = 0.95f; // How fast peaks decay
-    private float peakHoldDecay = 0.995f; // How fast peak hold decays
+    /** Display bars (smoothed). */
+    private final float[] bars = new float[BAR_COUNT];
+    /** Incoming FFT (may differ in length). */
+    @Nullable private float[] fftSource;
+    /** EQ gains normalized 0..1 (0 = −12 dB, 0.5 = 0 dB, 1 = +12 dB). */
+    @Nullable private float[] eqCurve;
 
-    // Visual settings
-    private static final int GRID_COLOR = Color.parseColor("#40FFFFFF");
-    private static final int SPECTRUM_COLOR = Color.parseColor("#40FF6B6B");
-    private static final int EQ_CURVE_COLOR = Color.parseColor("#FFFF6B6B");
-    private static final int PEAK_HOLD_COLOR = Color.parseColor("#8000BFFF");
-    private static final int AXIS_COLOR = Color.parseColor("#80FFFFFF");
-    private static final int LABEL_COLOR = Color.parseColor("#FFFFFFFF");
+    private float animPhase;
+    private boolean hasLiveData;
+    private boolean standby;
+
+    @ColorInt private int primaryColor;
+    @ColorInt private int cyanColor;
+    @ColorInt private int gridColor;
+    @ColorInt private int midLineColor;
+    @ColorInt private int nodeFillColor;
+
+    @Nullable private LinearGradient barGradient;
+    private int lastW;
+    private int lastH;
+
+    private ValueAnimator idleAnimator;
 
     public SpectrumView(Context context) {
         super(context);
-        init();
+        init(context, null);
     }
 
     public SpectrumView(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
-        init();
+        init(context, null);
     }
 
     public SpectrumView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        init();
+        init(context, null);
     }
 
-    private void init() {
-        // Initialize paints
-        gridPaint = new Paint();
-        gridPaint.setColor(GRID_COLOR);
-        gridPaint.setStrokeWidth(1f);
+    private void init(Context context, @Nullable AttributeSet attrs) {
+        primaryColor = ContextCompat.getColor(context, R.color.hb_primary);
+        cyanColor = ContextCompat.getColor(context, R.color.hb_accent_cyan);
+        gridColor = 0x0FFFFFFF;
+        midLineColor = 0x22FFFFFF;
+        nodeFillColor = 0xFFFFFFFF;
+
         gridPaint.setStyle(Paint.Style.STROKE);
-        gridPaint.setAntiAlias(true);
+        gridPaint.setStrokeWidth(dp(1f));
+        gridPaint.setColor(gridColor);
 
-        spectrumPaint = new Paint();
-        spectrumPaint.setColor(SPECTRUM_COLOR);
-        spectrumPaint.setStrokeWidth(2f);
-        spectrumPaint.setStyle(Paint.Style.FILL);
-        spectrumPaint.setAntiAlias(true);
+        midLinePaint.setStyle(Paint.Style.STROKE);
+        midLinePaint.setStrokeWidth(dp(1f));
+        midLinePaint.setColor(midLineColor);
+        midLinePaint.setPathEffect(new android.graphics.DashPathEffect(
+                new float[]{dp(4f), dp(4f)}, 0f));
 
-        eqCurvePaint = new Paint();
-        eqCurvePaint.setColor(EQ_CURVE_COLOR);
-        eqCurvePaint.setStrokeWidth(3f);
-        eqCurvePaint.setStyle(Paint.Style.STROKE);
-        eqCurvePaint.setAntiAlias(true);
+        barPaint.setStyle(Paint.Style.FILL);
 
-        peakHoldPaint = new Paint();
-        peakHoldPaint.setColor(PEAK_HOLD_COLOR);
-        peakHoldPaint.setStrokeWidth(2f);
-        peakHoldPaint.setStyle(Paint.Style.STROKE);
-        peakHoldPaint.setAntiAlias(true);
+        curvePaint.setStyle(Paint.Style.STROKE);
+        curvePaint.setStrokeWidth(dp(2.5f));
+        curvePaint.setColor(cyanColor);
+        curvePaint.setStrokeJoin(Paint.Join.ROUND);
+        curvePaint.setStrokeCap(Paint.Cap.ROUND);
+        curvePaint.setShadowLayer(dp(8f), 0f, 0f, cyanColor & 0xCCFFFFFF);
 
-        axisPaint = new Paint();
-        axisPaint.setColor(AXIS_COLOR);
-        axisPaint.setStrokeWidth(2f);
-        axisPaint.setStyle(Paint.Style.STROKE);
-        axisPaint.setAntiAlias(true);
+        nodePaint.setStyle(Paint.Style.FILL);
+        nodePaint.setColor(cyanColor);
 
-        labelPaint = new Paint();
-        labelPaint.setColor(LABEL_COLOR);
-        labelPaint.setTextSize(14f);
-        labelPaint.setAntiAlias(true);
+        nodeStrokePaint.setStyle(Paint.Style.STROKE);
+        nodeStrokePaint.setStrokeWidth(dp(1.5f));
+        nodeStrokePaint.setColor(0xFF0E0E11);
 
-        // Initialize data arrays
-        fftMagnitudes = new float[fftSize / 2]; // Only need positive frequencies
-        eqCurve = new float[fftSize / 2];
-        peakHold = new float[fftSize / 2];
-
-        // Initialize arrays to zero
-        clearData();
+        setLayerType(LAYER_TYPE_SOFTWARE, null); // shadow on curve
+        startIdleMotion();
     }
 
-    /**
-     * Clear all data arrays
-     */
-    public void clearData() {
-        for (int i = 0; i < fftMagnitudes.length; i++) {
-            fftMagnitudes[i] = 0f;
-            eqCurve[i] = 0f;
-            peakHold[i] = 0f;
-        }
-        invalidate(); // Trigger redraw
-    }
-
-    /**
-     * Set FFT magnitude data (normalized 0-1)
-     */
-    public void setFftData(float[] magnitudes) {
-        if (magnitudes == null) return;
-
-        // Copy data, ensuring we don't exceed array bounds
-        int length = Math.min(magnitudes.length, fftMagnitudes.length);
-        System.arraycopy(magnitudes, 0, fftMagnitudes, 0, length);
-
-        // Update peak hold
-        for (int i = 0; i < length; i++) {
-            if (fftMagnitudes[i] > peakHold[i]) {
-                peakHold[i] = fftMagnitudes[i];
+    private void startIdleMotion() {
+        if (idleAnimator != null) idleAnimator.cancel();
+        idleAnimator = ValueAnimator.ofFloat(0f, (float) (Math.PI * 2));
+        idleAnimator.setDuration(4000);
+        idleAnimator.setRepeatCount(ValueAnimator.INFINITE);
+        idleAnimator.setInterpolator(new LinearInterpolator());
+        idleAnimator.addUpdateListener(a -> {
+            animPhase = (float) a.getAnimatedValue();
+            if (!hasLiveData) {
+                synthesizeIdleBars();
             } else {
-                peakHold[i] *= peakHoldDecay;
+                smoothTowardSource();
             }
-        }
+            invalidate();
+        });
+        idleAnimator.start();
+    }
 
-        // Apply decay to spectrum for smooth fading
-        for (int i = 0; i < fftMagnitudes.length; i++) {
-            fftMagnitudes[i] *= decayRate;
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        if (idleAnimator != null && !idleAnimator.isRunning()) {
+            idleAnimator.start();
         }
+    }
 
-        invalidate(); // Trigger redraw
+    @Override
+    protected void onDetachedFromWindow() {
+        if (idleAnimator != null) idleAnimator.cancel();
+        super.onDetachedFromWindow();
+    }
+
+    /** Normalized FFT magnitudes 0..1 (any length). */
+    public void setFftData(@Nullable float[] magnitudes) {
+        if (magnitudes == null || magnitudes.length == 0) {
+            hasLiveData = false;
+            return;
+        }
+        if (fftSource == null || fftSource.length != magnitudes.length) {
+            fftSource = new float[magnitudes.length];
+        }
+        System.arraycopy(magnitudes, 0, fftSource, 0, magnitudes.length);
+        hasLiveData = true;
+        standby = false;
+        smoothTowardSource();
+        invalidate();
     }
 
     /**
-     * Set EQ curve data (normalized 0-1, representing gain adjustment)
+     * EQ curve samples in 0..1 (maps to −12…+12 dB). Length typically = band count.
      */
-    public void setEqCurveData(float[] curve) {
-        if (curve == null) return;
-
-        int length = Math.min(curve.length, eqCurve.length);
-        System.arraycopy(curve, 0, eqCurve, 0, length);
-        invalidate(); // Trigger redraw
+    public void setEqCurveData(@Nullable float[] curve) {
+        this.eqCurve = curve;
+        invalidate();
     }
 
-    /**
-     * Set the FFT size (must be power of 2)
-     */
+    public void setStandby(boolean standby) {
+        this.standby = standby;
+        if (standby) hasLiveData = false;
+        invalidate();
+    }
+
     public void setFftSize(int size) {
-        // Ensure it's a power of 2
-        fftSize = Integer.highestOneBit(size);
-        if (fftSize < 32) fftSize = 32; // Minimum reasonable size
-
-        // Reinitialize data arrays
-        fftMagnitudes = new float[fftSize / 2];
-        eqCurve = new float[fftSize / 2];
-        peakHold = new float[fftSize / 2];
-        clearData();
+        // kept for API compatibility
     }
 
-    /**
-     * Set the audio sample rate
-     */
     public void setSampleRate(int rate) {
-        this.sampleRate = rate;
+        // kept for API compatibility
+    }
+
+    private void smoothTowardSource() {
+        if (fftSource == null) return;
+        int n = fftSource.length;
+        for (int i = 0; i < BAR_COUNT; i++) {
+            float t = i / (float) (BAR_COUNT - 1);
+            // Logarithmic-ish pick from source bins
+            float logT = (float) Math.pow(t, 0.65);
+            int idx = Math.min(n - 1, Math.round(logT * (n - 1)));
+            float target = clamp01(fftSource[idx]);
+            // Energy falloff toward highs looks more natural
+            target *= (0.55f + 0.45f * (1f - t * 0.5f));
+            bars[i] += (target - bars[i]) * 0.35f;
+            // Slow decay
+            bars[i] *= 0.985f;
+        }
+    }
+
+    private void synthesizeIdleBars() {
+        for (int i = 0; i < BAR_COUNT; i++) {
+            float t = i / (float) BAR_COUNT;
+            float wave = (float) (0.35 + 0.25 * Math.sin(animPhase + i * 0.22)
+                    + 0.15 * Math.sin(animPhase * 1.7 + i * 0.11));
+            float freqCurve = Math.max(0.12f, 1f - t * 0.5f);
+            float eqBoost = 0.55f;
+            if (eqCurve != null && eqCurve.length > 0) {
+                int bi = Math.min(eqCurve.length - 1, (int) (t * eqCurve.length));
+                eqBoost = 0.4f + eqCurve[bi] * 0.6f;
+            }
+            float target = wave * freqCurve * eqBoost;
+            if (standby) target *= 0.15f;
+            bars[i] += (target - bars[i]) * 0.2f;
+        }
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
+        int w = getWidth();
+        int h = getHeight();
+        if (w <= 0 || h <= 0) return;
 
-        int width = getWidth();
-        int height = getHeight();
-
-        if (width <= 0 || height <= 0) return;
-
-        // Draw background (optional - could be transparent)
-        // canvas.drawColor(Color.TRANSPARENT);
-
-        // Calculate drawing area (leave margin for labels)
-        int marginBottom = 40;
-        int marginLeft = 60;
-        int marginTop = 20;
-        int marginRight = 20;
-
-        int graphWidth = width - marginLeft - marginRight;
-        int graphHeight = height - marginTop - marginBottom;
-
-        if (graphWidth <= 0 || graphHeight <= 0) return;
-
-        // Draw grid
-        drawGrid(canvas, marginLeft, marginTop, graphWidth, graphHeight);
-
-        // Draw axes
-        drawAxes(canvas, marginLeft, marginTop, graphWidth, graphHeight);
-
-        // Draw labels
-        drawLabels(canvas, marginLeft, marginTop, graphWidth, graphHeight);
-
-        // Draw spectrum (fill area under curve)
-        drawSpectrum(canvas, marginLeft, marginTop, graphWidth, graphHeight);
-
-        // Draw EQ curve
-        drawEqCurve(canvas, marginLeft, marginTop, graphWidth, graphHeight);
-
-        // Draw peak hold
-        drawPeakHold(canvas, marginLeft, marginTop, graphWidth, graphHeight);
-    }
-
-    /**
-     * Draw frequency and dB grid lines
-     */
-    private void drawGrid(Canvas canvas, int marginLeft, int marginTop, int width, int height) {
-        // Vertical lines (frequency)
-        int[] freqLabels = {20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000};
-        for (int freq : freqLabels) {
-            if (freq >= 20 && freq <= sampleRate / 2) {
-                float x = marginLeft + width * getFrequencyX(freq, sampleRate);
-                canvas.drawLine(x, marginTop, x, marginTop + height, gridPaint);
-            }
+        if (w != lastW || h != lastH) {
+            lastW = w;
+            lastH = h;
+            barGradient = new LinearGradient(
+                    0, 0, 0, h,
+                    new int[]{primaryColor, primaryColor & 0xCCFFFFFF, 0x00000000},
+                    new float[]{0f, 0.45f, 1f},
+                    Shader.TileMode.CLAMP);
         }
 
-        // Horizontal lines (dB)
-        int[] dbLabels = {-60, -40, -20, -12, -6, 0, 6, 12};
-        for (int db : dbLabels) {
-            float y = marginTop + height * getDbY(db);
-            canvas.drawLine(marginLeft, y, marginLeft + width, y, gridPaint);
+        float midY = h * 0.5f;
+        float padL = dp(12f);
+        float padR = dp(8f);
+        float usableW = w - padL - padR;
+
+        // Horizontal grid (dB)
+        float[] gridYs = {0.08f, 0.25f, 0.5f, 0.75f, 0.92f};
+        for (float gy : gridYs) {
+            float y = h * gy;
+            canvas.drawLine(padL, y, w - padR, y, gridPaint);
         }
-    }
+        // 0 dB dashed midline
+        canvas.drawLine(padL, midY, w - padR, midY, midLinePaint);
 
-    /**
-     * Draw X and Y axes
-     */
-    private void drawAxes(Canvas canvas, int marginLeft, int marginTop, int width, int height) {
-        // Y axis (left)
-        canvas.drawLine(marginLeft, marginTop, marginLeft, marginTop + height, axisPaint);
-
-        // X axis (bottom)
-        canvas.drawLine(marginLeft, marginTop + height, marginLeft + width, marginTop + height, axisPaint);
-    }
-
-    /**
-     * Draw frequency and dB labels
-     */
-    private void drawLabels(Canvas canvas, int marginLeft, int marginTop, int width, int height) {
-        // Frequency labels (below X axis)
-        int[] freqLabels = {20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000};
-        for (int freq : freqLabels) {
-            if (freq >= 20 && freq <= sampleRate / 2) {
-                float x = marginLeft + width * getFrequencyX(freq, sampleRate);
-                String label;
-                if (freq >= 1000) {
-                    label = (freq / 1000) + "k";
-                } else {
-                    label = String.valueOf(freq);
-                }
-                canvas.drawText(label, x - labelPaint.measureText(label) / 2,
-                        marginTop + height + 25, labelPaint);
-            }
+        // Vertical light grid
+        for (int i = 1; i < 8; i++) {
+            float x = padL + usableW * (i / 8f);
+            canvas.drawLine(x, dp(4f), x, h - dp(4f), gridPaint);
         }
 
-        // dB labels (left of Y axis)
-        int[] dbLabels = {-60, -40, -20, -12, 0, 12};
-        for (int db : dbLabels) {
-            float y = marginTop + height * getDbY(db);
-            String label = db + "dB";
-            canvas.drawText(label, marginLeft - labelPaint.measureText(label) - 5,
-                    y + labelPaint.getTextSize() / 3, labelPaint);
-        }
-    }
-
-    /**
-     * Draw the FFT spectrum as a filled area
-     */
-    private void drawSpectrum(Canvas canvas, int marginLeft, int marginTop, int width, int height) {
-        if (fftMagnitudes == null) return;
-
-        // Create path for the spectrum area
-        android.graphics.Path path = new android.graphics.Path();
-        boolean firstPoint = true;
-
-        for (int i = 0; i < fftMagnitudes.length; i++) {
-            float frequency = getFrequencyForBin(i, fftSize, sampleRate);
-            float x = marginLeft + width * getFrequencyX(frequency, sampleRate);
-            float y = marginTop + height * (1f - getDbY(fftToDb(fftMagnitudes[i])));
-
-            if (firstPoint) {
-                path.moveTo(x, y);
-                firstPoint = false;
-            } else {
-                path.lineTo(x, y);
-            }
+        // Spectrum bars (from bottom)
+        float gap = dp(1.5f);
+        float barW = Math.max(dp(2f), (usableW - gap * (BAR_COUNT - 1)) / BAR_COUNT);
+        if (barGradient != null) {
+            barPaint.setShader(barGradient);
+        } else {
+            barPaint.setColor(primaryColor);
         }
 
-        // Close the path to fill area
-        path.lineTo(marginLeft + width, marginTop + height); // Bottom right
-        path.lineTo(marginLeft, marginTop + height); // Bottom left
-        path.close();
+        for (int i = 0; i < BAR_COUNT; i++) {
+            float level = clamp01(bars[i]);
+            float barH = Math.max(dp(3f), level * (h * 0.78f));
+            float x = padL + i * (barW + gap);
+            float top = h - barH;
+            canvas.drawRoundRect(x, top, x + barW, h, dp(2f), dp(2f), barPaint);
+        }
+        barPaint.setShader(null);
 
-        canvas.drawPath(path, spectrumPaint);
+        // EQ spline curve
+        drawEqCurve(canvas, padL, usableW, midY, h);
     }
 
-    /**
-     * Draw the EQ curve
-     */
-    private void drawEqCurve(Canvas canvas, int marginLeft, int marginTop, int width, int height) {
-        if (eqCurve == null) return;
+    private void drawEqCurve(Canvas canvas, float padL, float usableW, float midY, int h) {
+        if (eqCurve == null || eqCurve.length < 2) {
+            // Flat 0 dB guide if no curve
+            curvePath.reset();
+            curvePath.moveTo(padL, midY);
+            curvePath.lineTo(padL + usableW, midY);
+            canvas.drawPath(curvePath, curvePaint);
+            return;
+        }
 
-        boolean firstPoint = true;
-        float prevX = 0, prevY = 0;
+        int n = eqCurve.length;
+        float[] xs = new float[n];
+        float[] ys = new float[n];
+        float amp = midY - dp(14f); // max excursion
 
-        for (int i = 0; i < eqCurve.length; i++) {
-            float frequency = getFrequencyForBin(i, fftSize, sampleRate);
-            float x = marginLeft + width * getFrequencyX(frequency, sampleRate);
-            // Convert EQ curve (0-1 where 0.5 is flat) to dB for display
-            float db = (eqCurve[i] - 0.5f) * 60f; // +/- 30dB range
-            float y = marginTop + height * (1f - getDbY(db));
+        for (int i = 0; i < n; i++) {
+            xs[i] = padL + (i / (float) (n - 1)) * usableW;
+            // eqCurve 0..1 → gain −12..+12 → y inverted
+            float gain01 = clamp01(eqCurve[i]);
+            float gainDb = (gain01 * 2f - 1f) * DB_RANGE;
+            ys[i] = midY - (gainDb / DB_RANGE) * amp;
+        }
 
-            if (firstPoint) {
-                prevX = x;
-                prevY = y;
-                firstPoint = false;
-            } else {
-                // Draw line segment
-                canvas.drawLine(prevX, prevY, x, y, eqCurvePaint);
-                prevX = x;
-                prevY = y;
-            }
+        curvePath.reset();
+        curvePath.moveTo(padL, ys[0]);
+        curvePath.lineTo(xs[0], ys[0]);
+        for (int i = 0; i < n - 1; i++) {
+            float cpX = (xs[i] + xs[i + 1]) * 0.5f;
+            curvePath.cubicTo(cpX, ys[i], cpX, ys[i + 1], xs[i + 1], ys[i + 1]);
+        }
+        curvePath.lineTo(padL + usableW, ys[n - 1]);
+
+        curvePaint.setColor(cyanColor);
+        canvas.drawPath(curvePath, curvePaint);
+
+        // Control nodes
+        for (int i = 0; i < n; i++) {
+            float r = dp(i == n / 2 ? 5f : 3.5f);
+            nodePaint.setColor(i == n / 2 ? nodeFillColor : cyanColor);
+            canvas.drawCircle(xs[i], ys[i], r, nodePaint);
+            canvas.drawCircle(xs[i], ys[i], r, nodeStrokePaint);
         }
     }
 
-    /**
-     * Draw peak hold indicators
-     */
-    private void drawPeakHold(Canvas canvas, int marginLeft, int marginTop, int width, int height) {
-        if (peakHold == null) return;
-
-        boolean firstPoint = true;
-        float prevX = 0, prevY = 0;
-
-        for (int i = 0; i < peakHold.length; i++) {
-            float frequency = getFrequencyForBin(i, fftSize, sampleRate);
-            float x = marginLeft + width * getFrequencyX(frequency, sampleRate);
-            float y = marginTop + height * (1f - getDbY(fftToDb(peakHold[i])));
-
-            if (firstPoint) {
-                prevX = x;
-                prevY = y;
-                firstPoint = false;
-            } else {
-                // Draw line segment
-                canvas.drawLine(prevX, prevY, x, y, peakHoldPaint);
-                prevX = x;
-                prevY = y;
-            }
-        }
+    private float dp(float v) {
+        return v * getResources().getDisplayMetrics().density;
     }
 
-    /**
-     * Convert linear magnitude to dB
-     */
-    private float fftToDb(float magnitude) {
-        if (magnitude <= 0f) return -80f; // Avoid log(0)
-        return 20f * (float) Math.log10(magnitude);
-    }
-
-    /**
-     * Get normalized X position for a frequency (0-1, logarithmic scale)
-     */
-    private float getFrequencyX(float frequency, int sampleRate) {
-        // Logarithmic scale from 20Hz to sampleRate/2
-        float minFreq = 20f;
-        float maxFreq = sampleRate / 2f;
-
-        if (frequency <= minFreq) return 0f;
-        if (frequency >= maxFreq) return 1f;
-
-        float logMin = (float) Math.log10(minFreq);
-        float logMax = (float) Math.log10(maxFreq);
-        float logFreq = (float) Math.log10(frequency);
-
-        return (logFreq - logMin) / (logMax - logMin);
-    }
-
-    /**
-     * Get normalized Y position for dB value (0-1, where 0 is top, 1 is bottom)
-     * Maps from -80dB to +20dB
-     */
-    private float getDbY(float db) {
-        // Clamp to reasonable range
-        db = Math.max(-80f, Math.min(20f, db));
-        // Convert to 0-1 range (0 = top, 1 = bottom)
-        return (db + 80f) / 100f;
-    }
-
-    /**
-     * Get frequency for a FFT bin
-     */
-    private float getFrequencyForBin(int bin, int fftSize, int sampleRate) {
-        return bin * sampleRate / (float) fftSize;
+    private static float clamp01(float v) {
+        if (v < 0f) return 0f;
+        if (v > 1f) return 1f;
+        return v;
     }
 }
