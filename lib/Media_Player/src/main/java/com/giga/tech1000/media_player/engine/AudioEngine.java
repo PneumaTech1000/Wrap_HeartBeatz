@@ -504,6 +504,41 @@ public final class AudioEngine {
         }
     }
 
+    public void setLimiterRelease(float releaseMs) {
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setLimiterRelease(releaseMs);
+        }
+    }
+
+    public void setNoiseGateHysteresis(float hysteresis) {
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setNoiseGateHysteresis(hysteresis);
+        }
+    }
+
+    public void setNoiseGateAttack(float attack) {
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setNoiseGateAttack(attack);
+        }
+    }
+
+    public void setNoiseGateHold(float hold) {
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setNoiseGateHold(hold);
+        }
+    }
+
+    public void setNoiseGateRelease(float release) {
+        SoundEngine dsp = getDspEngine();
+        if (dsp != null) {
+            dsp.setNoiseGateRelease(release);
+        }
+    }
+
     // ========= Cleanup =========
 
     public void release() {

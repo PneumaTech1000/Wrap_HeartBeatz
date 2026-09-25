@@ -6,15 +6,12 @@ import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.LinearLayout;
+import android.widget.ImageButton;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
-import androidx.appcompat.widget.AppCompatImageButton;
-import androidx.constraintlayout.widget.ConstraintLayout;
-import androidx.core.content.ContextCompat;
-import androidx.core.widget.NestedScrollView;
-import androidx.media3.common.util.UnstableApi;
+import androidx.annotation.Nullable;
+import androidx.lifecycle.LifecycleOwner;
 
 import com.giga.tech1000.extensions.VerticalSeekBar;
 import com.giga.tech1000.heartbeatz.R;
@@ -22,1491 +19,968 @@ import com.giga.tech1000.heartbeatz.ui.fragments.FragmentHome;
 import com.giga.tech1000.heartbeatz.utils.audio.ParametricEQBand;
 import com.giga.tech1000.heartbeatz.view_models.extended_models.EqualizerViewModel;
 import com.giga.tech1000.heartbeatz.views.SpectrumView;
-import com.giga.tech1000.heartbeatz.views.knobs.extended.BassKnob;
-import com.giga.tech1000.heartbeatz.views.knobs.extended.PitchKnob;
-import com.giga.tech1000.heartbeatz.views.knobs.extended.TempoKnob;
-import com.giga.tech1000.heartbeatz.views.knobs.extended.VisualizerKnob;
+import com.giga.tech1000.heartbeatz.views.knobs.KnobView;
 import com.giga.tech1000.media_player.engine.AudioEngine;
-import com.giga.tech1000.media_player.utils.enums.EqPreset;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.materialswitch.MaterialSwitch;
 import com.google.android.material.slider.Slider;
 
-import android.view.Gravity;
-import android.widget.Toast;
-
-import java.util.function.Consumer;
-
+import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Arrays;
+import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Stack;
-import java.util.concurrent.atomic.AtomicBoolean;
 
-@UnstableApi
+/**
+ * Production equalizer UI — drives native {@link com.giga.tech1000.soundengine.SoundEngine}
+ * through {@link AudioEngine} / {@link EqualizerViewModel}.
+ */
 public final class EqualizerViewPanel {
 
-    // =========================
-    // Core
-    // =========================
+    private static final int BAND_COUNT = 10;
+    private static final float GAIN_MIN_DB = -12f;
+    private static final float GAIN_MAX_DB = 12f;
+    private static final int SEEK_MAX = 240; // 0.1 dB steps over 24 dB range
+    private static final float[] ISO_FREQ_HZ = {
+            31.5f, 63f, 125f, 250f, 500f, 1000f, 2000f, 4000f, 8000f, 16000f
+    };
+    private static final String[] ISO_LABELS = {
+            "32Hz", "64Hz", "125Hz", "250Hz", "500Hz", "1kHz", "2kHz", "4kHz", "8kHz", "16kHz"
+    };
 
-    private AudioEngine audioEngine;
     private final Context context;
     private final View rootView;
-    private final Handler handler = new Handler(Looper.getMainLooper());
-    private final EqualizerViewModel equalizerViewModel;
-    private Runnable applyRunnable;
-    private Runnable spectrumUpdateRunnable;
+    private final EqualizerViewModel vm;
+    private final Handler main = new Handler(Looper.getMainLooper());
 
-    private int sessionId;
-    private short bandCount;
-    private short minLevel;
-    private short maxLevel;
+    // Toolbar
+    private ImageButton closeButton;
+    private ImageButton undoButton;
+    private ImageButton redoButton;
+    private ImageButton resetButton;
+    private MaterialSwitch masterSwitch;
 
-    private static final int UI_BANDS = 10;
-    // Spectrum update rate variables for battery efficiency
-    private static final int SPECTRUM_UPDATE_FAST = 30;   // ~33 FPS when actively changing
-    private static final int SPECTRUM_UPDATE_NORMAL = 50; // ~20 FPS when idle but visible
-    private static final int SPECTRUM_UPDATE_SLOW = 200;  // ~5 FPS when not visible or no changes
-    private int spectrumUpdateInterval = SPECTRUM_UPDATE_NORMAL;
-    private long lastChangeTime = 0;
-    private static final long CHANGE_TIMEOUT = 1000; // Consider changes "recent" within 1 second
+    // Presets
+    private ChipGroup presetGroup;
+    private MaterialButton slotA;
+    private MaterialButton slotB;
 
-    private final AtomicBoolean isVisible = new AtomicBoolean(false);
-    private boolean internalUpdate = false;
+    // Spectrum
+    private SpectrumView spectrumView;
+    private View spectrumOffline;
+    private TextView peakDbText;
+    private TextView activeBandsText;
 
-    // =========================
-    // Views
-    // =========================
+    // Faders
+    private ViewGroup fadersContainer;
+    private final VerticalSeekBar[] gainBars = new VerticalSeekBar[BAND_COUNT];
+    private final TextView[] gainLabels = new TextView[BAND_COUNT];
+    private final TextView[] freqLabels = new TextView[BAND_COUNT];
+    private final TextView[] qBadges = new TextView[BAND_COUNT];
+    private final View[] bandColumns = new View[BAND_COUNT];
 
-    private NestedScrollView parentView;
-    private View chipsContainer;
-    private View eqCard;
+    // Inspector
+    private TextView inspectorBandLabel;
+    private Slider inspectorQSlider;
+    private TextView inspectorQVal;
+    private int selectedBand = 5;
 
-    private MaterialSwitch eqSwitch;
+    // Macro knobs
+    private KnobView bassKnob;
+    private KnobView virtualizerKnob;
+    private KnobView tempoKnob;
+    private KnobView pitchKnob;
     private MaterialSwitch bassSwitch;
     private MaterialSwitch virtualizerSwitch;
     private MaterialSwitch tempoSwitch;
     private MaterialSwitch pitchSwitch;
-    private MaterialSwitch loudnessSwitch;
 
-    // Advanced Effects Views
-    private MaterialSwitch reverbSwitch;
-    private MaterialSwitch stereoWideningSwitch;
+    // FX racks
+    private MaterialSwitch stereoSwitch;
     private MaterialSwitch exciterSwitch;
     private MaterialSwitch compressorSwitch;
     private MaterialSwitch limiterSwitch;
-    private MaterialSwitch noiseGateSwitch;
+    private MaterialSwitch gateSwitch;
     private MaterialSwitch deEsserSwitch;
-
-    // Containers for simple knobs (we'll add VerticalSeekBar instances programmatically)
-    private LinearLayout reverbKnobContainer;
-    private LinearLayout stereoWideningKnobContainer;
-    private LinearLayout exciterKnobContainer;
-    private LinearLayout compressorKnobContainer;
-    private LinearLayout limiterKnobContainer;
-    private LinearLayout noiseGateKnobContainer;
-    private LinearLayout deEsserKnobContainer;
-
-    // Simple knob values for advanced effects
-    private float reverbRoomLevelValue = 0f; // -1000 to 0 mB
-    private float reverbDecayTimeValue = 1000f; // 0 to 5000 ms
-    private float stereoWideningWidthValue = 0.5f; // 0.0 to 1.0
-    private float exciterAmountValue = 0.0f; // 0.0 to 1.0
-    private float exciterFrequencyValue = 2000.0f; // 20-20000 Hz
-    private float compressorThresholdValue = -20.0f; // dB, typically -60 to 0
-    private float compressorRatioValue = 4.0f; // 1.0 to inf
-    private float compressorAttackValue = 10.0f; // ms
-    private float compressorReleaseValue = 100.0f; // ms
-    private float limiterThresholdValue = -3.0f; // dB, typically -20 to 0
-    private float noiseGateThresholdValue = -60.0f; // dB, typically -80 to -20
-    private float deEsserThresholdValue = -20.0f; // dB, typically -40 to 0
-    private float deEsserFrequencyValue = 5000.0f; // Hz, typically 2k-20kHz
-
-    // =========================
-    // KnobViews
-    // =========================
-
-    private BassKnob bassKnob;
-    private VisualizerKnob virtualizerKnob;
-    private TempoKnob tempoKnob;
-    private PitchKnob pitchKnob;
-
-    // =========================
-    // KnobViews values
-    // =========================
-
-    private float pitchValue = 0f;
-    private float tempoValue = 1.0f;
-    private float virtualizerValue = 0f;
-    private float bassValue = 0f;
-
-
-    private View loudnessIcon;
-    private View closeButton;
-    private View eqReset;
-
-    private ChipGroup presetGroup;
-
-    // Spectrum Analyzer
-    private SpectrumView spectrumView;
-
-    // Updated: Store UI levels for each band (0-100% progress)
-    private final View[] bandViews = new View[UI_BANDS];
-    private final List<Integer> uiLevels = new ArrayList<>(UI_BANDS);
-    // Store frequency values for each band (Hz)
-    private final List<Float> freqValues = new ArrayList<>(UI_BANDS);
-    // Store Q factor values for each band
-    private final List<Float> qValues = new ArrayList<>(UI_BANDS);
-    // Store dB value TextViews for each band
-    private final TextView[] dbValueViews = new TextView[UI_BANDS];
-    // Store frequency value TextViews for each band
-    private final TextView[] freqValueViews = new TextView[UI_BANDS];
-    // Store Q factor value TextViews for each band
-    private final TextView[] qValueViews = new TextView[UI_BANDS];
-    // Store frequency seekbars for each band
-    private final VerticalSeekBar[] freqSeekBars = new VerticalSeekBar[UI_BANDS];
-    // Store Q factor seekbars for each band
-    private final VerticalSeekBar[] qSeekBars = new VerticalSeekBar[UI_BANDS];
-
-    // Undo/Redo functionality
-    private final Stack<StateSnapshot> undoStack = new Stack<>();
-    private final Stack<StateSnapshot> redoStack = new Stack<>();
-    private static final int MAX_HISTORY_SIZE = 50;
-    private View undoButton;
-    private View redoButton;
 
     private Slider stereoWidthSlider;
     private Slider exciterAmountSlider;
-    private Slider compressorThresholdSlider;
+    private Slider exciterFreqSlider;
+    private Slider compThresholdSlider;
+    private Slider compRatioSlider;
+    private Slider compAttackSlider;
+    private Slider compReleaseSlider;
     private Slider limiterCeilingSlider;
-    private Slider noiseGateThresholdSlider;
+    private Slider limiterReleaseSlider;
+    private Slider gateThresholdSlider;
+    private Slider gateHysteresisSlider;
+    private Slider gateAttackSlider;
+    private Slider gateHoldSlider;
+    private Slider gateReleaseSlider;
     private Slider deEsserThresholdSlider;
+    private Slider deEsserFreqSlider;
 
-    private final Map<Integer, EqPreset> presetMap = new HashMap<>();
+    private TextView valStereoWidth;
+    private TextView valExciterAmount;
+    private TextView valExciterFreq;
+    private TextView valCompThreshold;
+    private TextView valCompRatio;
+    private TextView valCompAttack;
+    private TextView valCompRelease;
+    private TextView valLimiterCeiling;
+    private TextView valLimiterRelease;
+    private TextView valGateThreshold;
+    private TextView valGateHysteresis;
+    private TextView valGateAttack;
+    private TextView valGateHold;
+    private TextView valGateRelease;
+    private TextView valDeEsserThreshold;
+    private TextView valDeEsserFreq;
 
-    // =========================
-    // Constructor
-    // =========================
+    private MaterialButton flattenButton;
+    private MaterialButton savePresetButton;
+    private MaterialButton applyButton;
+
+    // History
+    private final Deque<float[]> undoStack = new ArrayDeque<>();
+    private final Deque<float[]> redoStack = new ArrayDeque<>();
+    private boolean suppressHistory;
+
+    // Spectrum loop
+    private final float[] spectrumBuf = new float[256];
+    private final float[] eqCurveBuf = new float[256];
+    private boolean spectrumRunning;
+    private final Runnable spectrumTick = new Runnable() {
+        @Override
+        public void run() {
+            if (!spectrumRunning) return;
+            tickSpectrum();
+            main.postDelayed(this, 33);
+        }
+    };
 
     public EqualizerViewPanel(
             @NonNull FragmentHome fragment,
             @NonNull ViewGroup parent,
-            @NonNull EqualizerViewModel equalizerViewModel
-    ) {
-        context = fragment.requireContext();
-        rootView = LayoutInflater.from(context).inflate(R.layout.media_equalizer_view, parent, false);
-        this.equalizerViewModel = equalizerViewModel;
+            @NonNull EqualizerViewModel equalizerViewModel) {
+        this.context = fragment.requireContext();
+        this.vm = equalizerViewModel;
+        this.rootView = LayoutInflater.from(context)
+                .inflate(R.layout.media_equalizer_view, parent, false);
 
         bindViews(rootView);
-        initUiState();
-        mapPresets();
-        setupListeners(fragment);
-
-        // Initialize spectrum analyzer
-        initSpectrumAnalyzer();
-
-        // Observe changes to EQ bands from ViewModel
-        setupEqBandObserver();
+        ensureTenIsoBands();
+        wireToolbar(fragment);
+        wirePresets();
+        wireFaders();
+        wireInspector();
+        wireMacroKnobs();
+        wireFxRacks();
+        wireFooter();
+        wireRackToggles();
+        observeVm(fragment.getViewLifecycleOwner());
+        refreshAllFromVm();
+        startSpectrum();
     }
 
-    // =========================
-    // Initialization
-    // =========================
+    @NonNull
+    public View getView() {
+        return rootView;
+    }
+
+    public void onShow() {
+        startSpectrum();
+        refreshAllFromVm();
+    }
+
+    public void onHide() {
+        stopSpectrum();
+    }
+
+    // ── Bind ──────────────────────────────────────────────────────────────
 
     private void bindViews(View v) {
-        parentView = v.findViewById(R.id.eq_workspace_root);
-
         closeButton = v.findViewById(R.id.equalizer_view_close);
-        presetGroup = v.findViewById(R.id.sound_profile_chip_group);
-        eqReset = v.findViewById(R.id.eq_reset);
         undoButton = v.findViewById(R.id.eq_undo_button);
         redoButton = v.findViewById(R.id.eq_redo_button);
+        resetButton = v.findViewById(R.id.eq_reset);
+        masterSwitch = v.findViewById(R.id.eq_enable_disable);
 
-        ViewGroup faders = v.findViewById(R.id.faders_container);
-        for (int i = 0; i < UI_BANDS; i++) {
-            bandViews[i] = faders.getChildAt(i);
+        presetGroup = v.findViewById(R.id.sound_profile_chip_group);
+        slotA = v.findViewById(R.id.btn_ab_a);
+        slotB = v.findViewById(R.id.btn_ab_b);
+
+        spectrumView = v.findViewById(R.id.spectrum_canvas);
+        spectrumOffline = v.findViewById(R.id.spectrum_offline_overlay);
+        peakDbText = v.findViewById(R.id.val_peak_db);
+        activeBandsText = v.findViewById(R.id.val_active_q);
+
+        fadersContainer = v.findViewById(R.id.faders_container);
+        for (int i = 0; i < BAND_COUNT && i < fadersContainer.getChildCount(); i++) {
+            View col = fadersContainer.getChildAt(i);
+            bandColumns[i] = col;
+            gainBars[i] = col.findViewById(R.id.eqFreqSeekBar);
+            gainLabels[i] = col.findViewById(R.id.eqDbValue);
+            freqLabels[i] = col.findViewById(R.id.eqTextView);
+            qBadges[i] = col.findViewById(R.id.eqQValue);
+            if (freqLabels[i] != null) freqLabels[i].setText(ISO_LABELS[i]);
+            if (gainBars[i] != null) {
+                gainBars[i].setMax(SEEK_MAX);
+            }
         }
 
-        chipsContainer = presetGroup;
-        eqCard = faders;
-
-        eqSwitch = v.findViewById(R.id.eq_enable_disable);
-        bassSwitch = v.findViewById(R.id.bass_enable_disable);
-        virtualizerSwitch = v.findViewById(R.id.virtualizer_enable_disable);
-        tempoSwitch = v.findViewById(R.id.tempo_enable_disable);
-        pitchSwitch = v.findViewById(R.id.pitch_enable_disable);
+        inspectorBandLabel = v.findViewById(R.id.inspector_band_label);
+        inspectorQSlider = v.findViewById(R.id.inspector_q_slider);
+        inspectorQVal = v.findViewById(R.id.inspector_q_val);
 
         bassKnob = v.findViewById(R.id.knob_bass_boost);
         virtualizerKnob = v.findViewById(R.id.knob_virtualizer);
         tempoKnob = v.findViewById(R.id.knob_tempo_speed);
         pitchKnob = v.findViewById(R.id.knob_pitch_shift);
-        loudnessSwitch = new MaterialSwitch(context);
-        loudnessIcon = new AppCompatImageButton(context);
+        bassSwitch = v.findViewById(R.id.bass_enable_disable);
+        virtualizerSwitch = v.findViewById(R.id.virtualizer_enable_disable);
+        tempoSwitch = v.findViewById(R.id.tempo_enable_disable);
+        pitchSwitch = v.findViewById(R.id.pitch_enable_disable);
 
-
-        // Initialize spectrum view
-        spectrumView = v.findViewById(R.id.spectrum_canvas);
-
-        // Initialize advanced effects views
-        reverbSwitch = new MaterialSwitch(context);
-        stereoWideningSwitch = v.findViewById(R.id.switch_stereo_enabled);
+        stereoSwitch = v.findViewById(R.id.switch_stereo_enabled);
         exciterSwitch = v.findViewById(R.id.switch_exciter_enabled);
         compressorSwitch = v.findViewById(R.id.switch_compressor_enabled);
         limiterSwitch = v.findViewById(R.id.switch_limiter_enabled);
-        noiseGateSwitch = v.findViewById(R.id.switch_gate_enabled);
+        gateSwitch = v.findViewById(R.id.switch_gate_enabled);
         deEsserSwitch = v.findViewById(R.id.switch_deesser_enabled);
-
-        reverbKnobContainer = v.findViewById(R.id.rack_stereo_content);
-        stereoWideningKnobContainer = v.findViewById(R.id.rack_stereo_content);
-        exciterKnobContainer = v.findViewById(R.id.rack_exciter_content);
-        compressorKnobContainer = v.findViewById(R.id.rack_compressor_content);
-        limiterKnobContainer = v.findViewById(R.id.rack_limiter_content);
-        noiseGateKnobContainer = v.findViewById(R.id.rack_gate_content);
-        deEsserKnobContainer = v.findViewById(R.id.rack_deesser_content);
 
         stereoWidthSlider = v.findViewById(R.id.slider_stereo_width);
         exciterAmountSlider = v.findViewById(R.id.slider_exciter_amount);
-        compressorThresholdSlider = v.findViewById(R.id.slider_comp_threshold);
+        exciterFreqSlider = v.findViewById(R.id.slider_exciter_freq);
+        compThresholdSlider = v.findViewById(R.id.slider_comp_threshold);
+        compRatioSlider = v.findViewById(R.id.slider_comp_ratio);
+        compAttackSlider = v.findViewById(R.id.slider_comp_attack);
+        compReleaseSlider = v.findViewById(R.id.slider_comp_release);
         limiterCeilingSlider = v.findViewById(R.id.slider_limiter_ceiling);
-        noiseGateThresholdSlider = v.findViewById(R.id.slider_gate_threshold);
+        limiterReleaseSlider = v.findViewById(R.id.slider_limiter_release);
+        gateThresholdSlider = v.findViewById(R.id.slider_gate_threshold);
+        gateHysteresisSlider = v.findViewById(R.id.slider_gate_hysteresis);
+        gateAttackSlider = v.findViewById(R.id.slider_gate_attack);
+        gateHoldSlider = v.findViewById(R.id.slider_gate_hold);
+        gateReleaseSlider = v.findViewById(R.id.slider_gate_release);
         deEsserThresholdSlider = v.findViewById(R.id.slider_deesser_threshold);
+        deEsserFreqSlider = v.findViewById(R.id.slider_deesser_freq);
 
+        valStereoWidth = v.findViewById(R.id.val_stereo_width);
+        valExciterAmount = v.findViewById(R.id.val_exciter_amount);
+        valExciterFreq = v.findViewById(R.id.val_exciter_freq);
+        valCompThreshold = v.findViewById(R.id.val_comp_threshold);
+        valCompRatio = v.findViewById(R.id.val_comp_ratio);
+        valCompAttack = v.findViewById(R.id.val_comp_attack);
+        valCompRelease = v.findViewById(R.id.val_comp_release);
+        valLimiterCeiling = v.findViewById(R.id.val_limiter_ceiling);
+        valLimiterRelease = v.findViewById(R.id.val_limiter_release);
+        valGateThreshold = v.findViewById(R.id.val_gate_threshold);
+        valGateHysteresis = v.findViewById(R.id.val_gate_hysteresis);
+        valGateAttack = v.findViewById(R.id.val_gate_attack);
+        valGateHold = v.findViewById(R.id.val_gate_hold);
+        valGateRelease = v.findViewById(R.id.val_gate_release);
+        valDeEsserThreshold = v.findViewById(R.id.val_deesser_threshold);
+        valDeEsserFreq = v.findViewById(R.id.val_deesser_freq);
 
-        // Initialize frequency value TextViews
-        freqValueViews[0] = bandViews[0].findViewById(R.id.eqDbValue);
-        freqValueViews[1] = bandViews[1].findViewById(R.id.eqDbValue);
-        freqValueViews[2] = bandViews[2].findViewById(R.id.eqDbValue);
-        freqValueViews[3] = bandViews[3].findViewById(R.id.eqDbValue);
-        freqValueViews[4] = bandViews[4].findViewById(R.id.eqDbValue);
-        freqValueViews[5] = bandViews[5].findViewById(R.id.eqDbValue);
-        freqValueViews[6] = bandViews[6].findViewById(R.id.eqDbValue);
-        freqValueViews[7] = bandViews[7].findViewById(R.id.eqDbValue);
-        freqValueViews[8] = bandViews[8].findViewById(R.id.eqDbValue);
-        freqValueViews[9] = bandViews[9].findViewById(R.id.eqDbValue);
-
-        // The redesigned fader controls gain. Frequency and Q remain ViewModel values.
-        freqSeekBars[0] = bandViews[0].findViewById(R.id.eqFreqSeekBar);
-        freqSeekBars[1] = bandViews[1].findViewById(R.id.eqFreqSeekBar);
-        freqSeekBars[2] = bandViews[2].findViewById(R.id.eqFreqSeekBar);
-        freqSeekBars[3] = bandViews[3].findViewById(R.id.eqFreqSeekBar);
-        freqSeekBars[4] = bandViews[4].findViewById(R.id.eqFreqSeekBar);
-        freqSeekBars[5] = bandViews[5].findViewById(R.id.eqFreqSeekBar);
-        freqSeekBars[6] = bandViews[6].findViewById(R.id.eqFreqSeekBar);
-        freqSeekBars[7] = bandViews[7].findViewById(R.id.eqFreqSeekBar);
-        freqSeekBars[8] = bandViews[8].findViewById(R.id.eqFreqSeekBar);
-        freqSeekBars[9] = bandViews[9].findViewById(R.id.eqFreqSeekBar);
-
-        // Initialize Q factor value TextViews
-        qValueViews[0] = bandViews[0].findViewById(R.id.eqQValue);
-        qValueViews[1] = bandViews[1].findViewById(R.id.eqQValue);
-        qValueViews[2] = bandViews[2].findViewById(R.id.eqQValue);
-        qValueViews[3] = bandViews[3].findViewById(R.id.eqQValue);
-        qValueViews[4] = bandViews[4].findViewById(R.id.eqQValue);
-        qValueViews[5] = bandViews[5].findViewById(R.id.eqQValue);
-        qValueViews[6] = bandViews[6].findViewById(R.id.eqQValue);
-        qValueViews[7] = bandViews[7].findViewById(R.id.eqQValue);
-        qValueViews[8] = bandViews[8].findViewById(R.id.eqQValue);
-        qValueViews[9] = bandViews[9].findViewById(R.id.eqQValue);
-
-        // Initialize Q factor seekbars
-        qSeekBars[0] = null;
-        qSeekBars[1] = null;
-        qSeekBars[2] = null;
-        qSeekBars[3] = null;
-        qSeekBars[4] = null;
-        qSeekBars[5] = null;
-        qSeekBars[6] = null;
-        qSeekBars[7] = null;
-        qSeekBars[8] = null;
-        qSeekBars[9] = null;
-
-        // Initialize dB value TextViews
-        dbValueViews[0] = bandViews[0].findViewById(R.id.eqDbValue);
-        dbValueViews[1] = bandViews[1].findViewById(R.id.eqDbValue);
-        dbValueViews[2] = bandViews[2].findViewById(R.id.eqDbValue);
-        dbValueViews[3] = bandViews[3].findViewById(R.id.eqDbValue);
-        dbValueViews[4] = bandViews[4].findViewById(R.id.eqDbValue);
-        dbValueViews[5] = bandViews[5].findViewById(R.id.eqDbValue);
-        dbValueViews[6] = bandViews[6].findViewById(R.id.eqDbValue);
-        dbValueViews[7] = bandViews[7].findViewById(R.id.eqDbValue);
-        dbValueViews[8] = bandViews[8].findViewById(R.id.eqDbValue);
-        dbValueViews[9] = bandViews[9].findViewById(R.id.eqDbValue);
+        flattenButton = v.findViewById(R.id.btn_eq_flatten);
+        savePresetButton = v.findViewById(R.id.btn_save_preset);
+        applyButton = v.findViewById(R.id.btn_apply_playback);
     }
 
-    private void initUiState() {
-        // Initialize UI levels list
-        uiLevels.clear();
-        freqValues.clear();
-        qValues.clear();
-        for (int i = 0; i < UI_BANDS; i++) {
-            uiLevels.add(50); // Default 50% (0dB)
-            freqValues.add(1000f);
-            qValues.add(1.4f);
-        }
-
-        // Load initial state from ViewModel
-        updateUiFromParametricBands();
-    }
-
-    private void updateUiFromParametricBands() {
-        List<ParametricEQBand> bands = equalizerViewModel.getEqBands().getValue();
-        if (bands == null) return;
-
-        internalUpdate = true;
-        int count = Math.min(bands.size(), UI_BANDS);
-        for (int i = 0; i < count; i++) {
-            ParametricEQBand band = bands.get(i);
-            float gainDb = band.getGainDb();
-            // Map -15..+15 to 0..100
-            int progress = Math.round(((gainDb + 15f) / 30f) * 100);
-
-            uiLevels.set(i, progress);
-            freqValues.set(i, band.getFrequencyHz());
-            qValues.set(i, band.getQFactor());
-
-            VerticalSeekBar bar = getSeekBar(i);
-            if (bar != null) {
-                bar.setProgress(progress);
+    private void ensureTenIsoBands() {
+        List<ParametricEQBand> bands = vm.getEqBands().getValue();
+        if (bands == null || bands.size() != BAND_COUNT) {
+            List<ParametricEQBand> iso = new ArrayList<>(BAND_COUNT);
+            for (int i = 0; i < BAND_COUNT; i++) {
+                iso.add(new ParametricEQBand(i, ISO_FREQ_HZ[i], 0f, 1.4f));
             }
-
-            if (dbValueViews[i] != null) {
-                dbValueViews[i].setText(String.format(Locale.getDefault(), "%.1f dB", gainDb));
-            }
-            updateFrequencyDisplay(i);
-        }
-        internalUpdate = false;
-    }
-
-    private void initSpectrumAnalyzer() {
-        // Generate mock FFT data that responds to EQ settings
-        float[] magnitudes = new float[512]; // 1024 FFT size / 2
-
-        // Create a baseline spectrum (pink noise-like)
-        for (int i = 0; i < magnitudes.length; i++) {
-            // 1/f frequency response (pink noise) with some randomness
-            float freq = (float) i / magnitudes.length * 22050; // Nyquist frequency
-            float baseLevel = 0.3f / (float) Math.sqrt(Math.max(1, freq / 100)); // Pink noise
-
-            // Add some variation
-            float random = (float) Math.random() * 0.2f;
-            magnitudes[i] = Math.min(1.0f, baseLevel + random);
-        }
-
-        // Apply EQ curve to the mock data
-        if (equalizerViewModel != null) {
-            List<ParametricEQBand> bands = equalizerViewModel.getEqBands().getValue();
-            if (bands != null) {
-                // Apply each band's effect to the spectrum
-                for (ParametricEQBand band : bands) {
-                    float freq = band.getFrequencyHz();
-                    float gainDb = band.getGainDb();
-                    float qFactor = band.getQFactor();
-
-                    // Apply band effect to frequency bins
-                    for (int i = 0; i < magnitudes.length; i++) {
-                        float binFreq = (float) i / magnitudes.length * 22050;
-                        float influence = calculateBandInfluence(freq, binFreq, qFactor);
-                        float gainFactor = (float) Math.pow(10, gainDb / 20f);
-                        magnitudes[i] *= (1f + influence * (gainFactor - 1f) * 0.5f); // Moderate effect
-                    }
-                }
+            // Use public API if available — otherwise setEqBand in a loop after init
+            for (int i = 0; i < BAND_COUNT; i++) {
+                vm.setEqBand(i, ISO_FREQ_HZ[i], 0f, 1.4f);
             }
         }
-
-        // Normalize and set data
-        float max = 0f;
-        for (float mag : magnitudes) {
-            if (mag > max) max = mag;
-        }
-        if (max > 0) {
-            for (int i = 0; i < magnitudes.length; i++) {
-                magnitudes[i] /= max;
-            }
-        }
-
-        spectrumView.setFftData(magnitudes);
     }
 
-    private float calculateBandInfluence(float centerFreq, float targetFreq, float qFactor) {
-        if (targetFreq <= 0 || centerFreq <= 0) return 0f;
+    // ── Toolbar ───────────────────────────────────────────────────────────
 
-        // Calculate octave distance
-        float octaves = (float) Math.log(targetFreq / centerFreq) / (float) Math.log(2);
-
-        // Calculate bandwidth in octaves based on Q-factor
-        float bandwidthOctaves = 1.0f / (qFactor * (float) Math.sqrt(2.0));
-
-        // Calculate influence using Gaussian curve
-        return (float) Math.exp(-0.5f * Math.pow(octaves / bandwidthOctaves, 2));
-    }
-
-    private void updateSpectrumEqCurve(List<ParametricEQBand> bands) {
-        if (spectrumView == null || bands == null) return;
-
-        // Create EQ curve data for spectrum display
-        float[] eqCurve = new float[512]; // Match FFT size
-
-        // Start with flat (0dB = 0.5 in normalized 0-1 range where 0.5 is flat)
-        for (int i = 0; i < eqCurve.length; i++) {
-            eqCurve[i] = 0.5f;
-        }
-
-        // Apply each parametric band
-        for (ParametricEQBand band : bands) {
-            float freq = band.getFrequencyHz();
-            float gainDb = band.getGainDb();
-            float qFactor = band.getQFactor();
-
-            // Apply band to EQ curve
-            for (int i = 0; i < eqCurve.length; i++) {
-                float binFreq = (float) i / eqCurve.length * 22050; // Nyquist
-                float influence = calculateBandInfluence(freq, binFreq, qFactor);
-                float gainFactor = (float) Math.pow(10, gainDb / 20f);
-                // Blend the gain with current curve value
-                eqCurve[i] = 0.5f + (eqCurve[i] - 0.5f) * (1f - influence) +
-                        (gainFactor * 0.5f) * influence;
-            }
-        }
-
-        // Normalize to 0-1 range (though it should already be close)
-        spectrumView.setEqCurveData(eqCurve);
-    }
-
-// =========================
-// EQ Band Observation
-// =========================
-
-    private void setupEqBandObserver() {
-        equalizerViewModel.getEqBands().observeForever(eqBands -> {
-            if (eqBands != null && !internalUpdate) {
-                // Update UI based on EQ band parameters (frequency, gain, Q factor)
-                // We'll map the first UI_BANDS parametric bands to our UI controls
-                int bandsToShow = Math.min(eqBands.size(), UI_BANDS);
-                for (int i = 0; i < bandsToShow; i++) {
-                    ParametricEQBand band = eqBands.get(i);
-
-                    if (freqSeekBars[i] != null) {
-                        freqValues.set(i, band.getFrequencyHz());
-                        updateFrequencyDisplay(i);
-                    }
-
-                    // Update frequency seekbar (0-100 maps to 20Hz-20000Hz on logarithmic scale)
-                    float freqProgress = (float) ((Math.log10(band.getFrequencyHz()) - Math.log10(20)) /
-                            (Math.log10(20000) - Math.log10(20)) * 100);
-
-                    // Update gain value and UI
-                    float gainDb = band.getGainDb();
-                    // Convert gain from -15..+15 dB to 0..100 progress
-                    int gainProgress = Math.round(((gainDb + 15f) / 30f) * 100);
-                    gainProgress = Math.max(0, Math.min(100, gainProgress));
-                    uiLevels.set(i, gainProgress);
-
-                    // Update gain seekbar if not currently updating internally
-                    if (!internalUpdate) {
-                        VerticalSeekBar bar = getSeekBar(i);
-                        bar.setProgress(gainProgress);
-                    }
-
-                    // Update dB value display
-                    dbValueViews[i].setText(String.format(Locale.getDefault(), "%.1f dB", gainDb));
-
-                    // Update Q factor value and UI
-                    float qFactor = band.getQFactor();
-                    qValues.set(i, qFactor);
-
-                    // Update Q factor display
-                    String qText = String.format(Locale.getDefault(), "Q: %.1f", qFactor);
-                    qValueViews[i].setText(qText);
-
-                    // Update Q factor seekbar (0-100 maps to 0.1-10.0 Q factor on logarithmic scale)
-                    float qProgress = (float) ((Math.log10(qFactor) - Math.log10(0.1f)) /
-                            (Math.log10(10.0f) - Math.log10(0.1f)) * 100);
-                    if (qSeekBars[i] != null) {
-                        qSeekBars[i].setProgress(Math.round(qProgress));
-                    }
-                }
-
-                // Update spectrum analyzer with EQ curve
-                updateSpectrumEqCurve(eqBands);
-            }
-        });
-    }
-
-// =========================
-// Session / Engine
-// =========================
-
-    public void setSessionId(int id) {
-        if (id == -1) {
-            if (audioEngine != null) {
-                audioEngine.release();
-                audioEngine = null;
-            }
-            sessionId = -1;
-            setEnabledTotal(false);
-            return;
-        }
-
-        // If it's the same ID and engine exists, don't recreate but ensure state
-        if (id == this.sessionId && audioEngine != null) {
-            syncHardwareWithUi();
-            return;
-        }
-
-        // Clean up old engine
-        if (audioEngine != null) {
-            audioEngine.release();
-        }
-
-        sessionId = id;
-        audioEngine = new AudioEngine(sessionId, context);
-        equalizerViewModel.setAudioEngine(audioEngine);
-
-        // Fetch hardware constraints
-        bandCount = audioEngine.getNumberOfBands();
-        minLevel = audioEngine.getMinBandLevelRange();
-        maxLevel = audioEngine.getMaxBandLevelRange();
-
-        // Initialize UI components for the new engine
-        setupBands();
-        setupEqPresets();
-
-        // Initialize spectrum analyzer
-        initSpectrumAnalyzer();
-
-        // Sync the engine with the current UI switches/sliders
-        syncHardwareWithUi();
-
-        // Finally, enable UI interaction
-        setEnabledTotal(true);
-    }
-
-    private void syncHardwareWithUi() {
-        if (audioEngine == null) return;
-
-        boolean masterOn = eqSwitch.isChecked();
-        audioEngine.enableEqualizer(masterOn);
-
-        if (masterOn) {
-            applyUiToHardware();
-
-            // Bass
-            boolean bOn = bassSwitch.isChecked();
-            audioEngine.enableBass(bOn);
-            audioEngine.setBassBoost((short) (bOn ? Math.min(bassKnob.getValue(), 1000) : 0));
-
-            // Virtualizer
-            boolean vOn = virtualizerSwitch.isChecked();
-            audioEngine.enableVirtualizer(vOn);
-            audioEngine.setVirtualizer((short) (vOn ? virtualizerKnob.getValue() : 0));
-
-            // Tempo
-            float tVal = tempoSwitch.isChecked() ? tempoKnob.getValue() : 1.0f;
-            equalizerViewModel.setTempo(tVal);
-
-            // Pitch
-            float pVal = pitchSwitch.isChecked() ? pitchKnob.getValue() : 0f;
-            equalizerViewModel.setPitch(progressToPitch(pVal));
-
-            // Loudness
-            boolean lOn = loudnessSwitch.isChecked();
-            audioEngine.enableLoudness(lOn);
-            audioEngine.setLoudnessGain(lOn ? 1000 : 0); // 1000mB = 1dB
-        } else {
-            // Master OFF: Reset hardware/player effects to neutral
-            audioEngine.enableBass(false);
-            audioEngine.enableVirtualizer(false);
-            audioEngine.enableLoudness(false);
-            equalizerViewModel.setTempo(1.0f);
-            equalizerViewModel.setPitch(0f);
-        }
-    }
-
-// =========================
-// Band setup
-// =========================
-
-    private void setupBands() {
-        int range = maxLevel - minLevel;
-        int center = range / 2;
-
-        internalUpdate = true;
-
-        for (int i = 0; i < UI_BANDS; i++) {
-            // Initialize to center position (0dB gain equivalent)
-            uiLevels.set(i, center);
-            freqValues.add(0f);
-            qValues.add(1.0f); // Default Q factor of 1.0
-
-            VerticalSeekBar bar = getSeekBar(i);
-            bar.setMax(range);
-            bar.setProgress(center);
-
-            final int index = i;
-            bar.setOnSeekBarChangeListener(new VerticalSeekBar.OnSeekBarChangeListener() {
-                @Override
-                public void onProgressChanged(VerticalSeekBar sb, int progress, boolean fromUser) {
-                    if (!fromUser || internalUpdate) return;
-
-                    presetGroup.check(R.id.eq_custom);
-                    uiLevels.set(index, progress);
-
-                    // Update the corresponding parametric band's gain
-                    updateParametricBandFromUi(index, progress);
-
-                    // Update dB value display
-                    float gainDb = ((progress / 100f) * 30f) - 15f;
-                    dbValueViews[index].setText(String.format(Locale.getDefault(), "%.1f dB", gainDb));
-
-                    // Update last change time for spectrum update rate adjustment
-                    lastChangeTime = System.currentTimeMillis();
-
-                    scheduleApply();
-                }
-
-                @Override
-                public void onStartTrackingTouch(VerticalSeekBar sb) {
-                }
-
-                @Override
-                public void onStopTrackingTouch(VerticalSeekBar sb) {
+    private void wireToolbar(FragmentHome fragment) {
+        if (closeButton != null) {
+            closeButton.setOnClickListener(v -> {
+                stopSpectrum();
+                if (fragment.getParentFragmentManager().getBackStackEntryCount() > 0) {
+                    fragment.getParentFragmentManager().popBackStack();
+                } else {
+                    rootView.setVisibility(View.GONE);
                 }
             });
-
         }
-
-        updateFrequencyLabels();
-        internalUpdate = false;
-    }
-
-    /**
-     * Update a parametric band's gain based on UI seekbar progress
-     */
-    private void updateParametricBandFromUi(int bandIndex, int progress) {
-        // Convert progress (0-100) to gain (-15 to +15 dB)
-        float gainDb = ((progress / 100f) * 30f) - 15f;
-
-        equalizerViewModel.setEqBand(bandIndex,
-                equalizerViewModel.getEqBands().getValue().get(bandIndex).getFrequencyHz(),
-                gainDb,
-                equalizerViewModel.getEqBands().getValue().get(bandIndex).getQFactor());
-    }
-
-// =========================
-// Presets
-// =========================
-
-    private void setupEqPresets() {
-        presetGroup.setOnCheckedStateChangeListener((group, checkedIds) -> {
-            if (checkedIds.isEmpty()) return;
-
-            EqPreset preset = presetMap.get(checkedIds.get(0));
-            if (preset != null) applyPreset(preset);
-        });
-    }
-
-    public void applyPreset(EqPreset preset) {
-        internalUpdate = true;
-
-        // Apply preset to parametric bands in ViewModel
-        equalizerViewModel.setPreset(preset);
-
-        // Update UI to reflect the preset
-        updateUiFromParametricBands();
-
-        internalUpdate = false;
-        applyUiToHardware();
-    }
-
-    /**
-     * Update UI controls to match current parametric bands
-     */
-    private void updateSpectrumData() {
-        if (spectrumView == null || audioEngine == null || !audioEngine.isSpectrumDataReady())
-            return;
-
-        int bins = audioEngine.getSpectrumNumBins();
-        if (bins <= 0) return;
-
-        float[] magnitudesDb = new float[bins];
-        audioEngine.getSpectrumMagnitudes(magnitudesDb);
-        float[] normalized = new float[bins];
-        for (int i = 0; i < bins; i++) {
-            normalized[i] = Math.max(0.0f, Math.min(1.0f,
-                    (magnitudesDb[i] + 96.0f) / 96.0f));
+        if (undoButton != null) {
+            undoButton.setOnClickListener(v -> undo());
         }
-        spectrumView.setFftData(normalized);
-    }
-
-    private void mapPresets() {
-        presetMap.put(R.id.eq_flat, EqPreset.FLAT);
-        presetMap.put(R.id.eq_normal, EqPreset.NORMAL);
-        presetMap.put(R.id.eq_rock, EqPreset.ROCK);
-        presetMap.put(R.id.eq_pop, EqPreset.POP);
-        presetMap.put(R.id.eq_dance, EqPreset.DANCE);
-        presetMap.put(R.id.eq_hip_hop, EqPreset.HIP_HOP);
-        presetMap.put(R.id.eq_acoustic, EqPreset.ACOUSTIC);
-        presetMap.put(R.id.eq_heavy_metal, EqPreset.HEAVY_METAL);
-        presetMap.put(R.id.eq_head_phones, EqPreset.HEADPHONES);
-        presetMap.put(R.id.eq_folk, EqPreset.FOLK);
-        presetMap.put(R.id.eq_loud, EqPreset.LOUD);
-        presetMap.put(R.id.eq_piano, EqPreset.PIANO);
-        presetMap.put(R.id.eq_r_and_b, EqPreset.R_AND_B);
-        presetMap.put(R.id.eq_lounge, EqPreset.LOUNGE);
-        presetMap.put(R.id.eq_classical, EqPreset.CLASSICAL);
-        presetMap.put(R.id.eq_jazz, EqPreset.JAZZ);
-        presetMap.put(R.id.eq_deep, EqPreset.DEEP);
-        presetMap.put(R.id.eq_latin, EqPreset.LATIN);
-        presetMap.put(R.id.eq_electronic, EqPreset.ELECTRONIC);
-        presetMap.put(R.id.eq_straightness, EqPreset.STRAIGHTNESS);
-        presetMap.put(R.id.eq_vocal_boost, EqPreset.VOCAL_BOOST);
-        presetMap.put(R.id.eq_treble_boost, EqPreset.TREBLE_BOOST);
-        presetMap.put(R.id.eq_bazz_boost, EqPreset.BASS_BOOST);
-    }
-
-// =========================
-// DSP application
-// =========================
-
-    private void applyUiToHardware() {
-        if (audioEngine == null) return;
-
-        // Convert UI levels to parametric bands and apply
-        List<ParametricEQBand> currentBands = equalizerViewModel.getEqBands().getValue();
-        if (currentBands != null) {
-            // Apply the first UI_BANDS bands to hardware
-            int bandsToApply = Math.min(currentBands.size(), UI_BANDS);
-            for (int i = 0; i < bandsToApply; i++) {
-                ParametricEQBand band = currentBands.get(i);
-                // Update all three parameters: frequency, gain, and Q factor
-                equalizerViewModel.setEqBand(i,
-                        freqValues.get(i), // frequency from UI
-                        // Convert UI level to gain Db
-                        (uiLevels.get(i) / (float) Math.max(1, maxLevel - minLevel)) * 30f - 15f,
-                        qValues.get(i)); // Q factor from UI
-            }
+        if (redoButton != null) {
+            redoButton.setOnClickListener(v -> redo());
         }
-
-        // Parametric bands are processed by SoundEngine through the ViewModel.
-        // Do not also apply Android's fixed-band EqualizerFX approximation here.
-    }
-
-    private void scheduleApply() {
-        if (applyRunnable != null) handler.removeCallbacks(applyRunnable);
-        applyRunnable = this::applyUiToHardware;
-        // 16ms delay to ensure UI updates first and DSP updates at ~60fps max
-        handler.postDelayed(applyRunnable, 16);
-    }
-
-// =========================
-// Switch logic
-// =========================
-
-    private void setupListeners(FragmentHome fragment) {
-
-        closeButton.setOnClickListener(v -> {
-            isVisible.set(false);
-            fragment.hideMediaDetailsPanel();
-        });
-
-        eqReset.setOnClickListener(v -> {
-            // Reset all bands to zero gain
-            equalizerViewModel.resetAllBands();
-            // Reset frequency labels to show default values
-            updateFrequencyLabels();
-            // Notify user of reset (optional)
-            Toast.makeText(context, "Equalizer reset to flat", Toast.LENGTH_SHORT).show();
-        });
-
-        // Undo/Redo listeners
-        undoButton.setOnClickListener(v -> undo());
-        redoButton.setOnClickListener(v -> redo());
-
-        // Master Switch: Controls everything else
-        eqSwitch.setOnCheckedChangeListener((b, on) -> {
-            if (audioEngine != null) {
-                audioEngine.enableEqualizer(on);
-            }
-            // Ensure UI state reflects the master toggle
-            setEnabledTotal(sessionId != -1);
-        });
-
-        // Sub-Switches: Control their respective knobs/effects
-        bassSwitch.setOnCheckedChangeListener((b, on) -> {
-            if (on) {
-                bassKnob.setValue(bassValue);
-            } else {
-                bassValue = bassKnob.getValue();
-                bassKnob.setValue(0f);
-            }
-
-            if (audioEngine != null && eqSwitch.isChecked()) {
-                audioEngine.enableBass(on);
-                audioEngine.setBassBoost((short) (on ? Math.min(bassValue, 1000) : 0));
-            }
-            setEnabledWithAlpha(bassKnob, on && eqSwitch.isChecked());
-        });
-
-        virtualizerSwitch.setOnCheckedChangeListener((b, on) -> {
-            if (on) {
-                virtualizerKnob.setValue(virtualizerValue);
-            } else {
-                virtualizerValue = virtualizerKnob.getValue();
-                virtualizerKnob.setValue(0f);
-            }
-
-            if (audioEngine != null && eqSwitch.isChecked()) {
-                audioEngine.enableVirtualizer(on);
-                audioEngine.setVirtualizer((short) (on ? virtualizerValue : 0));
-            }
-            setEnabledWithAlpha(virtualizerKnob, on && eqSwitch.isChecked());
-        });
-
-        tempoSwitch.setOnCheckedChangeListener((b, on) -> {
-            if (on) {
-                tempoKnob.setValue(tempoValue);
-            } else {
-                tempoValue = tempoKnob.getValue();
-                tempoKnob.setValue(1.0f);
-            }
-
-            if (eqSwitch.isChecked()) {
-                equalizerViewModel.setTempo(on ? tempoValue : 1.0f);
-            }
-            setEnabledWithAlpha(tempoKnob, on && eqSwitch.isChecked());
-        });
-
-        pitchSwitch.setOnCheckedChangeListener((b, on) -> {
-            if (on) {
-                pitchKnob.setValue(pitchValue);
-            } else {
-                pitchValue = pitchKnob.getValue();
-                pitchKnob.setValue(0f);
-            }
-
-            if (eqSwitch.isChecked()) {
-                equalizerViewModel.setPitch(progressToPitch(on ? pitchValue : 0f));
-            }
-            setEnabledWithAlpha(pitchKnob, on && eqSwitch.isChecked());
-        });
-
-        loudnessSwitch.setOnCheckedChangeListener((b, on) -> {
-            if (audioEngine != null && eqSwitch.isChecked()) {
-                audioEngine.enableLoudness(on);
-                audioEngine.setLoudnessGain(on ? 1000 : 0);
-            }
-            setEnabledWithAlpha(loudnessIcon, on && eqSwitch.isChecked());
-        });
-
-        // Advanced Effects Switches
-        reverbSwitch.setOnCheckedChangeListener((b, on) -> {
-            if (audioEngine != null && eqSwitch.isChecked()) {
-                audioEngine.setReverbEnabled(on);
-                if (on) {
-                    audioEngine.setReverbProperties((int) reverbRoomLevelValue, (int) reverbDecayTimeValue);
+        if (resetButton != null) {
+            resetButton.setOnClickListener(v -> {
+                pushHistory();
+                flattenAll();
+            });
+        }
+        if (masterSwitch != null) {
+            masterSwitch.setOnCheckedChangeListener((btn, checked) -> {
+                vm.setEqualizerEnabled(checked);
+                if (spectrumOffline != null) {
+                    spectrumOffline.setVisibility(checked ? View.GONE : View.VISIBLE);
                 }
-            }
-            setEnabledWithAlpha(reverbKnobContainer, on && eqSwitch.isChecked());
-        });
-
-        stereoWideningSwitch.setOnCheckedChangeListener((b, on) -> {
-            if (eqSwitch.isChecked()) {
-                equalizerViewModel.setStereoWidening(on, stereoWideningWidthValue);
-            }
-            setEnabledWithAlpha(stereoWideningKnobContainer, on && eqSwitch.isChecked());
-        });
-
-        exciterSwitch.setOnCheckedChangeListener((b, on) -> {
-            if (eqSwitch.isChecked()) {
-                equalizerViewModel.setExciter(on, exciterAmountValue, exciterFrequencyValue);
-            }
-            setEnabledWithAlpha(exciterKnobContainer, on && eqSwitch.isChecked());
-        });
-
-        compressorSwitch.setOnCheckedChangeListener((b, on) -> {
-            if (eqSwitch.isChecked()) {
-                equalizerViewModel.setCompressor(on, compressorThresholdValue,
-                        compressorRatioValue, compressorAttackValue, compressorReleaseValue);
-            }
-            setEnabledWithAlpha(compressorKnobContainer, on && eqSwitch.isChecked());
-        });
-
-        limiterSwitch.setOnCheckedChangeListener((b, on) -> {
-            if (eqSwitch.isChecked()) {
-                equalizerViewModel.setLimiter(on, limiterThresholdValue);
-            }
-            setEnabledWithAlpha(limiterKnobContainer, on && eqSwitch.isChecked());
-        });
-
-        noiseGateSwitch.setOnCheckedChangeListener((b, on) -> {
-            if (eqSwitch.isChecked()) {
-                equalizerViewModel.setNoiseGate(on, noiseGateThresholdValue);
-            }
-            setEnabledWithAlpha(noiseGateKnobContainer, on && eqSwitch.isChecked());
-        });
-
-        deEsserSwitch.setOnCheckedChangeListener((b, on) -> {
-            if (eqSwitch.isChecked()) {
-                equalizerViewModel.setDeEsser(on, deEsserThresholdValue, deEsserFrequencyValue);
-            }
-            setEnabledWithAlpha(deEsserKnobContainer, on && eqSwitch.isChecked());
-        });
-
-        // Knobs: Update values only if enabled
-        bassKnob.setOnValueChangedListener(v -> {
-            if (audioEngine != null && bassSwitch.isChecked() && eqSwitch.isChecked()) {
-                audioEngine.setBassBoost((short) Math.min(v, 1000));
-            }
-        });
-
-        virtualizerKnob.setOnValueChangedListener(v -> {
-            if (audioEngine != null && virtualizerSwitch.isChecked() && eqSwitch.isChecked()) {
-                audioEngine.setVirtualizer((short) v);
-            }
-        });
-
-        stereoWidthSlider.addOnChangeListener((slider, value, fromUser) -> {
-            if (fromUser && eqSwitch.isChecked()) {
-                stereoWideningWidthValue = value / 100f;
-                equalizerViewModel.setStereoWidening(stereoWideningSwitch.isChecked(),
-                        stereoWideningWidthValue);
-            }
-        });
-        exciterAmountSlider.addOnChangeListener((slider, value, fromUser) -> {
-            if (fromUser && eqSwitch.isChecked()) {
-                exciterAmountValue = value / 10f;
-                equalizerViewModel.setExciter(exciterSwitch.isChecked(), exciterAmountValue,
-                        exciterFrequencyValue);
-            }
-        });
-        compressorThresholdSlider.addOnChangeListener((slider, value, fromUser) -> {
-            if (fromUser && eqSwitch.isChecked()) {
-                compressorThresholdValue = value;
-                equalizerViewModel.setCompressor(compressorSwitch.isChecked(),
-                        compressorThresholdValue, compressorRatioValue,
-                        compressorAttackValue, compressorReleaseValue);
-            }
-        });
-        limiterCeilingSlider.addOnChangeListener((slider, value, fromUser) -> {
-            if (fromUser && eqSwitch.isChecked()) {
-                limiterThresholdValue = value;
-                equalizerViewModel.setLimiter(limiterSwitch.isChecked(), value);
-            }
-        });
-        noiseGateThresholdSlider.addOnChangeListener((slider, value, fromUser) -> {
-            if (fromUser && eqSwitch.isChecked()) {
-                noiseGateThresholdValue = value;
-                equalizerViewModel.setNoiseGate(noiseGateSwitch.isChecked(), value);
-            }
-        });
-        deEsserThresholdSlider.addOnChangeListener((slider, value, fromUser) -> {
-            if (fromUser && eqSwitch.isChecked()) {
-                deEsserThresholdValue = value;
-                equalizerViewModel.setDeEsser(deEsserSwitch.isChecked(), value,
-                        deEsserFrequencyValue);
-            }
-        });
-
-        // Advanced Effects Knobs
-        // Reverb Room Level (-1000 to 0 mB)
-        reverbKnobContainer.addView(createSeekBar(-1000, 0, (int) reverbRoomLevelValue, value -> {
-            reverbRoomLevelValue = value;
-            if (audioEngine != null && reverbSwitch.isChecked() && eqSwitch.isChecked()) {
-                audioEngine.setReverbProperties((int) reverbRoomLevelValue, (int) reverbDecayTimeValue);
-            }
-        }, "Reverb Room"));
-
-        // Reverb Decay Time (0 to 5000 ms)
-        reverbKnobContainer.addView(createSeekBar(0, 5000, (int) reverbDecayTimeValue, value -> {
-            reverbDecayTimeValue = value;
-            if (audioEngine != null && reverbSwitch.isChecked() && eqSwitch.isChecked()) {
-                audioEngine.setReverbProperties((int) reverbRoomLevelValue, (int) reverbDecayTimeValue);
-            }
-        }, "Reverb Decay"));
-
-        // Stereo Widening Width (0 to 100, representing 0.0 to 1.0)
-        stereoWideningKnobContainer.addView(createSeekBar(0, 100, (int) (stereoWideningWidthValue * 100), value -> {
-            stereoWideningWidthValue = value / 100f;
-            if (stereoWideningSwitch.isChecked() && eqSwitch.isChecked()) {
-                equalizerViewModel.setStereoWidening(true, stereoWideningWidthValue);
-            }
-        }, "Stereo Width"));
-
-        // Exciter Amount (0 to 100, representing 0.0 to 1.0)
-        exciterKnobContainer.addView(createSeekBar(0, 100, (int) (exciterAmountValue * 100), value -> {
-            exciterAmountValue = value / 100f;
-            if (exciterSwitch.isChecked() && eqSwitch.isChecked()) {
-                equalizerViewModel.setExciter(true, exciterAmountValue, exciterFrequencyValue);
-            }
-        }, "Exciter Amount"));
-
-        // Exciter Frequency (20 to 20000 Hz)
-        exciterKnobContainer.addView(createSeekBar(20, 20000, (int) exciterFrequencyValue, value -> {
-            exciterFrequencyValue = value;
-            if (exciterSwitch.isChecked() && eqSwitch.isChecked()) {
-                equalizerViewModel.setExciter(true, exciterAmountValue, exciterFrequencyValue);
-            }
-        }, "Exciter Freq"));
-
-        // Compressor Threshold (-60 to 0 dB)
-        compressorKnobContainer.addView(createSeekBar(-60, 0, (int) compressorThresholdValue, value -> {
-            compressorThresholdValue = value;
-            if (compressorSwitch.isChecked() && eqSwitch.isChecked()) {
-                equalizerViewModel.setCompressor(true, compressorThresholdValue,
-                        compressorRatioValue, compressorAttackValue, compressorReleaseValue);
-            }
-        }, "Comp Threshold"));
-
-        // Compressor Ratio (100 to 500, representing 1.0 to 5.0, with higher ratios approximated)
-        compressorKnobContainer.addView(createSeekBar(100, 500, (int) (compressorRatioValue * 100), value -> {
-            compressorRatioValue = value / 100f;
-            if (compressorSwitch.isChecked() && eqSwitch.isChecked()) {
-                equalizerViewModel.setCompressor(true, compressorThresholdValue,
-                        compressorRatioValue, compressorAttackValue, compressorReleaseValue);
-            }
-        }, "Comp Ratio"));
-
-        // Compressor Attack (0 to 200 ms)
-        compressorKnobContainer.addView(createSeekBar(0, 200, (int) compressorAttackValue, value -> {
-            compressorAttackValue = value;
-            if (compressorSwitch.isChecked() && eqSwitch.isChecked()) {
-                equalizerViewModel.setCompressor(true, compressorThresholdValue,
-                        compressorRatioValue, compressorAttackValue, compressorReleaseValue);
-            }
-        }, "Comp Attack"));
-
-        // Compressor Release (0 to 500 ms)
-        compressorKnobContainer.addView(createSeekBar(0, 500, (int) compressorReleaseValue, value -> {
-            compressorReleaseValue = value;
-            if (compressorSwitch.isChecked() && eqSwitch.isChecked()) {
-                equalizerViewModel.setCompressor(true, compressorThresholdValue,
-                        compressorRatioValue, compressorAttackValue, compressorReleaseValue);
-            }
-        }, "Comp Release"));
-
-        // Limiter Threshold (-20 to 0 dB)
-        limiterKnobContainer.addView(createSeekBar(-20, 0, (int) limiterThresholdValue, value -> {
-            limiterThresholdValue = value;
-            if (limiterSwitch.isChecked() && eqSwitch.isChecked()) {
-                equalizerViewModel.setLimiter(true, limiterThresholdValue);
-            }
-        }, "Limit Threshold"));
-
-        // Noise Gate Threshold (-80 to -20 dB)
-        noiseGateKnobContainer.addView(createSeekBar(-80, -20, (int) noiseGateThresholdValue, value -> {
-            noiseGateThresholdValue = value;
-            if (noiseGateSwitch.isChecked() && eqSwitch.isChecked()) {
-                equalizerViewModel.setNoiseGate(true, noiseGateThresholdValue);
-            }
-        }, "Noise Gate"));
-
-        // De-esser Threshold (-40 to 0 dB)
-        deEsserKnobContainer.addView(createSeekBar(-40, 0, (int) deEsserThresholdValue, value -> {
-            deEsserThresholdValue = value;
-            if (deEsserSwitch.isChecked() && eqSwitch.isChecked()) {
-                equalizerViewModel.setDeEsser(true, deEsserThresholdValue, deEsserFrequencyValue);
-            }
-        }, "DeEsser Thresh"));
-
-        // De-esser Frequency (2000 to 20000 Hz)
-        deEsserKnobContainer.addView(createSeekBar(2000, 20000, (int) deEsserFrequencyValue, value -> {
-            deEsserFrequencyValue = value;
-            if (deEsserSwitch.isChecked() && eqSwitch.isChecked()) {
-                equalizerViewModel.setDeEsser(true, deEsserThresholdValue, deEsserFrequencyValue);
-            }
-        }, "DeEsser Freq"));
-
-        tempoKnob.setOnValueChangedListener(value -> {
-            if (tempoSwitch.isChecked() && eqSwitch.isChecked()) {
-                equalizerViewModel.setTempo(value);
-            }
-        });
-
-        pitchKnob.setOnValueChangedListener(value -> {
-            if (pitchSwitch.isChecked() && eqSwitch.isChecked()) {
-                equalizerViewModel.setPitch(progressToPitch(value));
-            }
-        });
-    }
-
-    private void setEnabledTotal(boolean sessionActive) {
-        // Master switch is ONLY enabled if we have a valid session
-        eqSwitch.setEnabled(sessionActive);
-
-        // Everything else depends on BOTH the session being active AND the master switch being ON
-        boolean masterOn = sessionActive && eqSwitch.isChecked();
-
-        // Master UI components
-        setEnabledWithAlpha(chipsContainer, masterOn);
-        setEnabledWithAlpha(eqCard, masterOn);
-
-        // Sub-switches: Always interactive if session is active
-        bassSwitch.setEnabled(sessionActive);
-        virtualizerSwitch.setEnabled(sessionActive);
-        tempoSwitch.setEnabled(sessionActive);
-        pitchSwitch.setEnabled(sessionActive);
-        loudnessSwitch.setEnabled(sessionActive);
-
-        // Advanced Effects Switches: Always interactive if session is active
-        reverbSwitch.setEnabled(sessionActive);
-        stereoWideningSwitch.setEnabled(sessionActive);
-        exciterSwitch.setEnabled(sessionActive);
-        compressorSwitch.setEnabled(sessionActive);
-        limiterSwitch.setEnabled(sessionActive);
-        noiseGateSwitch.setEnabled(sessionActive);
-        deEsserSwitch.setEnabled(sessionActive);
-
-        // Bands follow master switch state
-        for (int i = 0; i < UI_BANDS; i++) {
-            setEnabledWithAlpha(getSeekBar(i), masterOn);
+                View workspace = rootView.findViewById(R.id.eq_workspace_root);
+                if (workspace != null) {
+                    workspace.setAlpha(checked ? 1f : 0.45f);
+                }
+                applyAllBandsToEngine();
+            });
         }
-
-        // Nested controls (knobs, icons) state
-        updateNestedControlsState();
     }
 
-    private void updateNestedControlsState() {
-        boolean master = eqSwitch.isEnabled() && eqSwitch.isChecked();
-        setEnabledWithAlpha(bassKnob, master && bassSwitch.isChecked());
-        setEnabledWithAlpha(virtualizerKnob, master && virtualizerSwitch.isChecked());
-        setEnabledWithAlpha(tempoKnob, master && tempoSwitch.isChecked());
-        setEnabledWithAlpha(pitchKnob, master && pitchSwitch.isChecked());
-        setEnabledWithAlpha(loudnessIcon, master && loudnessSwitch.isChecked());
+    // ── Presets ───────────────────────────────────────────────────────────
 
-        // Advanced Effects Controls
-        setEnabledWithAlpha(reverbKnobContainer, master && reverbSwitch.isChecked());
-        setEnabledWithAlpha(stereoWideningKnobContainer, master && stereoWideningSwitch.isChecked());
-        setEnabledWithAlpha(exciterKnobContainer, master && exciterSwitch.isChecked());
-        setEnabledWithAlpha(compressorKnobContainer, master && compressorSwitch.isChecked());
-        setEnabledWithAlpha(limiterKnobContainer, master && limiterSwitch.isChecked());
-        setEnabledWithAlpha(noiseGateKnobContainer, master && noiseGateSwitch.isChecked());
-        setEnabledWithAlpha(deEsserKnobContainer, master && deEsserSwitch.isChecked());
+    private void wirePresets() {
+        if (presetGroup != null) {
+            for (int i = 0; i < presetGroup.getChildCount(); i++) {
+                View child = presetGroup.getChildAt(i);
+                if (!(child instanceof Chip)) continue;
+                Chip chip = (Chip) child;
+                chip.setOnClickListener(v -> {
+                    pushHistory();
+                    String name = chip.getText() != null ? chip.getText().toString() : "";
+                    applyNamedPreset(name);
+                    highlightChip(chip);
+                });
+            }
+        }
+        if (slotA != null) {
+            slotA.setOnClickListener(v -> {
+                vm.switchToPresetA();
+                refreshAllFromVm();
+                styleAb(true);
+            });
+        }
+        if (slotB != null) {
+            slotB.setOnClickListener(v -> {
+                vm.switchToPresetB();
+                refreshAllFromVm();
+                styleAb(false);
+            });
+        }
     }
 
-    private void setEnabledWithAlpha(View v, boolean enabled) {
-        v.setEnabled(enabled);
-        v.setAlpha(enabled ? 1f : 0.5f);
+    private void highlightChip(@Nullable Chip active) {
+        if (presetGroup == null) return;
+        for (int i = 0; i < presetGroup.getChildCount(); i++) {
+            View c = presetGroup.getChildAt(i);
+            if (c instanceof Chip) {
+                ((Chip) c).setChecked(c == active);
+            }
+        }
     }
 
-    /**
-     * Creates a simple vertical seekbar for advanced effect parameters
-     */
-    private View createSeekBar(int min, int max, int initialValue, Consumer<Integer> onValueChanged, String label) {
-        LinearLayout container = new LinearLayout(context);
-        container.setOrientation(LinearLayout.VERTICAL);
-        container.setPadding(8, 8, 8, 8);
+    private void styleAb(boolean aActive) {
+        if (slotA != null) slotA.setSelected(aActive);
+        if (slotB != null) slotB.setSelected(!aActive);
+    }
 
-        TextView labelView = new TextView(context);
-        labelView.setText(label);
-        labelView.setTextSize(12);
-        labelView.setTextColor(ContextCompat.getColor(context, android.R.color.white));
-        labelView.setGravity(Gravity.CENTER);
-        container.addView(labelView);
+    private void applyNamedPreset(@NonNull String name) {
+        float[] gains = presetGains(name);
+        for (int i = 0; i < BAND_COUNT; i++) {
+            float q = 1.4f;
+            vm.setEqBand(i, ISO_FREQ_HZ[i], gains[i], q);
+        }
+        refreshFaderUi();
+        applyAllBandsToEngine();
+    }
 
-        VerticalSeekBar seekBar = new VerticalSeekBar(context);
-        seekBar.setMin(min);
-        seekBar.setMax(max);
-        seekBar.setProgress(initialValue);
-        seekBar.setPadding(0, 8, 0, 8);
-        seekBar.setOnSeekBarChangeListener(new VerticalSeekBar.OnSeekBarChangeListener() {
+    @NonNull
+    private static float[] presetGains(@NonNull String name) {
+        String n = name.toLowerCase(Locale.US);
+        if (n.contains("flat") || n.contains("0db")) {
+            return zeros();
+        }
+        if (n.contains("rock")) {
+            return new float[]{4.5f, 3f, 1.5f, -0.5f, -1.5f, 0.5f, 2f, 3.5f, 4f, 4.5f};
+        }
+        if (n.contains("pop")) {
+            return new float[]{1.5f, 2.5f, 3f, 1f, 0f, 0.5f, 1.5f, 2.5f, 3f, 3.5f};
+        }
+        if (n.contains("dance") || n.contains("edm") || n.contains("hip")) {
+            return new float[]{5.5f, 4.5f, 2f, 0f, 0f, 2f, 3.5f, 4f, 4.5f, 3f};
+        }
+        if (n.contains("acoustic") || n.contains("folk")) {
+            return new float[]{3f, 2.5f, 1f, 0.5f, 1f, 1.5f, 2f, 3f, 3.5f, 3f};
+        }
+        if (n.contains("jazz")) {
+            return new float[]{3.5f, 2.5f, 1f, 1.5f, -0.5f, -0.5f, 1f, 2f, 3f, 3.5f};
+        }
+        if (n.contains("vocal")) {
+            return new float[]{-1f, -0.5f, 0f, 1.5f, 3.5f, 4f, 3f, 2f, 0.5f, 0f};
+        }
+        if (n.contains("bass") || n.contains("deep")) {
+            return new float[]{7f, 6f, 4.5f, 2f, 0.5f, -0.5f, 0f, 0f, 0f, 0f};
+        }
+        if (n.contains("treble") || n.contains("crisp")) {
+            return new float[]{0f, 0f, 0f, 0f, 0f, 1f, 2.5f, 4.5f, 6f, 7.5f};
+        }
+        if (n.contains("classical") || n.contains("piano")) {
+            return new float[]{3f, 2f, 1f, 0f, 0f, 0f, 1f, 2f, 3f, 3.5f};
+        }
+        if (n.contains("metal") || n.contains("loud")) {
+            return new float[]{5f, 3f, 0f, -1f, -2f, 1f, 3f, 4f, 5f, 5f};
+        }
+        return zeros();
+    }
+
+    @NonNull
+    private static float[] zeros() {
+        float[] z = new float[BAND_COUNT];
+        Arrays.fill(z, 0f);
+        return z;
+    }
+
+    // ── Faders ────────────────────────────────────────────────────────────
+
+    private void wireFaders() {
+        for (int i = 0; i < BAND_COUNT; i++) {
+            final int index = i;
+            VerticalSeekBar bar = gainBars[i];
+            if (bar == null) continue;
+            bar.setOnSeekBarChangeListener(new VerticalSeekBar.OnSeekBarChangeListener() {
+                @Override
+                public void onProgressChanged(VerticalSeekBar seekBar, int progress, boolean fromUser) {
+                    if (!fromUser) return;
+                    float gain = progressToGain(progress);
+                    updateGainLabel(index, gain);
+                    ParametricEQBand band = bandAt(index);
+                    float q = band != null ? band.getQFactor() : 1.4f;
+                    vm.setEqBand(index, ISO_FREQ_HZ[index], gain, q);
+                    updateEqCurveOverlay();
+                }
+
+                @Override
+                public void onStartTrackingTouch(VerticalSeekBar seekBar) {
+                    selectBand(index);
+                }
+
+                @Override
+                public void onStopTrackingTouch(VerticalSeekBar seekBar) {
+                    pushHistory();
+                }
+            });
+            if (bandColumns[i] != null) {
+                bandColumns[i].setOnClickListener(v -> selectBand(index));
+            }
+        }
+    }
+
+    private void selectBand(int index) {
+        selectedBand = index;
+        for (int i = 0; i < BAND_COUNT; i++) {
+            if (bandColumns[i] != null) {
+                bandColumns[i].setSelected(i == index);
+                bandColumns[i].setAlpha(i == index ? 1f : 0.85f);
+            }
+        }
+        ParametricEQBand band = bandAt(index);
+        if (inspectorBandLabel != null) {
+            inspectorBandLabel.setText(String.format(Locale.US,
+                    "Band %d (%s)", index + 1, ISO_LABELS[index]));
+        }
+        if (inspectorQSlider != null && band != null) {
+            inspectorQSlider.setValue(clamp(band.getQFactor(), 0.1f, 10f));
+        }
+        if (inspectorQVal != null && band != null) {
+            inspectorQVal.setText(String.format(Locale.US, "%.1f", band.getQFactor()));
+        }
+    }
+
+    private void wireInspector() {
+        if (inspectorQSlider == null) return;
+        inspectorQSlider.addOnChangeListener((slider, value, fromUser) -> {
+            if (!fromUser) return;
+            if (inspectorQVal != null) {
+                inspectorQVal.setText(String.format(Locale.US, "%.1f", value));
+            }
+            ParametricEQBand band = bandAt(selectedBand);
+            float gain = band != null ? band.getGainDb() : 0f;
+            vm.setEqBand(selectedBand, ISO_FREQ_HZ[selectedBand], gain, value);
+            if (qBadges[selectedBand] != null) {
+                qBadges[selectedBand].setText(String.format(Locale.US, "Q:%.1f", value));
+            }
+            updateEqCurveOverlay();
+        });
+        inspectorQSlider.addOnSliderTouchListener(new Slider.OnSliderTouchListener() {
             @Override
-            public void onProgressChanged(VerticalSeekBar seekBar, int progress, boolean fromUser) {
+            public void onStartTrackingTouch(@NonNull Slider slider) { }
+
+            @Override
+            public void onStopTrackingTouch(@NonNull Slider slider) {
+                pushHistory();
+            }
+        });
+    }
+
+    // ── Macro knobs ───────────────────────────────────────────────────────
+
+    private void wireMacroKnobs() {
+        if (bassSwitch != null) {
+            bassSwitch.setOnCheckedChangeListener((b, on) -> {
+                int strength = bassKnob != null ? Math.round(bassKnob.getValue() * 100f) : 50;
+                vm.setBassBoost(on, strength);
+            });
+        }
+        if (bassKnob != null) {
+            bassKnob.setOnValueChangedListener(v -> {
+                boolean on = bassSwitch == null || bassSwitch.isChecked();
+                vm.setBassBoost(on, Math.round(v * 100f));
+            });
+        }
+        if (virtualizerSwitch != null) {
+            virtualizerSwitch.setOnCheckedChangeListener((b, on) -> {
+                int strength = virtualizerKnob != null
+                        ? Math.round(virtualizerKnob.getValue() * 100f) : 50;
+                vm.setVirtualizer(on, strength);
+            });
+        }
+        if (virtualizerKnob != null) {
+            virtualizerKnob.setOnValueChangedListener(v -> {
+                boolean on = virtualizerSwitch == null || virtualizerSwitch.isChecked();
+                vm.setVirtualizer(on, Math.round(v * 100f));
+            });
+        }
+        if (tempoSwitch != null && tempoKnob != null) {
+            tempoSwitch.setOnCheckedChangeListener((b, on) -> {
+                if (!on) vm.setPlaybackSpeed(1f);
+                else vm.setPlaybackSpeed(0.5f + tempoKnob.getValue() * 1.5f);
+            });
+            tempoKnob.setOnValueChangedListener(v -> {
+                if (tempoSwitch != null && tempoSwitch.isChecked()) {
+                    vm.setPlaybackSpeed(0.5f + v * 1.5f);
+                }
+            });
+        }
+        if (pitchSwitch != null && pitchKnob != null) {
+            pitchSwitch.setOnCheckedChangeListener((b, on) -> {
+                if (!on) vm.setPlaybackPitch(1f);
+                else vm.setPlaybackPitch(0.5f + pitchKnob.getValue() * 1.5f);
+            });
+            pitchKnob.setOnValueChangedListener(v -> {
+                if (pitchSwitch != null && pitchSwitch.isChecked()) {
+                    vm.setPlaybackPitch(0.5f + v * 1.5f);
+                }
+            });
+        }
+    }
+
+    // ── FX racks ──────────────────────────────────────────────────────────
+
+    private void wireFxRacks() {
+        bindSwitchSlider(stereoSwitch, stereoWidthSlider, valStereoWidth, "%",
+                (on, val) -> vm.setStereoWidening(on, val / 100f), 0f, 100f);
+
+        bindSwitchSlider(exciterSwitch, exciterAmountSlider, valExciterAmount, " dB",
+                (on, val) -> {
+                    float freq = exciterFreqSlider != null ? exciterFreqSlider.getValue() : 2500f;
+                    vm.setExciter(on, val, freq);
+                }, 0f, 12f);
+        if (exciterFreqSlider != null) {
+            exciterFreqSlider.addOnChangeListener((s, v, fromUser) -> {
+                if (valExciterFreq != null) {
+                    valExciterFreq.setText(String.format(Locale.US, "%.0f Hz", v));
+                }
                 if (fromUser) {
-                    onValueChanged.accept(progress);
+                    boolean on = exciterSwitch == null || exciterSwitch.isChecked();
+                    float amt = exciterAmountSlider != null ? exciterAmountSlider.getValue() : 0f;
+                    vm.setExciter(on, amt, v);
+                }
+            });
+        }
+
+        if (compressorSwitch != null) {
+            compressorSwitch.setOnCheckedChangeListener((b, on) -> applyCompressor(on));
+        }
+        bindSliderReadout(compThresholdSlider, valCompThreshold, " dB", () ->
+                applyCompressor(compressorSwitch == null || compressorSwitch.isChecked()));
+        bindSliderReadout(compRatioSlider, valCompRatio, ":1", () ->
+                applyCompressor(compressorSwitch == null || compressorSwitch.isChecked()));
+        bindSliderReadout(compAttackSlider, valCompAttack, " ms", () ->
+                applyCompressor(compressorSwitch == null || compressorSwitch.isChecked()));
+        bindSliderReadout(compReleaseSlider, valCompRelease, " ms", () ->
+                applyCompressor(compressorSwitch == null || compressorSwitch.isChecked()));
+
+        if (limiterSwitch != null) {
+            limiterSwitch.setOnCheckedChangeListener((b, on) -> applyLimiter(on));
+        }
+        bindSliderReadout(limiterCeilingSlider, valLimiterCeiling, " dB", () ->
+                applyLimiter(limiterSwitch == null || limiterSwitch.isChecked()));
+        bindSliderReadout(limiterReleaseSlider, valLimiterRelease, " ms", () ->
+                applyLimiter(limiterSwitch == null || limiterSwitch.isChecked()));
+
+        if (gateSwitch != null) {
+            gateSwitch.setOnCheckedChangeListener((b, on) -> applyGate(on));
+        }
+        bindSliderReadout(gateThresholdSlider, valGateThreshold, " dB", () ->
+                applyGate(gateSwitch == null || gateSwitch.isChecked()));
+        bindSliderReadout(gateHysteresisSlider, valGateHysteresis, " dB", () ->
+                applyGate(gateSwitch == null || gateSwitch.isChecked()));
+        bindSliderReadout(gateAttackSlider, valGateAttack, " ms", () ->
+                applyGate(gateSwitch == null || gateSwitch.isChecked()));
+        bindSliderReadout(gateHoldSlider, valGateHold, " ms", () ->
+                applyGate(gateSwitch == null || gateSwitch.isChecked()));
+        bindSliderReadout(gateReleaseSlider, valGateRelease, " ms", () ->
+                applyGate(gateSwitch == null || gateSwitch.isChecked()));
+
+        if (deEsserSwitch != null) {
+            deEsserSwitch.setOnCheckedChangeListener((b, on) -> applyDeEsser(on));
+        }
+        bindSliderReadout(deEsserThresholdSlider, valDeEsserThreshold, " dB", () ->
+                applyDeEsser(deEsserSwitch == null || deEsserSwitch.isChecked()));
+        bindSliderReadout(deEsserFreqSlider, valDeEsserFreq, " Hz", () ->
+                applyDeEsser(deEsserSwitch == null || deEsserSwitch.isChecked()));
+    }
+
+    private interface FxBiConsumer {
+        void accept(boolean on, float value);
+    }
+
+    private void bindSwitchSlider(
+            @Nullable MaterialSwitch sw,
+            @Nullable Slider slider,
+            @Nullable TextView readout,
+            @NonNull String unit,
+            @NonNull FxBiConsumer apply,
+            float unusedMin,
+            float unusedMax) {
+        if (sw != null) {
+            sw.setOnCheckedChangeListener((b, on) -> {
+                float v = slider != null ? slider.getValue() : 0f;
+                apply.accept(on, v);
+            });
+        }
+        if (slider != null) {
+            slider.addOnChangeListener((s, value, fromUser) -> {
+                if (readout != null) {
+                    if (unit.contains("%")) {
+                        readout.setText(String.format(Locale.US, "%.0f%s", value, unit));
+                    } else if (unit.contains(":")) {
+                        readout.setText(String.format(Locale.US, "%.1f%s", value, unit));
+                    } else {
+                        readout.setText(String.format(Locale.US, "%+.1f%s", value, unit.trim()));
+                    }
+                }
+                if (fromUser) {
+                    boolean on = sw == null || sw.isChecked();
+                    apply.accept(on, value);
+                }
+            });
+        }
+    }
+
+    private void bindSliderReadout(
+            @Nullable Slider slider,
+            @Nullable TextView readout,
+            @NonNull String unit,
+            @NonNull Runnable onChange) {
+        if (slider == null) return;
+        slider.addOnChangeListener((s, value, fromUser) -> {
+            if (readout != null) {
+                if (unit.contains("Hz") || unit.contains("ms") || unit.contains(":")) {
+                    readout.setText(String.format(Locale.US, "%.0f%s", value, unit));
+                } else {
+                    readout.setText(String.format(Locale.US, "%+.1f%s", value, unit));
                 }
             }
+            if (fromUser) onChange.run();
+        });
+    }
 
-            @Override
-            public void onStartTrackingTouch(VerticalSeekBar seekBar) {
-            }
+    private void applyCompressor(boolean on) {
+        float th = compThresholdSlider != null ? compThresholdSlider.getValue() : -20f;
+        float ratio = compRatioSlider != null ? compRatioSlider.getValue() : 4f;
+        float atk = compAttackSlider != null ? compAttackSlider.getValue() : 10f;
+        float rel = compReleaseSlider != null ? compReleaseSlider.getValue() : 100f;
+        vm.setCompressor(on, th, ratio, atk, rel);
+    }
 
-            @Override
-            public void onStopTrackingTouch(VerticalSeekBar seekBar) {
+    private void applyLimiter(boolean on) {
+        float ceiling = limiterCeilingSlider != null ? limiterCeilingSlider.getValue() : -1f;
+        float rel = limiterReleaseSlider != null ? limiterReleaseSlider.getValue() : 50f;
+        vm.setLimiter(on, ceiling, rel);
+    }
+
+    private void applyGate(boolean on) {
+        float th = gateThresholdSlider != null ? gateThresholdSlider.getValue() : -40f;
+        float hy = gateHysteresisSlider != null ? gateHysteresisSlider.getValue() : 6f;
+        float atk = gateAttackSlider != null ? gateAttackSlider.getValue() : 5f;
+        float hold = gateHoldSlider != null ? gateHoldSlider.getValue() : 50f;
+        float rel = gateReleaseSlider != null ? gateReleaseSlider.getValue() : 100f;
+        vm.setNoiseGate(on, th, hy, atk, hold, rel);
+    }
+
+    private void applyDeEsser(boolean on) {
+        float th = deEsserThresholdSlider != null ? deEsserThresholdSlider.getValue() : -20f;
+        float freq = deEsserFreqSlider != null ? deEsserFreqSlider.getValue() : 6000f;
+        vm.setDeEsser(on, th, freq);
+    }
+
+    private void wireRackToggles() {
+        // Optional: click header to expand/collapse content — user may customize later
+        togglePair(R.id.rack_stereo_header, R.id.rack_stereo_content, R.id.rack_stereo_chevron);
+        togglePair(R.id.rack_exciter_header, R.id.rack_exciter_content, R.id.rack_exciter_chevron);
+        togglePair(R.id.rack_compressor_header, R.id.rack_compressor_content, R.id.rack_compressor_chevron);
+        togglePair(R.id.rack_limiter_header, R.id.rack_limiter_content, R.id.rack_limiter_chevron);
+        togglePair(R.id.rack_gate_header, R.id.rack_gate_content, R.id.rack_gate_chevron);
+        togglePair(R.id.rack_deesser_header, R.id.rack_deesser_content, R.id.rack_deesser_chevron);
+    }
+
+    private void togglePair(int headerId, int contentId, int chevronId) {
+        View header = rootView.findViewById(headerId);
+        View content = rootView.findViewById(contentId);
+        View chevron = rootView.findViewById(chevronId);
+        if (header == null || content == null) return;
+        header.setOnClickListener(v -> {
+            boolean open = content.getVisibility() != View.VISIBLE;
+            content.setVisibility(open ? View.VISIBLE : View.GONE);
+            if (chevron != null) {
+                chevron.animate().rotation(open ? 180f : 0f).setDuration(180).start();
             }
         });
-        container.addView(seekBar);
-
-        return container;
     }
 
-    private VerticalSeekBar getSeekBar(int index) {
-        return freqSeekBars[index];
+    private void wireFooter() {
+        if (flattenButton != null) {
+            flattenButton.setOnClickListener(v -> {
+                pushHistory();
+                flattenAll();
+            });
+        }
+        if (savePresetButton != null) {
+            savePresetButton.setOnClickListener(v -> vm.saveCurrentAsUserPreset("User Preset"));
+        }
+        if (applyButton != null) {
+            applyButton.setOnClickListener(v -> {
+                applyAllBandsToEngine();
+                applyCompressor(compressorSwitch == null || compressorSwitch.isChecked());
+                applyLimiter(limiterSwitch == null || limiterSwitch.isChecked());
+                applyGate(gateSwitch == null || gateSwitch.isChecked());
+                applyDeEsser(deEsserSwitch == null || deEsserSwitch.isChecked());
+                applyButton.setText("Applied");
+                applyButton.postDelayed(() -> applyButton.setText("Apply Engine"), 1200);
+            });
+        }
     }
 
-    private void updateFrequencyLabels() {
-        int min = audioEngine.getEqualizerCenterFreq((short) 0);
-        int max = audioEngine.getEqualizerCenterFreq((short) (bandCount - 1));
+    // ── VM observe / refresh ──────────────────────────────────────────────
 
-        for (int i = 0; i < UI_BANDS; i++) {
-            double r = i / (double) (UI_BANDS - 1);
-            double hzDouble = min * Math.pow((double) max / min, r);
-            int hz = (int) hzDouble;
+    private void observeVm(@Nullable LifecycleOwner owner) {
+        if (owner == null) return;
+        vm.getEqBands().observe(owner, bands -> {
+            if (bands == null || suppressHistory) return;
+            refreshFaderUi();
+        });
+        vm.isEqualizerEnabled().observe(owner, on -> {
+            if (masterSwitch != null && on != null && masterSwitch.isChecked() != on) {
+                masterSwitch.setChecked(on);
+            }
+        });
+    }
 
-            TextView tv = bandViews[i].findViewById(R.id.eqTextView);
-            // Show one decimal place for fractional frequencies (like 31.5 Hz)
-            if (hzDouble < 100) {
-                // For frequencies below 100 Hz, show one decimal place if needed
-                if (hzDouble - hz >= 0.01) {
-                    tv.setText(String.format(Locale.getDefault(), "%.1f Hz", hzDouble));
-                } else {
-                    tv.setText(hz + " Hz");
-                }
-            } else if (hzDouble < 1000) {
-                // For frequencies below 1000 Hz, show as integer Hz
-                tv.setText(hz + " Hz");
-            } else {
-                // For frequencies 1000 Hz and above, show in kHz with two decimal places
-                tv.setText(String.format(Locale.getDefault(), "%.2f kHz", hzDouble / 1000f));
+    private void refreshAllFromVm() {
+        suppressHistory = true;
+        try {
+            refreshFaderUi();
+            Boolean on = vm.isEqualizerEnabled().getValue();
+            if (masterSwitch != null && on != null) masterSwitch.setChecked(on);
+            selectBand(selectedBand);
+        } finally {
+            suppressHistory = false;
+        }
+    }
+
+    private void refreshFaderUi() {
+        List<ParametricEQBand> bands = vm.getEqBands().getValue();
+        for (int i = 0; i < BAND_COUNT; i++) {
+            float gain = 0f;
+            float q = 1.4f;
+            if (bands != null && i < bands.size()) {
+                gain = bands.get(i).getGainDb();
+                q = bands.get(i).getQFactor();
+            }
+            if (gainBars[i] != null) {
+                gainBars[i].setProgress(gainToProgress(gain));
+            }
+            updateGainLabel(i, gain);
+            if (qBadges[i] != null) {
+                qBadges[i].setText(String.format(Locale.US, "Q:%.1f", q));
             }
         }
-    }
-
-    /**
-     * Update frequency display for a specific band
-     */
-    private void updateFrequencyDisplay(int bandIndex) {
-        float freq = freqValues.get(bandIndex);
-        // Show appropriate decimal places based on frequency value
-        if (freq < 100) {
-            // For frequencies below 100 Hz, show one decimal place
-            freqValueViews[bandIndex].setText(String.format(Locale.getDefault(), "%.1f Hz", freq));
-        } else if (freq < 1000) {
-            // For frequencies below 1000 Hz, show as integer Hz
-            freqValueViews[bandIndex].setText(String.format(Locale.getDefault(), "%.0f Hz", freq));
-        } else {
-            // For frequencies 1000 Hz and above, show in kHz with two decimal places
-            freqValueViews[bandIndex].setText(String.format(Locale.getDefault(), "%.2f kHz", freq / 1000f));
+        updateEqCurveOverlay();
+        if (activeBandsText != null) {
+            activeBandsText.setText(BAND_COUNT + " BANDS");
         }
     }
 
-// =========================
-// Undo/Redo Functionality
-// =========================
+    // ── Engine apply ──────────────────────────────────────────────────────
 
-    /**
-     * Save current state to undo history
-     */
-    private void saveStateToHistory() {
-        // Only save if we have a valid state and not updating internally
-        if (internalUpdate || uiLevels == null || uiLevels.isEmpty()) {
+    private void applyAllBandsToEngine() {
+        List<ParametricEQBand> bands = vm.getEqBands().getValue();
+        boolean on = Boolean.TRUE.equals(vm.isEqualizerEnabled().getValue());
+        AudioEngine engine = vm.getAudioEngineOrNull();
+        if (engine == null) {
+            // Fall back through ViewModel setters
+            for (int i = 0; i < BAND_COUNT; i++) {
+                float gain = bands != null && i < bands.size() ? bands.get(i).getGainDb() : 0f;
+                float q = bands != null && i < bands.size() ? bands.get(i).getQFactor() : 1.4f;
+                vm.setEqBand(i, ISO_FREQ_HZ[i], gain, q);
+            }
             return;
         }
-
-        // Create snapshot of current state
-        StateSnapshot currentState = new StateSnapshot(uiLevels, freqValues, qValues);
-
-        // Add to undo stack
-        undoStack.push(currentState);
-
-        // Limit history size
-        if (undoStack.size() > MAX_HISTORY_SIZE) {
-            undoStack.remove(0);
+        engine.enableEqualizer(on);
+        for (int i = 0; i < BAND_COUNT; i++) {
+            float gain = bands != null && i < bands.size() ? bands.get(i).getGainDb() : 0f;
+            float q = bands != null && i < bands.size() ? bands.get(i).getQFactor() : 1.4f;
+            engine.setParametricEqualizerBand(i, ISO_FREQ_HZ[i], gain, q, on);
         }
+    }
 
-        // Clear redo stack when a new action is performed
+    private void flattenAll() {
+        for (int i = 0; i < BAND_COUNT; i++) {
+            vm.setEqBand(i, ISO_FREQ_HZ[i], 0f, 1.4f);
+        }
+        refreshFaderUi();
+        applyAllBandsToEngine();
+    }
+
+    // ── History ───────────────────────────────────────────────────────────
+
+    private void pushHistory() {
+        if (suppressHistory) return;
+        float[] snap = snapshotGains();
+        undoStack.push(snap);
+        while (undoStack.size() > 40) undoStack.removeLast();
         redoStack.clear();
-
-        // Update button states
-        updateUndoRedoButtons();
     }
 
-    /**
-     * Undo the last action
-     */
     private void undo() {
-        if (undoStack.isEmpty()) {
-            return;
-        }
-
-        // Save current state to redo stack
-        if (!internalUpdate && uiLevels != null && !uiLevels.isEmpty()) {
-            // Save current state (levels, frequencies, Q factors)
-            List<Integer> levelsState = new ArrayList<>(uiLevels);
-            List<Float> freqState = new ArrayList<>(freqValues);
-            List<Float> qState = new ArrayList<>(qValues);
-            redoStack.push(new StateSnapshot(levelsState, freqState, qState));
-        }
-
-        // Get previous state from undo stack
-        StateSnapshot previousState = undoStack.pop();
-
-        // Apply previous state
-        internalUpdate = true;
-        uiLevels.clear();
-        uiLevels.addAll(previousState.levels);
-        freqValues.clear();
-        freqValues.addAll(previousState.frequencies);
-        qValues.clear();
-        qValues.addAll(previousState.qFactors);
-
-        // Update UI
-        for (int i = 0; i < Math.min(previousState.levels.size(), UI_BANDS); i++) {
-            int progress = previousState.levels.get(i);
-            float freq = previousState.frequencies.get(i);
-            float qFactor = previousState.qFactors.get(i);
-
-            VerticalSeekBar bar = getSeekBar(i);
-            bar.setProgress(progress);
-
-            // Update frequency UI
-            freqValues.set(i, freq);
-            updateFrequencyDisplay(i);
-            // Update button states
-            updateUndoRedoButtons();
-
-            // Show feedback
-            Toast.makeText(context, "Undo", Toast.LENGTH_SHORT).show();
-        }
-
+        if (undoStack.isEmpty()) return;
+        redoStack.push(snapshotGains());
+        applySnapshot(undoStack.pop());
     }
 
-    /**
-     * Redo the last undone action
-     */
     private void redo() {
-        if (redoStack.isEmpty()) {
-            return;
+        if (redoStack.isEmpty()) return;
+        undoStack.push(snapshotGains());
+        applySnapshot(redoStack.pop());
+    }
+
+    @NonNull
+    private float[] snapshotGains() {
+        float[] g = new float[BAND_COUNT];
+        List<ParametricEQBand> bands = vm.getEqBands().getValue();
+        for (int i = 0; i < BAND_COUNT; i++) {
+            g[i] = bands != null && i < bands.size() ? bands.get(i).getGainDb() : 0f;
         }
+        return g;
+    }
 
-        // Save current state to undo stack
-        if (!internalUpdate && uiLevels != null && !uiLevels.isEmpty()) {
-            // Save current state (levels, frequencies, Q factors)
-            List<Integer> levelsState = new ArrayList<>(uiLevels);
-            List<Float> freqState = new ArrayList<>(freqValues);
-            List<Float> qState = new ArrayList<>(qValues);
-            undoStack.push(new StateSnapshot(levelsState, freqState, qState));
-        }
-
-        // Get next state from redo stack
-        StateSnapshot nextState = redoStack.pop();
-
-        // Apply next state
-        internalUpdate = true;
-        uiLevels.clear();
-        uiLevels.addAll(nextState.levels);
-        freqValues.clear();
-        freqValues.addAll(nextState.frequencies);
-        qValues.clear();
-        qValues.addAll(nextState.qFactors);
-
-        // Update UI
-        for (int i = 0; i < Math.min(nextState.levels.size(), UI_BANDS); i++) {
-            int progress = nextState.levels.get(i);
-            float freq = nextState.frequencies.get(i);
-            float qFactor = nextState.qFactors.get(i);
-
-            VerticalSeekBar bar = getSeekBar(i);
-            bar.setProgress(progress);
-
-            // Update frequency UI
-            freqValues.set(i, freq);
-            updateFrequencyDisplay(i);
-            float freqProgress = (float) ((Math.log10(freq) - Math.log10(20)) /
-                    (Math.log10(20000) - Math.log10(20)) * 100);
-
-            // Update dB value display
-            float gainDb = ((progress / 100f) * 30f) - 15f;
-            dbValueViews[i].setText(String.format(Locale.getDefault(), "%.1f dB", gainDb));
-
-            // Update Q factor UI
-            qValues.set(i, qFactor);
-            String qText = String.format(Locale.getDefault(), "Q: %.1f", qFactor);
-            qValueViews[i].setText(qText);
-            float qProgress = (float) ((Math.log10(qFactor) - Math.log10(0.1f)) /
-                    (Math.log10(10.0f) - Math.log10(0.1f)) * 100);
-            // Q seek bars are optional in the current layout (may be null)
-            if (qSeekBars[i] != null) {
-                qSeekBars[i].setProgress(Math.round(qProgress));
+    private void applySnapshot(@NonNull float[] gains) {
+        suppressHistory = true;
+        try {
+            for (int i = 0; i < BAND_COUNT; i++) {
+                ParametricEQBand b = bandAt(i);
+                float q = b != null ? b.getQFactor() : 1.4f;
+                vm.setEqBand(i, ISO_FREQ_HZ[i], gains[i], q);
             }
+            refreshFaderUi();
+            applyAllBandsToEngine();
+        } finally {
+            suppressHistory = false;
+        }
+    }
 
-            // Update parametric band in ViewModel
-            if (equalizerViewModel.getEqBands().getValue() != null &&
-                    i < equalizerViewModel.getEqBands().getValue().size()) {
-                equalizerViewModel.setEqBand(i,
-                        freq,
-                        gainDb,
-                        qFactor);
+    // ── Spectrum ──────────────────────────────────────────────────────────
+
+    private void startSpectrum() {
+        spectrumRunning = true;
+        main.removeCallbacks(spectrumTick);
+        main.post(spectrumTick);
+    }
+
+    private void stopSpectrum() {
+        spectrumRunning = false;
+        main.removeCallbacks(spectrumTick);
+    }
+
+    private void tickSpectrum() {
+        AudioEngine engine = vm.getAudioEngineOrNull();
+        if (spectrumView == null) return;
+        if (engine != null && engine.isSpectrumDataReady()) {
+            if (spectrumBuf.length != Math.max(16, engine.getSpectrumNumBins())) {
+                // keep buffer size
+            }
+            engine.getSpectrumMagnitudes(spectrumBuf);
+            spectrumView.setFftData(spectrumBuf);
+            if (spectrumOffline != null) spectrumOffline.setVisibility(View.GONE);
+            float peak = 0f;
+            for (float m : spectrumBuf) if (m > peak) peak = m;
+            if (peakDbText != null) {
+                float db = (float) (20.0 * Math.log10(Math.max(1e-6, peak)));
+                peakDbText.setText(String.format(Locale.US, "%+.1f dB", db));
             }
         }
-        internalUpdate = false;
-
-        // Apply to hardware
-        applyUiToHardware();
-
-        // Update spectrum
-        lastChangeTime = System.currentTimeMillis();
-        updateSpectrumEqCurve(equalizerViewModel.getEqBands().getValue());
-
-        // Update button states
-        updateUndoRedoButtons();
-
-        // Show feedback
-        Toast.makeText(context, "Redo", Toast.LENGTH_SHORT).show();
+        updateEqCurveOverlay();
     }
 
-    /**
-     * Update the enabled state of undo/redo buttons
-     */
-    private void updateUndoRedoButtons() {
-        undoButton.setEnabled(!undoStack.isEmpty());
-        redoButton.setEnabled(!redoStack.isEmpty());
-
-        // Also update alpha for visual feedback
-        undoButton.setAlpha(undoStack.isEmpty() ? 0.5f : 1f);
-        redoButton.setAlpha(redoStack.isEmpty() ? 0.5f : 1f);
-    }
-
-    public static float progressToPitch(float semitones) {
-        // ExoPlayer default pitch = 1.0f (0 semitones)
-        return (float) Math.pow(2.0, semitones / 12.0);
-    }
-
-
-    // =========================
-    // Lifecycle
-    // =========================
-
-    public void onDestroy() {
-        handler.removeCallbacksAndMessages(null);
-        if (audioEngine != null) audioEngine.release();
-        audioEngine = null;
-
-        // Stop spectrum updates
-        if (spectrumUpdateRunnable != null) {
-            handler.removeCallbacks(spectrumUpdateRunnable);
-            spectrumUpdateRunnable = null;
+    private void updateEqCurveOverlay() {
+        if (spectrumView == null) return;
+        List<ParametricEQBand> bands = vm.getEqBands().getValue();
+        int n = eqCurveBuf.length;
+        for (int i = 0; i < n; i++) {
+            float t = i / (float) (n - 1);
+            // Map to log-ish band index
+            int bi = Math.min(BAND_COUNT - 1, Math.round(t * (BAND_COUNT - 1)));
+            float gain = bands != null && bi < bands.size() ? bands.get(bi).getGainDb() : 0f;
+            // Normalize -12..+12 → 0..1 for view
+            eqCurveBuf[i] = (gain - GAIN_MIN_DB) / (GAIN_MAX_DB - GAIN_MIN_DB);
         }
+        spectrumView.setEqCurveData(eqCurveBuf);
     }
 
-    public View getView() {
-        return rootView;
+    // ── Helpers ───────────────────────────────────────────────────────────
+
+    @Nullable
+    private ParametricEQBand bandAt(int index) {
+        List<ParametricEQBand> bands = vm.getEqBands().getValue();
+        if (bands == null || index < 0 || index >= bands.size()) return null;
+        return bands.get(index);
     }
 
-    public void setIsVisible(boolean isVisible) {
-        this.isVisible.set(isVisible);
+    private static float progressToGain(int progress) {
+        float t = progress / (float) SEEK_MAX;
+        return GAIN_MIN_DB + t * (GAIN_MAX_DB - GAIN_MIN_DB);
     }
 
-    public AtomicBoolean getIsVisible() {
-        return isVisible;
+    private static int gainToProgress(float gainDb) {
+        float t = (gainDb - GAIN_MIN_DB) / (GAIN_MAX_DB - GAIN_MIN_DB);
+        return Math.round(clamp(t, 0f, 1f) * SEEK_MAX);
     }
 
-
-    public void setBottomPadding(int dimensionPixelSize) {
-        parentView.setPadding(0, 0, 0, dimensionPixelSize);
+    private void updateGainLabel(int index, float gain) {
+        if (gainLabels[index] == null) return;
+        gainLabels[index].setText(String.format(Locale.US, "%+.1f", gain));
     }
 
-    private static class StateSnapshot {
-        final List<Integer> levels;
-        final List<Float> frequencies;
-        final List<Float> qFactors;
-
-        StateSnapshot(List<Integer> levels, List<Float> frequencies, List<Float> qFactors) {
-            this.levels = new ArrayList<>(levels);
-            this.frequencies = new ArrayList<>(frequencies);
-            this.qFactors = new ArrayList<>(qFactors);
-        }
+    private static float clamp(float v, float lo, float hi) {
+        return Math.max(lo, Math.min(hi, v));
     }
 }

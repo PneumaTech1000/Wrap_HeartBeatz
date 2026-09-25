@@ -8,6 +8,7 @@ import android.content.SharedPreferences;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.OptIn;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LifecycleOwner;
@@ -399,14 +400,14 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
      * Apply a single band to hardware (approximation for fixed-band equalizer)
      */
     private void applyBandToHardware(int bandIndex, ParametricEQBand band) {
-        if (audioEngine == null) return;
-
-        // Convert parametric band to fixed-band equalizer settings
-        // This is an approximation since Android Equalizer is fixed-band
-        short[] fixedBandGains = convertParametricToFixedBands(Collections.singletonList(band));
-        if (fixedBandGains != null && fixedBandGains.length > bandIndex) {
-            audioEngine.setEqualizerBandLevel((short) bandIndex, fixedBandGains[bandIndex]);
-        }
+        if (audioEngine == null || band == null) return;
+        boolean on = Boolean.TRUE.equals(equalizerEnabled.getValue());
+        audioEngine.setParametricEqualizerBand(
+                bandIndex,
+                band.getFrequencyHz(),
+                band.getGainDb(),
+                band.getQFactor(),
+                on && band.isEnabled());
     }
 
     /**
@@ -497,14 +498,13 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
         List<ParametricEQBand> bands = new ArrayList<>();
 
         // Standard frequencies for parametric EQ (can be adjusted by user)
+        // ISO 10-band centers — matches DSPark UI and SoundEngine band indices 0..9
         float[] frequencies = {
-            20, 25, 31.5f, 40, 50, 63, 80, 100, 125, 160,
-            200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600,
-            2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000
+            31.5f, 63f, 125f, 250f, 500f, 1000f, 2000f, 4000f, 8000f, 16000f
         };
 
         for (int i = 0; i < frequencies.length; i++) {
-            bands.add(new ParametricEQBand(i, frequencies[i], 0f, 1.0f)); // 0dB gain, Q=1.0
+            bands.add(new ParametricEQBand(i, frequencies[i], 0f, 1.4f));
         }
 
         eqBands.setValue(bands);
@@ -1060,6 +1060,70 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
     /**
      * Cleanup resources
      */
+
+    /** Exposed for EqualizerViewPanel → SoundEngine path. */
+    @Nullable
+    public com.giga.tech1000.media_player.engine.AudioEngine getAudioEngineOrNull() {
+        return audioEngine;
+    }
+
+    public void setBassBoost(boolean enabled, int strengthPercent) {
+        setBassBoosted(enabled, (short) Math.max(0, Math.min(1000, strengthPercent * 10)));
+        bassEnabled.setValue(enabled);
+    }
+
+    public void setVirtualizer(boolean enabled, int strengthPercent) {
+        setVirtualizer(enabled, (short) Math.max(0, Math.min(1000, strengthPercent * 10)));
+        virtualizerEnabled.setValue(enabled);
+    }
+
+    public void switchToPresetA() {
+        saveToPresetB(); // stash B side current? keep simple: load A
+        loadFromPresetA();
+    }
+
+    public void switchToPresetB() {
+        loadFromPresetB();
+    }
+
+    public void saveCurrentAsUserPreset(@NonNull String name) {
+        saveCurrentAsPreset(name, "User", "");
+    }
+
+    public void setLimiter(boolean enabled, float threshold, float releaseMs) {
+        setLimiter(enabled, threshold);
+        if (audioEngine != null) {
+            try {
+                audioEngine.setLimiterRelease(releaseMs);
+            } catch (Exception ignored) { }
+        }
+    }
+
+    public void setNoiseGate(boolean enabled, float threshold, float hysteresis,
+                             float attack, float hold, float release) {
+        setNoiseGate(enabled, threshold);
+        if (audioEngine != null) {
+            try {
+                audioEngine.setNoiseGateHysteresis(hysteresis);
+                audioEngine.setNoiseGateAttack(attack);
+                audioEngine.setNoiseGateHold(hold);
+                audioEngine.setNoiseGateRelease(release);
+            } catch (Exception ignored) { }
+        }
+    }
+
+    public void setPlaybackSpeed(float speed) {
+        if (playbackState != null) {
+            try { playbackState.setPlaybackSpeed(speed); } catch (Exception ignored) { }
+        }
+    }
+
+    public void setPlaybackPitch(float pitch) {
+        if (playbackState != null) {
+            try { playbackState.setPlaybackPitch(pitch); } catch (Exception ignored) { }
+        }
+    }
+
     @Override
     protected void onCleared() {
         super.onCleared();
