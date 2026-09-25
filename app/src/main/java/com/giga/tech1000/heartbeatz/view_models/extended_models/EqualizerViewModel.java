@@ -131,17 +131,24 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
     public void setAudioEngine(AudioEngine audioEngine) {
         this.audioEngine = audioEngine;
         if (audioEngine != null) {
-            // Apply current state to the new engine
-            Preset current = currentPreset.getValue();
-            if (current != null) {
-                setPreset(current);
-            }
-            
-            // Ensure master switch state is applied
+            pushAllBandsToEngine();
             if (Boolean.TRUE.equals(equalizerEnabled.getValue())) {
                 audioEngine.enableEqualizer(true);
             }
         }
+    }
+
+    /**
+     * Lazily bind a shared AudioEngine so EQ UI always reaches SoundEngine
+     * even if the player has not injected one yet.
+     */
+    @NonNull
+    private AudioEngine requireEngine() {
+        if (audioEngine == null) {
+            audioEngine = new AudioEngine(0, getApplication());
+            android.util.Log.i(TAG, "AudioEngine auto-created for EQ → SoundEngine");
+        }
+        return audioEngine;
     }
 
     // ============ PARAMETRIC EQ STATE ============
@@ -159,9 +166,12 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
      */
     public void setEqualizerEnabled(boolean enabled) {
         equalizerEnabled.setValue(enabled);
-        if (audioEngine != null) {
-            audioEngine.enableEqualizer(enabled);
+        AudioEngine engine = requireEngine();
+        engine.enableEqualizer(enabled);
+        if (enabled) {
+            pushAllBandsToEngine();
         }
+        android.util.Log.d(TAG, "EQ master enabled=" + enabled);
     }
 
     /**
@@ -207,6 +217,11 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
         currentPreset.setValue(preset);
         // Update EQ bands to match the preset
         eqBands.setValue(preset.getEqBands());
+        // Ensure master on when applying a named profile so changes are audible
+        if (preset.getEqBands() != null && !preset.getEqBands().isEmpty()) {
+            equalizerEnabled.setValue(true);
+            pushAllBandsToEngine();
+        }
 
         // Update basic effects states
         bassEnabled.setValue(preset.isBassEnabled());
@@ -295,28 +310,38 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
      */
     public void setEqBand(int bandIndex, float frequencyHz, float gainDb, float qFactor) {
         List<ParametricEQBand> bands = eqBands.getValue();
-        if (bands != null && bandIndex >= 0 && bandIndex < bands.size()) {
-            ParametricEQBand band = bands.get(bandIndex);
-            band.setFrequencyHz(frequencyHz);
-            band.setGainDb(gainDb);
-            band.setQFactor(qFactor);
+        if (bands == null || bandIndex < 0 || bandIndex >= bands.size()) {
+            return;
+        }
+        ParametricEQBand band = bands.get(bandIndex);
+        band.setFrequencyHz(frequencyHz);
+        band.setGainDb(gainDb);
+        band.setQFactor(qFactor);
 
-            if (audioEngine != null && bandIndex < 10) {
-                audioEngine.setParametricEqualizerBand(
-                        bandIndex, frequencyHz, gainDb, qFactor,
-                        Boolean.TRUE.equals(equalizerEnabled.getValue()));
-            }
+        boolean masterOn = Boolean.TRUE.equals(equalizerEnabled.getValue());
+        AudioEngine engine = requireEngine();
+        if (bandIndex < 10) {
+            // Push gain even when master is off so enabling is instant; native gate uses enabled flag
+            engine.setParametricEqualizerBand(
+                    bandIndex, frequencyHz, gainDb, qFactor, masterOn);
+        }
 
-            // Notify observers of change
-            eqBands.setValue(new ArrayList<>(bands));
+        eqBands.setValue(new ArrayList<>(bands));
+        saveStateToSharedPreferences();
+    }
 
-            // Apply to audio engine if available and equalizer is enabled
-            if (audioEngine != null && Boolean.TRUE.equals(equalizerEnabled.getValue())) {
-                applyBandToHardware(bandIndex, band);
-            }
-
-            // Save state to SharedPreferences
-            saveStateToSharedPreferences();
+    /** Re-apply all 10 bands + master flag to SoundEngine. */
+    public void pushAllBandsToEngine() {
+        AudioEngine engine = requireEngine();
+        boolean masterOn = Boolean.TRUE.equals(equalizerEnabled.getValue());
+        engine.enableEqualizer(masterOn);
+        List<ParametricEQBand> bands = eqBands.getValue();
+        if (bands == null) return;
+        int n = Math.min(10, bands.size());
+        for (int i = 0; i < n; i++) {
+            ParametricEQBand b = bands.get(i);
+            engine.setParametricEqualizerBand(
+                    i, b.getFrequencyHz(), b.getGainDb(), b.getQFactor(), masterOn);
         }
     }
 
@@ -482,12 +507,11 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
 
         int[] dbLevels = preset.getDbLevels();
 
-        for (int i = 0; i < Math.min(bandCount, dbLevels.length); i++) {
-            int levelMb = dbLevels[i] * 100;
-            levelMb = Math.max(minLevel, Math.min(maxLevel, levelMb));
-
-            int progress = levelMb - minLevel;
-            audioEngine.setEqualizerBandLevel((short) i, (short) progress);
+        audioEngine.enableEqualizer(true);
+        float[] freqs = {31.5f, 63f, 125f, 250f, 500f, 1000f, 2000f, 4000f, 8000f, 16000f};
+        for (int i = 0; i < Math.min(10, dbLevels.length); i++) {
+            float f = i < freqs.length ? freqs[i] : 1000f;
+            audioEngine.setParametricEqualizerBand(i, f, (float) dbLevels[i], 1.4f, true);
         }
     }
 
@@ -1064,7 +1088,7 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
     /** Exposed for EqualizerViewPanel → SoundEngine path. */
     @Nullable
     public com.giga.tech1000.media_player.engine.AudioEngine getAudioEngineOrNull() {
-        return audioEngine;
+        return requireEngine();
     }
 
     public void setBassBoost(boolean enabled, int strengthPercent) {

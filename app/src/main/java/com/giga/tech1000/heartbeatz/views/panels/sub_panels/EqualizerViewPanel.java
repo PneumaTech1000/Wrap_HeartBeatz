@@ -187,6 +187,11 @@ public final class EqualizerViewPanel {
         wireRackToggles();
         observeVm(fragment.getViewLifecycleOwner());
         refreshAllFromVm();
+        // Master switch is checked in XML — ensure DSP is armed
+        if (masterSwitch != null && masterSwitch.isChecked()) {
+            vm.setEqualizerEnabled(true);
+        }
+        vm.pushAllBandsToEngine();
         startSpectrum();
     }
 
@@ -198,6 +203,10 @@ public final class EqualizerViewPanel {
     public void onShow() {
         startSpectrum();
         refreshAllFromVm();
+        if (masterSwitch != null && masterSwitch.isChecked()) {
+            vm.setEqualizerEnabled(true);
+        }
+        vm.pushAllBandsToEngine();
     }
 
     public void onHide() {
