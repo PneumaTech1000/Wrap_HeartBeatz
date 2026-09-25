@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="1000"
+    android:viewportHeight="1000">
+
+    <!-- Group centered inside the 108dp adaptive icon canvas (safe zone: center 66dp or ~610px) -->
+    <group
+        android:name="heartbeatz_emblem"
+        android:pivotX="500"
+        android:pivotY="500"
+        android:scaleX="0.68"
+        android:scaleY="0.68"
+        android:translateX="160"
+        android:translateY="160">
+
+        <!-- 1. UPPER HEART LOBES (Left Arch & Right Arch) -->
+        <path
+            android:name="heart_top_lobes"
+            android:pathData="M 500,340
+                              C 455,248 375,232 300,248
+                              C 215,268 185,340 185,420
+                              C 185,465 205,502 245,528
+                              L 282,472
+                              C 260,455 248,432 248,415
+                              C 248,365 270,320 325,308
+                              C 380,296 442,320 488,400
+                              L 512,400
+                              C 558,320 620,296 675,308
+                              C 730,320 752,365 752,415
+                              C 752,432 740,455 718,472
+                              L 755,528
+                              C 795,502 815,465 815,420
+                              C 815,340 785,268 700,248
+                              C 625,232 545,248 500,340 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:startX="500"
+                    android:startY="240"
+                    android:endX="500"
+                    android:endY="800"
+                    android:type="linear">
+                    <item android:offset="0.0" android:color="#FF9F62F7" />
+                    <item android:offset="0.45" android:color="#FF8842ED" />
+                    <item android:offset="1.0" android:color="#FF691ACF" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- 2. BOTTOM V-CONTOUR OF THE HEART -->
+        <path
+            android:name="heart_bottom_contour"
+            android:pathData="M 252,550
+                              C 285,630 375,718 488,778
+                              C 495,782 505,782 512,778
+                              C 625,718 715,630 748,550
+                              L 680,535
+                              C 655,595 582,670 500,715
+                              C 418,670 345,595 320,535 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:startX="500"
+                    android:startY="240"
+                    android:endX="500"
+                    android:endY="800"
+                    android:type="linear">
+                    <item android:offset="0.0" android:color="#FF9F62F7" />
+                    <item android:offset="0.45" android:color="#FF8842ED" />
+                    <item android:offset="1.0" android:color="#FF691ACF" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- 3. LEFT HORIZONTAL PULSE BAR & CURVED SOCKET -->
+        <path
+            android:name="horizontal_bar_left_flared"
+            android:pathData="M 260,478
+                              L 345,478
+                              C 365,478 376,462 384,446
+                              C 392,430 395,445 395,508
+                              C 395,571 392,586 384,570
+                              C 376,554 365,538 345,538
+                              L 260,538
+                              C 243.4,538 230,524.6 230,508
+                              C 230,491.4 243.4,478 260,478 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:startX="500"
+                    android:startY="240"
+                    android:endX="500"
+                    android:endY="800"
+                    android:type="linear">
+                    <item android:offset="0.0" android:color="#FF9F62F7" />
+                    <item android:offset="0.45" android:color="#FF8842ED" />
+                    <item android:offset="1.0" android:color="#FF691ACF" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- 4. RIGHT HORIZONTAL PULSE BAR & CURVED SOCKET -->
+        <path
+            android:name="horizontal_bar_right_flared"
+            android:pathData="M 740,478
+                              L 655,478
+                              C 635,478 624,462 616,446
+                              C 608,430 605,445 605,508
+                              C 605,571 608,586 616,570
+                              C 624,554 635,538 655,538
+                              L 740,538
+                              C 756.6,538 770,524.6 770,508
+                              C 770,491.4 756.6,478 740,478 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:startX="500"
+                    android:startY="240"
+                    android:endX="500"
+                    android:endY="800"
+                    android:type="linear">
+                    <item android:offset="0.0" android:color="#FF9F62F7" />
+                    <item android:offset="0.45" android:color="#FF8842ED" />
+                    <item android:offset="1.0" android:color="#FF691ACF" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- 5. FIVE VERTICAL AUDIO EQUALIZER BARS -->
+        <!-- Bar 1 (Outer Left): width=52, height=136 -->
+        <path
+            android:name="eq_bar_1"
+            android:pathData="M 430,440
+                              A 26,26 0 0 1 456,466
+                              L 456,550
+                              A 26,26 0 0 1 404,550
+                              L 404,466
+                              A 26,26 0 0 1 430,440 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:startX="500"
+                    android:startY="240"
+                    android:endX="500"
+                    android:endY="800"
+                    android:type="linear">
+                    <item android:offset="0.0" android:color="#FF9F62F7" />
+                    <item android:offset="0.45" android:color="#FF8842ED" />
+                    <item android:offset="1.0" android:color="#FF691ACF" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- Bar 2 (Mid Left): width=52, height=172 -->
+        <path
+            android:name="eq_bar_2"
+            android:pathData="M 432,408
+                              A 26,26 0 0 1 458,434
+                              L 458,554
+                              A 26,26 0 0 1 406,554
+                              L 406,434
+                              A 26,26 0 0 1 432,408 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:startX="500"
+                    android:startY="240"
+                    android:endX="500"
+                    android:endY="800"
+                    android:type="linear">
+                    <item android:offset="0.0" android:color="#FF9F62F7" />
+                    <item android:offset="0.45" android:color="#FF8842ED" />
+                    <item android:offset="1.0" android:color="#FF691ACF" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- Bar 3 (Center Peak): width=52, height=272 -->
+        <path
+            android:name="eq_bar_3_center"
+            android:pathData="M 500,358
+                              A 26,26 0 0 1 526,384
+                              L 526,604
+                              A 26,26 0 0 1 474,604
+                              L 474,384
+                              A 26,26 0 0 1 500,358 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:startX="500"
+                    android:startY="240"
+                    android:endX="500"
+                    android:endY="800"
+                    android:type="linear">
+                    <item android:offset="0.0" android:color="#FF9F62F7" />
+                    <item android:offset="0.45" android:color="#FF8842ED" />
+                    <item android:offset="1.0" android:color="#FF691ACF" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- Bar 4 (Mid Right): width=52, height=172 -->
+        <path
+            android:name="eq_bar_4"
+            android:pathData="M 568,408
+                              A 26,26 0 0 1 594,434
+                              L 594,554
+                              A 26,26 0 0 1 542,554
+                              L 542,434
+                              A 26,26 0 0 1 568,408 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:startX="500"
+                    android:startY="240"
+                    android:endX="500"
+                    android:endY="800"
+                    android:type="linear">
+                    <item android:offset="0.0" android:color="#FF9F62F7" />
+                    <item android:offset="0.45" android:color="#FF8842ED" />
+                    <item android:offset="1.0" android:color="#FF691ACF" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- Bar 5 (Outer Right): width=52, height=136 -->
+        <path
+            android:name="eq_bar_5"
+            android:pathData="M 570,440
+                              A 26,26 0 0 1 596,466
+                              L 596,550
+                              A 26,26 0 0 1 544,550
+                              L 544,466
+                              A 26,26 0 0 1 570,440 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:startX="500"
+                    android:startY="240"
+                    android:endX="500"
+                    android:endY="800"
+                    android:type="linear">
+                    <item android:offset="0.0" android:color="#FF9F62F7" />
+                    <item android:offset="0.45" android:color="#FF8842ED" />
+                    <item android:offset="1.0" android:color="#FF691ACF" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+    </group>
+</vector>

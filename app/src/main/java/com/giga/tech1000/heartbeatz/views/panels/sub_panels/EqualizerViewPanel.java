@@ -66,8 +66,8 @@ public final class EqualizerViewPanel {
 
     // Presets
     private ChipGroup presetGroup;
-    private MaterialButton slotA;
-    private MaterialButton slotB;
+    private Chip slotA;
+    private Chip slotB;
 
     // Spectrum
     private SpectrumView spectrumView;

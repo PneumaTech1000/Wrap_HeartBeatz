@@ -151,7 +151,7 @@ public class MediaPlayerView {
 
     private void init() {
         //playPauseButtonView.setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN);
-        albumImageView.setPaletteColor(Color.WHITE);
+        albumImageView.setPaletteColor(com.google.android.material.R.attr.colorSurface);
 
         int surfaceColor = MaterialColors.getColor(rootView.getContext(), R.attr.kv_primaryColor, Color.WHITE);
         audioVisualizer.setColor(withAlpha(surfaceColor, 0.7f));

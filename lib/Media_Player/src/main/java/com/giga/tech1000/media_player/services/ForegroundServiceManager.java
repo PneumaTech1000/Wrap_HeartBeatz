@@ -188,7 +188,7 @@ public class ForegroundServiceManager {
         );
         
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_PARTY_MODE)
-                .setSmallIcon(com.giga.tech1000.icons_pack.R.drawable.album_24px)
+                .setSmallIcon(com.giga.tech1000.icons_pack.R.mipmap.ic_launcher_foreground)
                 .setContentIntent(contentIntent)
                 .setOngoing(true)
                 .setAutoCancel(false)

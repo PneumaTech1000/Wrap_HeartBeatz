@@ -33,7 +33,7 @@
                 android:layout_height="88dp"
                 android:scaleType="centerCrop"
                 app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Medium"
-                android:src="@drawable/album_24px" />
+                android:src="@mipmap/ic_launcher_foreground" />
 
             <LinearLayout
                 android:layout_width="0dp"

@@ -7,6 +7,7 @@ import com.bumptech.glide.Glide;
 import com.bumptech.glide.RequestBuilder;
 import com.bumptech.glide.RequestManager;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import com.giga.tech1000.heartbeatz.R;
 
 public final class ImageLoader {
 
@@ -21,10 +22,10 @@ public final class ImageLoader {
         rm.load(source)
                 .thumbnail(thumb.clone())
                 .override(300)
-                .placeholder(com.giga.tech1000.icons_pack.R.drawable.album_24px)
+                .placeholder(R.mipmap.ic_launcher_foreground)
                 .centerCrop()
-                .error(com.giga.tech1000.icons_pack.R.drawable.album_24px)
-                .fallback(com.giga.tech1000.icons_pack.R.drawable.album_24px)
+                .error(R.mipmap.ic_launcher_foreground)
+                .fallback(R.mipmap.ic_launcher_foreground)
                 .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
                 .dontAnimate()
                 .into(view);

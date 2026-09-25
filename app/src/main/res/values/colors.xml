@@ -8,7 +8,7 @@
 
     <!-- colors.xml -->
     <color name="bg_start">#CDA9FD</color>
-    <color name="bg_end">#fdfcfb</color>
+    <color name="bg_end">#ffffff</color>
 
 
     <!-- Primary -->
