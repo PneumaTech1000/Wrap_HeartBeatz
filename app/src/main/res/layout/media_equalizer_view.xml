@@ -52,7 +52,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:fontFamily="sans-serif-medium"
-                        android:text="HeartBeatz"
+                        android:text="HeartBeatz DSPark"
                         android:textColor="?attr/colorOnSurface"
                         android:textSize="15sp"
                         android:textStyle="bold" />
@@ -75,7 +75,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:fontFamily="monospace"
-                    android:text="AudioEngine Equalizer"
+                    android:text="48.0 kHz • Native C++ AudioEngine"
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:textSize="11sp" />
             </LinearLayout>
@@ -387,15 +387,50 @@
                                 android:textStyle="bold" />
                         </LinearLayout>
 
-                        <TextView
+                        <LinearLayout
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:fontFamily="monospace"
-                            android:text="PEAK: -2.1 dB | 10 BANDS"
-                            android:textColor="?attr/colorOnSurfaceVariant"
-                            android:textSize="10sp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
                             app:layout_constraintEnd_toEndOf="parent"
-                            app:layout_constraintTop_toTopOf="parent" />
+                            app:layout_constraintTop_toTopOf="parent">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:text="PEAK: "
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:textSize="10sp" />
+
+                            <TextView
+                                android:id="@+id/val_peak_db"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:text="-0.6 dB"
+                                android:textColor="@color/hb_accent_cyan"
+                                android:textSize="10sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:text="  ·  "
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:textSize="10sp" />
+
+                            <TextView
+                                android:id="@+id/val_active_q"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
+                                android:text="10 BANDS"
+                                android:textColor="?attr/colorPrimary"
+                                android:textSize="10sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
                     </androidx.constraintlayout.widget.ConstraintLayout>
 
                     <!-- Spectrum Canvas Box -->
