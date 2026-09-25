@@ -74,6 +74,12 @@ public final class DspAudioProcessor extends BaseAudioProcessor {
                         : input.getShort() / 32768.0f;
             }
 
+            // Always use the live shared engine (AudioEngine must not hold a dead handle)
+            SoundEngine live = SoundEngineHolder.getCurrent();
+            if (live == null) {
+                return;
+            }
+            soundEngine = live;
             soundEngine.process(sampleScratch, chunkSamples);
             for (int index = 0; index < chunkSamples; index++) {
                 if (encoding == C.ENCODING_PCM_FLOAT) {

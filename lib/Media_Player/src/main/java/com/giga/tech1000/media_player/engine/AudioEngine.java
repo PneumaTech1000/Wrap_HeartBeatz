@@ -74,7 +74,7 @@ public final class AudioEngine {
         equalizerEnabled = false;
         for (int i = 0; i < NUM_BANDS; i++) {
             bandLevelsMb[i] = 0;
-            bandEnabled[i] = false;
+            bandEnabled[i] = true; // band slots armed; master switch gates processing
         }
 
         bassEnabled = false;
@@ -113,10 +113,8 @@ public final class AudioEngine {
     }
 
     private SoundEngine getDspEngine() {
-        if (context == null) {
-            return null;
-        }
-        return SoundEngineHolder.getInstance(48000, 4096, 2);
+        // Always share the processor's engine — never force 48 kHz recreate.
+        return SoundEngineHolder.getCurrent();
     }
 
     private static float mbToDb(short millibels) {
@@ -228,7 +226,14 @@ public final class AudioEngine {
             bandLevelsMb[band] = clampBandMb((short) Math.round(gainDb * 100f));
             bandEnabled[band] = enabled;
         }
-        dsp.setEqualizerBand(band, frequencyHz, gainDb, qFactor, enabled && equalizerEnabled);
+        // `enabled` already includes master EQ from the ViewModel. Also keep field in sync
+        // so applyAllEqBandsToDsp() stays correct.
+        if (enabled) {
+            equalizerEnabled = true;
+        }
+        boolean bandOn = enabled && equalizerEnabled;
+        dsp.setEqualizerEnabled(equalizerEnabled);
+        dsp.setEqualizerBand(band, frequencyHz, gainDb, qFactor, bandOn);
     }
 
     public boolean isSpectrumDataReady() {
