@@ -99,6 +99,12 @@ public final class PartyLiveBridge {
         return guestLockedUi;
     }
 
+    /** Alias used by RootMediaPlayerPanel. */
+    @NonNull
+    public LiveData<Boolean> isGuestPlayerLocked() {
+        return guestLockedUi;
+    }
+
     @NonNull
     public LiveData<Long> getIdealPosition() {
         return idealPositionLive;

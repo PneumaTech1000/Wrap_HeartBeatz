@@ -33,6 +33,7 @@ import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Production equalizer UI — drives native {@link com.giga.tech1000.soundengine.SoundEngine}
@@ -148,6 +149,9 @@ public final class EqualizerViewPanel {
     private final Deque<float[]> undoStack = new ArrayDeque<>();
     private final Deque<float[]> redoStack = new ArrayDeque<>();
     private boolean suppressHistory;
+    private final AtomicBoolean isVisible = new AtomicBoolean(false);
+    private int sessionId = -1;
+
 
     // Spectrum loop
     private final float[] spectrumBuf = new float[256];
@@ -252,39 +256,40 @@ public final class EqualizerViewPanel {
         gateSwitch = v.findViewById(R.id.switch_gate_enabled);
         deEsserSwitch = v.findViewById(R.id.switch_deesser_enabled);
 
+        // Only IDs present in media_equalizer_view.xml
         stereoWidthSlider = v.findViewById(R.id.slider_stereo_width);
         exciterAmountSlider = v.findViewById(R.id.slider_exciter_amount);
-        exciterFreqSlider = v.findViewById(R.id.slider_exciter_freq);
+        exciterFreqSlider = null;
         compThresholdSlider = v.findViewById(R.id.slider_comp_threshold);
-        compRatioSlider = v.findViewById(R.id.slider_comp_ratio);
-        compAttackSlider = v.findViewById(R.id.slider_comp_attack);
-        compReleaseSlider = v.findViewById(R.id.slider_comp_release);
+        compRatioSlider = null;
+        compAttackSlider = null;
+        compReleaseSlider = null;
         limiterCeilingSlider = v.findViewById(R.id.slider_limiter_ceiling);
-        limiterReleaseSlider = v.findViewById(R.id.slider_limiter_release);
+        limiterReleaseSlider = null;
         gateThresholdSlider = v.findViewById(R.id.slider_gate_threshold);
-        gateHysteresisSlider = v.findViewById(R.id.slider_gate_hysteresis);
-        gateAttackSlider = v.findViewById(R.id.slider_gate_attack);
-        gateHoldSlider = v.findViewById(R.id.slider_gate_hold);
-        gateReleaseSlider = v.findViewById(R.id.slider_gate_release);
+        gateHysteresisSlider = null;
+        gateAttackSlider = null;
+        gateHoldSlider = null;
+        gateReleaseSlider = null;
         deEsserThresholdSlider = v.findViewById(R.id.slider_deesser_threshold);
-        deEsserFreqSlider = v.findViewById(R.id.slider_deesser_freq);
+        deEsserFreqSlider = null;
 
         valStereoWidth = v.findViewById(R.id.val_stereo_width);
         valExciterAmount = v.findViewById(R.id.val_exciter_amount);
-        valExciterFreq = v.findViewById(R.id.val_exciter_freq);
-        valCompThreshold = v.findViewById(R.id.val_comp_threshold);
-        valCompRatio = v.findViewById(R.id.val_comp_ratio);
-        valCompAttack = v.findViewById(R.id.val_comp_attack);
-        valCompRelease = v.findViewById(R.id.val_comp_release);
-        valLimiterCeiling = v.findViewById(R.id.val_limiter_ceiling);
-        valLimiterRelease = v.findViewById(R.id.val_limiter_release);
-        valGateThreshold = v.findViewById(R.id.val_gate_threshold);
-        valGateHysteresis = v.findViewById(R.id.val_gate_hysteresis);
-        valGateAttack = v.findViewById(R.id.val_gate_attack);
-        valGateHold = v.findViewById(R.id.val_gate_hold);
-        valGateRelease = v.findViewById(R.id.val_gate_release);
-        valDeEsserThreshold = v.findViewById(R.id.val_deesser_threshold);
-        valDeEsserFreq = v.findViewById(R.id.val_deesser_freq);
+        valExciterFreq = null;
+        valCompThreshold = null;
+        valCompRatio = null;
+        valCompAttack = null;
+        valCompRelease = null;
+        valLimiterCeiling = null;
+        valLimiterRelease = null;
+        valGateThreshold = null;
+        valGateHysteresis = null;
+        valGateAttack = null;
+        valGateHold = null;
+        valGateRelease = null;
+        valDeEsserThreshold = null;
+        valDeEsserFreq = null;
 
         flattenButton = v.findViewById(R.id.btn_eq_flatten);
         savePresetButton = v.findViewById(R.id.btn_save_preset);
@@ -982,5 +987,46 @@ public final class EqualizerViewPanel {
 
     private static float clamp(float v, float lo, float hi) {
         return Math.max(lo, Math.min(hi, v));
+    }
+
+    // ── FragmentHome contract ─────────────────────────────────────────────
+
+    public void setSessionId(int id) {
+        this.sessionId = id;
+    }
+
+    public int getSessionId() {
+        return sessionId;
+    }
+
+    @NonNull
+    public AtomicBoolean getIsVisible() {
+        return isVisible;
+    }
+
+    public void setIsVisible(boolean visible) {
+        isVisible.set(visible);
+        rootView.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (visible) {
+            onShow();
+        } else {
+            onHide();
+        }
+    }
+
+    public void setBottomPadding(int paddingPx) {
+        if (rootView != null) {
+            rootView.setPadding(
+                    rootView.getPaddingLeft(),
+                    rootView.getPaddingTop(),
+                    rootView.getPaddingRight(),
+                    Math.max(0, paddingPx));
+        }
+    }
+
+    public void onDestroy() {
+        stopSpectrum();
+        undoStack.clear();
+        redoStack.clear();
     }
 }
