@@ -477,6 +477,11 @@ public final class EqualizerViewPanel {
                     updateGainLabel(index, gain);
                     ParametricEQBand band = bandAt(index);
                     float q = band != null ? band.getQFactor() : 1.4f;
+                    if (masterSwitch != null && !masterSwitch.isChecked()) {
+                        masterSwitch.setChecked(true);
+                    } else if (!Boolean.TRUE.equals(vm.isEqualizerEnabled().getValue())) {
+                        vm.setEqualizerEnabled(true);
+                    }
                     vm.setEqBand(index, ISO_FREQ_HZ[index], gain, q);
                     updateEqCurveOverlay();
                 }
@@ -943,13 +948,17 @@ public final class EqualizerViewPanel {
                 // keep buffer size
             }
             engine.getSpectrumMagnitudes(spectrumBuf);
-            spectrumView.setFftData(spectrumBuf);
+            float[] norm = new float[spectrumBuf.length];
+            float peakDb = -120f;
+            for (int i = 0; i < spectrumBuf.length; i++) {
+                float db = spectrumBuf[i];
+                if (db > peakDb) peakDb = db;
+                norm[i] = Math.max(0f, Math.min(1f, (db + 80f) / 80f));
+            }
+            spectrumView.setFftData(norm);
             if (spectrumOffline != null) spectrumOffline.setVisibility(View.GONE);
-            float peak = 0f;
-            for (float m : spectrumBuf) if (m > peak) peak = m;
             if (peakDbText != null) {
-                float db = (float) (20.0 * Math.log10(Math.max(1e-6, peak)));
-                peakDbText.setText(String.format(Locale.US, "%+.1f dB", db));
+                peakDbText.setText(String.format(Locale.US, "%+.1f dB", peakDb));
             }
         }
         updateEqCurveOverlay();

@@ -31,7 +31,7 @@ struct Engine {
 
         for (int band = 0; band < 10; ++band) {
             equalizer.setBand(band, defaultFrequencies[band], 0.0f, 0.707f);
-            equalizer.setBandEnabled(band, false);
+            equalizer.setBandEnabled(band, true);
         }
         exciter.setAlgorithm(dspark::Saturation<float>::Algorithm::Exciter);
         exciter.setDrive(0.0f);
@@ -180,7 +180,8 @@ Java_com_giga_tech1000_soundengine_SoundEngine_nativeSetEqBand(
     withEngine(handle, [&](Engine& engine) {
         if (index >= 0 && index < 10) {
             engine.equalizer.setBand(index, frequency, gain, q);
-            engine.equalizer.setBandEnabled(index, enabled == JNI_TRUE);
+            const bool on = (enabled == JNI_TRUE) || (gain > 0.05f) || (gain < -0.05f);
+            engine.equalizer.setBandEnabled(index, on);
         }
     });
 }

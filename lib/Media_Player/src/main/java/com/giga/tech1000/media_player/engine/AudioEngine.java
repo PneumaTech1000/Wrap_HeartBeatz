@@ -27,6 +27,8 @@ public final class AudioEngine {
     private boolean equalizerEnabled;
     private final short[] bandLevelsMb = new short[NUM_BANDS];
     private final boolean[] bandEnabled = new boolean[NUM_BANDS];
+    private final float[] bandFreqHz = new float[NUM_BANDS];
+    private final float[] bandQ = new float[NUM_BANDS];
 
     private boolean bassEnabled;
     private int bassStrength; // 0–1000 (legacy scale)
@@ -74,8 +76,11 @@ public final class AudioEngine {
         equalizerEnabled = false;
         for (int i = 0; i < NUM_BANDS; i++) {
             bandLevelsMb[i] = 0;
-            bandEnabled[i] = true; // band slots armed; master switch gates processing
+            bandEnabled[i] = true;
+            bandFreqHz[i] = CENTER_FREQS_HZ[i];
+            bandQ[i] = DEFAULT_Q;
         }
+        SoundEngineHolder.setOnEngineRecreated(this::reapplyAllToDsp);
 
         bassEnabled = false;
         bassStrength = 0;
@@ -140,7 +145,50 @@ public final class AudioEngine {
         dsp.setEqualizerEnabled(equalizerEnabled);
         for (int i = 0; i < NUM_BANDS; i++) {
             boolean on = equalizerEnabled && bandEnabled[i];
-            dsp.setEqualizerBand(i, CENTER_FREQS_HZ[i], mbToDb(bandLevelsMb[i]), DEFAULT_Q, on);
+            float freq = bandFreqHz[i] > 0 ? bandFreqHz[i] : CENTER_FREQS_HZ[i];
+            float q = bandQ[i] > 0 ? bandQ[i] : DEFAULT_Q;
+            dsp.setEqualizerBand(i, freq, mbToDb(bandLevelsMb[i]), q, on);
+        }
+    }
+
+    public void reapplyAllToDsp() {
+        SoundEngine dsp = getDspEngine();
+        if (dsp == null) return;
+        applyAllEqBandsToDsp();
+        dsp.setExciterEnabled(exciterEnabled);
+        if (exciterEnabled) {
+            dsp.setExciterAmount(exciterAmount);
+            dsp.setExciterFrequency(exciterFrequency);
+        }
+        dsp.setCompressorEnabled(compressorEnabled);
+        if (compressorEnabled) {
+            dsp.setCompressorThreshold(compressorThreshold);
+            dsp.setCompressorRatio(compressorRatio);
+            dsp.setCompressorAttack(compressorAttack);
+            dsp.setCompressorRelease(compressorRelease);
+        }
+        dsp.setLimiterEnabled(limiterEnabled);
+        if (limiterEnabled) {
+            dsp.setLimiterThreshold(limiterThreshold);
+        }
+        dsp.setNoiseGateEnabled(noiseGateEnabled);
+        if (noiseGateEnabled) {
+            dsp.setNoiseGateThreshold(noiseGateThreshold);
+            dsp.setNoiseGateHysteresis(noiseGateHysteresis);
+            dsp.setNoiseGateAttack(noiseGateAttack);
+            dsp.setNoiseGateHold(noiseGateHold);
+            dsp.setNoiseGateRelease(noiseGateRelease);
+        }
+        dsp.setDeEsserEnabled(deEsserEnabled);
+        if (deEsserEnabled) {
+            dsp.setDeEsserThreshold(deEsserThreshold);
+            dsp.setDeEsserFrequency(deEsserFrequency);
+        }
+        boolean stereoOn = stereoWideningEnabled || virtualizerEnabled;
+        dsp.setStereoWideningEnabled(stereoOn);
+        if (stereoOn) {
+            float w = stereoWideningEnabled ? stereoWideningWidth : (virtualizerStrength / 1000f);
+            dsp.setStereoWideningWidth(Math.max(0f, Math.min(1f, w)));
         }
     }
 
@@ -224,14 +272,12 @@ public final class AudioEngine {
         if (dsp == null) return;
         if (band >= 0 && band < NUM_BANDS) {
             bandLevelsMb[band] = clampBandMb((short) Math.round(gainDb * 100f));
-            bandEnabled[band] = enabled;
+            bandEnabled[band] = true;
+            if (frequencyHz > 0) bandFreqHz[band] = frequencyHz;
+            if (qFactor > 0) bandQ[band] = qFactor;
         }
-        // `enabled` already includes master EQ from the ViewModel. Also keep field in sync
-        // so applyAllEqBandsToDsp() stays correct.
-        if (enabled) {
-            equalizerEnabled = true;
-        }
-        boolean bandOn = enabled && equalizerEnabled;
+        if (enabled) equalizerEnabled = true;
+        boolean bandOn = equalizerEnabled;
         dsp.setEqualizerEnabled(equalizerEnabled);
         dsp.setEqualizerBand(band, frequencyHz, gainDb, qFactor, bandOn);
     }

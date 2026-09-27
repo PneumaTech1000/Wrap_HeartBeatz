@@ -4,10 +4,9 @@ import androidx.annotation.Nullable;
 
 /**
  * Process-wide owner for the native DSPark engine.
- * <p>
- * {@link #configure(int, int, int)} is used by the Media3 processor (authoritative sample rate).
- * {@link #getCurrent()} is used by {@code AudioEngine} UI/control path — never tears down
- * a running engine just because the control path assumes 48 kHz.
+ * Media3 DspAudioProcessor is sample-rate authority via {@link #configure}.
+ * UI uses {@link #getCurrent()} and never forces a rate that would wipe the live engine
+ * without re-applying state — see {@link #setOnEngineRecreated}.
  */
 public final class SoundEngineHolder {
 
@@ -15,14 +14,14 @@ public final class SoundEngineHolder {
     private static int sampleRate;
     private static int maxBlockSize;
     private static int channelCount;
+    @Nullable private static volatile Runnable onEngineRecreated;
 
-    private SoundEngineHolder() {
+    private SoundEngineHolder() {}
+
+    public static synchronized void setOnEngineRecreated(@Nullable Runnable callback) {
+        onEngineRecreated = callback;
     }
 
-    /**
-     * Return the live engine, creating a default 48 kHz stereo instance if needed.
-     * Does <b>not</b> recreate when an engine already exists with a different rate.
-     */
     @Nullable
     public static synchronized SoundEngine getCurrent() {
         if (instance == null) {
@@ -31,17 +30,11 @@ public final class SoundEngineHolder {
         return instance;
     }
 
-    /**
-     * Ensure an engine exists matching the audio pipeline format.
-     * Only recreates when format actually changes.
-     */
-    public static synchronized SoundEngine getInstance(
-            int sampleRate, int maxBlockSize, int channelCount) {
+    public static synchronized SoundEngine getInstance(int sampleRate, int maxBlockSize, int channelCount) {
         return configure(sampleRate, maxBlockSize, channelCount);
     }
 
-    public static synchronized SoundEngine configure(
-            int sampleRate, int maxBlockSize, int channelCount) {
+    public static synchronized SoundEngine configure(int sampleRate, int maxBlockSize, int channelCount) {
         if (sampleRate <= 0 || maxBlockSize <= 0 || channelCount <= 0) {
             throw new IllegalArgumentException("Audio format values must be positive");
         }
@@ -51,21 +44,26 @@ public final class SoundEngineHolder {
                 && SoundEngineHolder.channelCount == channelCount) {
             return instance;
         }
-        release();
+        boolean wasLive = instance != null;
+        if (instance != null) {
+            instance.close();
+            instance = null;
+        }
         instance = new SoundEngine(sampleRate, maxBlockSize, channelCount);
         SoundEngineHolder.sampleRate = sampleRate;
         SoundEngineHolder.maxBlockSize = maxBlockSize;
         SoundEngineHolder.channelCount = channelCount;
+        if (wasLive) {
+            Runnable cb = onEngineRecreated;
+            if (cb != null) {
+                try { cb.run(); } catch (Exception ignored) { }
+            }
+        }
         return instance;
     }
 
-    public static synchronized int getSampleRate() {
-        return sampleRate;
-    }
-
-    public static synchronized boolean isReady() {
-        return instance != null;
-    }
+    public static synchronized int getSampleRate() { return sampleRate; }
+    public static synchronized boolean isReady() { return instance != null; }
 
     public static synchronized void release() {
         if (instance != null) {
