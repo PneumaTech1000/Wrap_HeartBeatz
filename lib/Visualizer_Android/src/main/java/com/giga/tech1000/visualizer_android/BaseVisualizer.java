@@ -209,8 +209,26 @@ abstract public class BaseVisualizer extends View {
      * Releases the visualizer
      */
     public void release() {
-        if (mVisualizer != null)
-            mVisualizer.release();
+        if (mVisualizer != null) {
+            try {
+                mVisualizer.release();
+            } catch (Exception ignored) {
+            }
+            mVisualizer = null;
+        }
+        VisualizerManager.get().unregister(this);
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        VisualizerManager.get().register(this);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        VisualizerManager.get().unregister(this);
+        super.onDetachedFromWindow();
     }
 
     /**

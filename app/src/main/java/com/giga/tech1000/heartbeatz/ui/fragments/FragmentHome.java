@@ -213,8 +213,26 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
 
         HeartBeatzApp.container(requireContext()).requireUiThread().getSessionIdViewModel().getSessionId()
                 .observe(getViewLifecycleOwner(), id -> {
+                    int sid = id != null ? id : -1;
                     if (equalizerViewPanel != null) {
-                        equalizerViewPanel.setSessionId(id != null ? id : -1);
+                        equalizerViewPanel.setSessionId(sid);
+                    }
+                    // Single Visualizer capture for all Wave/Bar views
+                    if (sid > 0) {
+                        com.giga.tech1000.visualizer_android.VisualizerManager.get().attachSession(sid);
+                    }
+                    try {
+                        com.giga.tech1000.heartbeatz.views.panels.RootMediaPlayerPanel panel =
+                                HeartBeatzApp.container(requireContext()).requireUiThread().getMediaPlayerPanel();
+                        if (panel != null) {
+                            if (panel.getMediaPlayerView() != null) {
+                                panel.getMediaPlayerView().bindAudioSession(sid);
+                            }
+                            if (panel.getMediaPlayerBarView() != null) {
+                                panel.getMediaPlayerBarView().bindAudioSession(sid);
+                            }
+                        }
+                    } catch (Exception ignored) {
                     }
                 });
 

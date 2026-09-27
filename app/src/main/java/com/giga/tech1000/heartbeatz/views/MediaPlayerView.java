@@ -150,11 +150,31 @@ public class MediaPlayerView {
 
 
     private void init() {
-        //playPauseButtonView.setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN);
-        albumImageView.setPaletteColor(com.google.android.material.R.attr.colorSurface);
+        // Resolve theme colorSurface (attr → actual ARGB), not the attr id itself
+        int surface = MaterialColors.getColor(
+                rootView,
+                com.google.android.material.R.attr.colorSurface,
+                Color.BLACK);
+        albumImageView.setPaletteColor(surface);
 
-        int surfaceColor = MaterialColors.getColor(rootView.getContext(), R.attr.kv_primaryColor, Color.WHITE);
-        audioVisualizer.setColor(withAlpha(surfaceColor, 0.7f));
+        int accent = MaterialColors.getColor(
+                rootView.getContext(), R.attr.kv_primaryColor, Color.WHITE);
+        if (audioVisualizer != null) {
+            audioVisualizer.setColor(withAlpha(accent, 0.75f));
+            com.giga.tech1000.visualizer_android.VisualizerManager.get()
+                    .register(audioVisualizer);
+        }
+    }
+
+    /** Bind Android Visualizer capture to the active ExoPlayer audio session. */
+    public void bindAudioSession(int sessionId) {
+        if (sessionId > 0) {
+            com.giga.tech1000.visualizer_android.VisualizerManager.get()
+                    .attachSession(sessionId);
+            if (audioVisualizer != null) {
+                audioVisualizer.show();
+            }
+        }
     }
 
     private void onInitView(RootMediaPlayerPanel panel, SettingEntity s) {

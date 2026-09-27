@@ -68,16 +68,29 @@ public class DummyBarVisualizer extends View {
 
 
     public void setPlaying(boolean playing) {
-        if (this.isPlaying == playing) return;
-
         this.isPlaying = playing;
 
         if (playing) {
-            if (!animator.isStarted()) animator.start();
+            if (animator == null) startAnimator();
+            if (!animator.isStarted()) {
+                animator.start();
+            }
         } else {
-            animator.cancel();
-            Arrays.fill(barHeights, 0.2f);
+            if (animator != null) {
+                animator.cancel();
+            }
+            Arrays.fill(barHeights, 0.15f);
+            Arrays.fill(targetHeights, 0.15f);
             invalidate();
+        }
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        // RecyclerView rebinds can leave isPlaying true with a cancelled animator
+        if (isPlaying && animator != null && !animator.isStarted()) {
+            animator.start();
         }
     }
 

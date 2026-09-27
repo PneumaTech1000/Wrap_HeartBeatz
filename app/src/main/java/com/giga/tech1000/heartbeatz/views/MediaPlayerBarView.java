@@ -213,6 +213,20 @@ public class MediaPlayerBarView {
         return audioVisualizerBar;
     }
 
+    public void bindAudioSession(int sessionId) {
+        if (audioVisualizerBar != null) {
+            com.giga.tech1000.visualizer_android.VisualizerManager.get()
+                    .register(audioVisualizerBar);
+        }
+        if (sessionId > 0) {
+            com.giga.tech1000.visualizer_android.VisualizerManager.get()
+                    .attachSession(sessionId);
+            if (audioVisualizerBar != null) {
+                audioVisualizerBar.show();
+            }
+        }
+    }
+
     public void onVibrantLightColorChanged(int vibrantLightColor) {
         int surfaceColor = MaterialColors.getColor(rootView.getContext(), R.attr.kv_primaryColor, Color.WHITE);
         audioVisualizerBar.setColor(withAlpha(surfaceColor, 0.9f));

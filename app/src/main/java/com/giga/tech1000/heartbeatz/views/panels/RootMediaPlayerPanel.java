@@ -394,6 +394,14 @@ public class RootMediaPlayerPanel extends BasePanelView implements OnBackPressed
         }
     }
 
+    public MediaPlayerView getMediaPlayerView() {
+        return mediaPlayerView;
+    }
+
+    public MediaPlayerBarView getMediaPlayerBarView() {
+        return mediaPlayerBarView;
+    }
+
     @Override
     public boolean onBackPressed() {
         if (Boolean.TRUE.equals(bottomSheetView.isViewVisibility().getValue())) {

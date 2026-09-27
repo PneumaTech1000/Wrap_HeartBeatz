@@ -1011,6 +1011,10 @@ public final class EqualizerViewPanel {
 
     public void setSessionId(int id) {
         this.sessionId = id;
+        // Keep shared Visualizer capture in sync (player bar / full player consumers)
+        if (id > 0) {
+            com.giga.tech1000.visualizer_android.VisualizerManager.get().attachSession(id);
+        }
     }
 
     public int getSessionId() {
