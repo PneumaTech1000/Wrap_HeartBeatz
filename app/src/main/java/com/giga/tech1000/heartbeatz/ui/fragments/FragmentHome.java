@@ -402,7 +402,7 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
             }
             return true;
         } else if (itemId == R.id.nav_settings) {
-            Toast.makeText(requireContext(), "Settings clicked", Toast.LENGTH_SHORT).show();
+            FragmentSettings.open(requireActivity());
             return true;
         } else if (itemId == R.id.nav_equalizer) {
             // Equalizer is opened from library chrome if available
