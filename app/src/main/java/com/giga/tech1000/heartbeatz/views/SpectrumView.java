@@ -1,152 +1,152 @@
 package com.giga.tech1000.heartbeatz.views;
 
-import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.RadialGradient;
+import android.graphics.RectF;
 import android.graphics.Shader;
+import android.os.SystemClock;
 import android.util.AttributeSet;
+import android.view.Choreographer;
 import android.view.View;
-import android.view.animation.LinearInterpolator;
 
 import androidx.annotation.ColorInt;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
+import androidx.core.graphics.ColorUtils;
 
 import com.giga.tech1000.heartbeatz.R;
 
 /**
- * Responsive FFT bar spectrum + EQ spline curve (DSPark-style).
+ * Professional DSPark spectrum analyzer: dense FFT bars, peak-hold caps,
+ * mirrored reflection, and a glowing EQ transfer curve.
  * <p>
- * Expects normalized magnitudes in {@code [0, 1]} from {@link #setFftData}.
- * EQ curve points in {@code [0, 1]} map to −12…+12 dB vertical scale via {@link #setEqCurveData}.
+ * Input magnitudes are expected normalized to {@code [0, 1]} (panel converts dB).
+ * EQ curve samples in {@code [0, 1]} map to −12…+12 dB on the vertical axis.
  */
-public class SpectrumView extends View {
+public class SpectrumView extends View implements Choreographer.FrameCallback {
 
-    private static final int BAR_COUNT = 48;
-    private static final float DB_RANGE = 12f; // ±12 dB for EQ curve
+    private static final int BAR_COUNT = 64;
+    private static final float DB_RANGE = 12f;
+    private static final float ATTACK = 0.55f;   // rise responsiveness
+    private static final float RELEASE = 0.18f;  // fall smoothness
+    private static final float PEAK_FALL = 0.012f; // peak-hold decay per frame
 
     private final Paint gridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint midLinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint barPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint peakCapPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint reflectionPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint curveFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint curvePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint curveGlowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint nodePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint nodeStrokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint nodeRingPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint vignettePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path curvePath = new Path();
+    private final Path curveFillPath = new Path();
+    private final RectF barRect = new RectF();
 
-    /** Display bars (smoothed). */
     private final float[] bars = new float[BAR_COUNT];
-    /** Incoming FFT (may differ in length). */
+    private final float[] peaks = new float[BAR_COUNT];
+    private final int[] barColors = new int[BAR_COUNT];
+
     @Nullable private float[] fftSource;
-    /** EQ gains normalized 0..1 (0 = −12 dB, 0.5 = 0 dB, 1 = +12 dB). */
     @Nullable private float[] eqCurve;
 
-    private float animPhase;
     private boolean hasLiveData;
     private boolean standby;
+    private boolean frameScheduled;
+    private long lastFrameMs;
 
     @ColorInt private int primaryColor;
     @ColorInt private int cyanColor;
-    @ColorInt private int gridColor;
-    @ColorInt private int midLineColor;
-    @ColorInt private int nodeFillColor;
+    @ColorInt private int purpleColor;
+    @ColorInt private int greenColor;
+    @ColorInt private int surfaceDark;
 
-    @Nullable private LinearGradient barGradient;
-    private int lastW;
-    private int lastH;
-
-    private ValueAnimator idleAnimator;
+    private float density = 1f;
 
     public SpectrumView(Context context) {
         super(context);
-        init(context, null);
+        init(context);
     }
 
     public SpectrumView(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
-        init(context, null);
+        init(context);
     }
 
     public SpectrumView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        init(context, null);
+        init(context);
     }
 
-    private void init(Context context, @Nullable AttributeSet attrs) {
+    private void init(Context context) {
+        density = context.getResources().getDisplayMetrics().density;
+
         primaryColor = ContextCompat.getColor(context, R.color.hb_primary);
         cyanColor = ContextCompat.getColor(context, R.color.hb_accent_cyan);
-        gridColor = 0x0FFFFFFF;
-        midLineColor = 0x22FFFFFF;
-        nodeFillColor = 0xFFFFFFFF;
+        purpleColor = ContextCompat.getColor(context, R.color.hb_accent_purple);
+        greenColor = ContextCompat.getColor(context, R.color.hb_accent_green);
+        surfaceDark = 0xFF0A0A0D;
+
+        // Frequency-mapped bar colors: bass → purple, mids → primary, highs → cyan
+        for (int i = 0; i < BAR_COUNT; i++) {
+            float t = i / (float) (BAR_COUNT - 1);
+            if (t < 0.45f) {
+                barColors[i] = ColorUtils.blendARGB(purpleColor, primaryColor, t / 0.45f);
+            } else {
+                barColors[i] = ColorUtils.blendARGB(primaryColor, cyanColor, (t - 0.45f) / 0.55f);
+            }
+        }
 
         gridPaint.setStyle(Paint.Style.STROKE);
-        gridPaint.setStrokeWidth(dp(1f));
-        gridPaint.setColor(gridColor);
+        gridPaint.setStrokeWidth(dp(0.8f));
+        gridPaint.setColor(0x14FFFFFF);
 
         midLinePaint.setStyle(Paint.Style.STROKE);
-        midLinePaint.setStrokeWidth(dp(1f));
-        midLinePaint.setColor(midLineColor);
+        midLinePaint.setStrokeWidth(dp(1.2f));
+        midLinePaint.setColor(0x33FFFFFF);
         midLinePaint.setPathEffect(new android.graphics.DashPathEffect(
-                new float[]{dp(4f), dp(4f)}, 0f));
+                new float[]{dp(5f), dp(4f)}, 0f));
 
         barPaint.setStyle(Paint.Style.FILL);
+        peakCapPaint.setStyle(Paint.Style.FILL);
+        peakCapPaint.setColor(0xE6FFFFFF);
 
+        reflectionPaint.setStyle(Paint.Style.FILL);
+
+        curveFillPaint.setStyle(Paint.Style.FILL);
         curvePaint.setStyle(Paint.Style.STROKE);
-        curvePaint.setStrokeWidth(dp(2.5f));
-        curvePaint.setColor(cyanColor);
+        curvePaint.setStrokeWidth(dp(2.6f));
         curvePaint.setStrokeJoin(Paint.Join.ROUND);
         curvePaint.setStrokeCap(Paint.Cap.ROUND);
-        curvePaint.setShadowLayer(dp(8f), 0f, 0f, cyanColor & 0xCCFFFFFF);
+        curvePaint.setColor(cyanColor);
+
+        curveGlowPaint.setStyle(Paint.Style.STROKE);
+        curveGlowPaint.setStrokeWidth(dp(7f));
+        curveGlowPaint.setStrokeJoin(Paint.Join.ROUND);
+        curveGlowPaint.setStrokeCap(Paint.Cap.ROUND);
+        curveGlowPaint.setColor(ColorUtils.setAlphaComponent(cyanColor, 70));
 
         nodePaint.setStyle(Paint.Style.FILL);
-        nodePaint.setColor(cyanColor);
+        nodeRingPaint.setStyle(Paint.Style.STROKE);
+        nodeRingPaint.setStrokeWidth(dp(1.5f));
+        nodeRingPaint.setColor(0xFF0E0E11);
 
-        nodeStrokePaint.setStyle(Paint.Style.STROKE);
-        nodeStrokePaint.setStrokeWidth(dp(1.5f));
-        nodeStrokePaint.setColor(0xFF0E0E11);
-
-        setLayerType(LAYER_TYPE_SOFTWARE, null); // shadow on curve
-        startIdleMotion();
+        setLayerType(LAYER_TYPE_HARDWARE, null);
+        setWillNotDraw(false);
     }
 
-    private void startIdleMotion() {
-        if (idleAnimator != null) idleAnimator.cancel();
-        idleAnimator = ValueAnimator.ofFloat(0f, (float) (Math.PI * 2));
-        idleAnimator.setDuration(4000);
-        idleAnimator.setRepeatCount(ValueAnimator.INFINITE);
-        idleAnimator.setInterpolator(new LinearInterpolator());
-        idleAnimator.addUpdateListener(a -> {
-            animPhase = (float) a.getAnimatedValue();
-            if (!hasLiveData) {
-                synthesizeIdleBars();
-            } else {
-                smoothTowardSource();
-            }
-            invalidate();
-        });
-        idleAnimator.start();
-    }
-
-    @Override
-    protected void onAttachedToWindow() {
-        super.onAttachedToWindow();
-        if (idleAnimator != null && !idleAnimator.isRunning()) {
-            idleAnimator.start();
-        }
-    }
-
-    @Override
-    protected void onDetachedFromWindow() {
-        if (idleAnimator != null) idleAnimator.cancel();
-        super.onDetachedFromWindow();
-    }
-
-    /** Normalized FFT magnitudes 0..1 (any length). */
+    /** Normalized FFT magnitudes 0..1. */
     public void setFftData(@Nullable float[] magnitudes) {
         if (magnitudes == null || magnitudes.length == 0) {
             hasLiveData = false;
+            ensureFrames();
             return;
         }
         if (fftSource == null || fftSource.length != magnitudes.length) {
@@ -155,64 +155,110 @@ public class SpectrumView extends View {
         System.arraycopy(magnitudes, 0, fftSource, 0, magnitudes.length);
         hasLiveData = true;
         standby = false;
-        smoothTowardSource();
-        invalidate();
+        ensureFrames();
     }
 
-    /**
-     * EQ curve samples in 0..1 (maps to −12…+12 dB). Length typically = band count.
-     */
+    /** EQ curve samples 0..1 (−12 dB … +12 dB). */
     public void setEqCurveData(@Nullable float[] curve) {
         this.eqCurve = curve;
-        invalidate();
+        ensureFrames();
     }
 
     public void setStandby(boolean standby) {
         this.standby = standby;
         if (standby) hasLiveData = false;
+        ensureFrames();
+    }
+
+    public void setFftSize(int size) { /* API compat */ }
+
+    public void setSampleRate(int rate) { /* API compat */ }
+
+    private void ensureFrames() {
+        if (!frameScheduled && isAttachedToWindow()) {
+            frameScheduled = true;
+            Choreographer.getInstance().postFrameCallback(this);
+        }
+    }
+
+    @Override
+    public void doFrame(long frameTimeNanos) {
+        frameScheduled = false;
+        long now = SystemClock.uptimeMillis();
+        float dt = lastFrameMs == 0 ? 0.016f : Math.min(0.05f, (now - lastFrameMs) / 1000f);
+        lastFrameMs = now;
+
+        advanceBars(dt);
         invalidate();
-    }
 
-    public void setFftSize(int size) {
-        // kept for API compatibility
-    }
-
-    public void setSampleRate(int rate) {
-        // kept for API compatibility
-    }
-
-    private void smoothTowardSource() {
-        if (fftSource == null) return;
-        int n = fftSource.length;
-        for (int i = 0; i < BAR_COUNT; i++) {
-            float t = i / (float) (BAR_COUNT - 1);
-            // Logarithmic-ish pick from source bins
-            float logT = (float) Math.pow(t, 0.65);
-            int idx = Math.min(n - 1, Math.round(logT * (n - 1)));
-            float target = clamp01(fftSource[idx]);
-            // Energy falloff toward highs looks more natural
-            target *= (0.55f + 0.45f * (1f - t * 0.5f));
-            bars[i] += (target - bars[i]) * 0.35f;
-            // Slow decay
-            bars[i] *= 0.985f;
+        if (isAttachedToWindow()) {
+            frameScheduled = true;
+            Choreographer.getInstance().postFrameCallback(this);
         }
     }
 
-    private void synthesizeIdleBars() {
-        for (int i = 0; i < BAR_COUNT; i++) {
-            float t = i / (float) BAR_COUNT;
-            float wave = (float) (0.35 + 0.25 * Math.sin(animPhase + i * 0.22)
-                    + 0.15 * Math.sin(animPhase * 1.7 + i * 0.11));
-            float freqCurve = Math.max(0.12f, 1f - t * 0.5f);
-            float eqBoost = 0.55f;
-            if (eqCurve != null && eqCurve.length > 0) {
-                int bi = Math.min(eqCurve.length - 1, (int) (t * eqCurve.length));
-                eqBoost = 0.4f + eqCurve[bi] * 0.6f;
+    private void advanceBars(float dt) {
+        float attack = 1f - (float) Math.pow(1f - ATTACK, dt * 60f);
+        float release = 1f - (float) Math.pow(1f - RELEASE, dt * 60f);
+        float peakFall = PEAK_FALL * (dt * 60f);
+
+        if (hasLiveData && fftSource != null) {
+            int n = fftSource.length;
+            for (int i = 0; i < BAR_COUNT; i++) {
+                float t = i / (float) (BAR_COUNT - 1);
+                // Log-ish bin pick emphasizes bass detail
+                float logT = (float) Math.pow(t, 0.62);
+                int idx = Math.min(n - 1, Math.round(logT * (n - 1)));
+                float target = clamp01(fftSource[idx]);
+                // Mild high-shelf energy curve for visual balance
+                target *= 0.72f + 0.28f * (1f - t * 0.35f);
+
+                float cur = bars[i];
+                if (target > cur) {
+                    bars[i] = cur + (target - cur) * attack;
+                } else {
+                    bars[i] = cur + (target - cur) * release;
+                }
+
+                if (bars[i] > peaks[i]) {
+                    peaks[i] = bars[i];
+                } else {
+                    peaks[i] = Math.max(0f, peaks[i] - peakFall);
+                }
             }
-            float target = wave * freqCurve * eqBoost;
-            if (standby) target *= 0.15f;
-            bars[i] += (target - bars[i]) * 0.2f;
+        } else {
+            // Idle ambient motion
+            double phase = SystemClock.uptimeMillis() / 1000.0;
+            for (int i = 0; i < BAR_COUNT; i++) {
+                float t = i / (float) BAR_COUNT;
+                float wave = (float) (
+                        0.22 + 0.18 * Math.sin(phase * 1.4 + i * 0.19)
+                                + 0.10 * Math.sin(phase * 2.3 + i * 0.07));
+                float eqBoost = 0.55f;
+                if (eqCurve != null && eqCurve.length > 0) {
+                    int bi = Math.min(eqCurve.length - 1, (int) (t * eqCurve.length));
+                    eqBoost = 0.35f + clamp01(eqCurve[bi]) * 0.65f;
+                }
+                float target = wave * Math.max(0.15f, 1f - t * 0.4f) * eqBoost;
+                if (standby) target *= 0.12f;
+                bars[i] += (target - bars[i]) * 0.12f;
+                peaks[i] = Math.max(bars[i], peaks[i] - peakFall * 0.5f);
+            }
         }
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        lastFrameMs = 0;
+        ensureFrames();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        frameScheduled = false;
+        Choreographer.getInstance().removeFrameCallback(this);
+        super.onDetachedFromWindow();
     }
 
     @Override
@@ -222,104 +268,185 @@ public class SpectrumView extends View {
         int h = getHeight();
         if (w <= 0 || h <= 0) return;
 
-        if (w != lastW || h != lastH) {
-            lastW = w;
-            lastH = h;
-            barGradient = new LinearGradient(
-                    0, 0, 0, h,
-                    new int[]{primaryColor, primaryColor & 0xCCFFFFFF, 0x00000000},
-                    new float[]{0f, 0.45f, 1f},
-                    Shader.TileMode.CLAMP);
-        }
-
-        float midY = h * 0.5f;
-        float padL = dp(12f);
-        float padR = dp(8f);
+        float padL = dp(10f);
+        float padR = dp(10f);
+        float padT = dp(6f);
+        float padB = dp(6f);
         float usableW = w - padL - padR;
+        // Spectrum occupies upper 78%; subtle reflection below
+        float spectrumH = (h - padT - padB) * 0.78f;
+        float baseY = padT + spectrumH;
+        float midY = padT + spectrumH * 0.5f;
 
-        // Horizontal grid (dB)
-        float[] gridYs = {0.08f, 0.25f, 0.5f, 0.75f, 0.92f};
-        for (float gy : gridYs) {
-            float y = h * gy;
+        drawBackgroundGrid(canvas, padL, padR, padT, baseY, usableW, spectrumH, w, h);
+        drawBars(canvas, padL, baseY, usableW, spectrumH);
+        drawEqCurve(canvas, padL, usableW, midY, spectrumH);
+    }
+
+    private void drawBackgroundGrid(
+            Canvas canvas, float padL, float padR, float padT, float baseY,
+            float usableW, float spectrumH, int w, int h) {
+        // Soft vertical vignette at edges
+        RadialGradient edge = new RadialGradient(
+                w * 0.5f, h * 0.4f, Math.max(w, h) * 0.7f,
+                new int[]{0x00000000, 0x33000000},
+                new float[]{0.55f, 1f},
+                Shader.TileMode.CLAMP);
+        vignettePaint.setShader(edge);
+        canvas.drawRect(0, 0, w, h, vignettePaint);
+        vignettePaint.setShader(null);
+
+        // Horizontal dB lines
+        float[] fracs = {0f, 0.25f, 0.5f, 0.75f, 1f};
+        for (float f : fracs) {
+            float y = padT + spectrumH * f;
             canvas.drawLine(padL, y, w - padR, y, gridPaint);
         }
-        // 0 dB dashed midline
-        canvas.drawLine(padL, midY, w - padR, midY, midLinePaint);
+        // 0 dB dashed
+        canvas.drawLine(padL, padT + spectrumH * 0.5f, w - padR, padT + spectrumH * 0.5f, midLinePaint);
 
-        // Vertical light grid
-        for (int i = 1; i < 8; i++) {
-            float x = padL + usableW * (i / 8f);
-            canvas.drawLine(x, dp(4f), x, h - dp(4f), gridPaint);
+        // Vertical decade-ish lines
+        for (int i = 1; i < 7; i++) {
+            float x = padL + usableW * (i / 7f);
+            canvas.drawLine(x, padT, x, baseY, gridPaint);
         }
+    }
 
-        // Spectrum bars (from bottom)
-        float gap = dp(1.5f);
+    private void drawBars(Canvas canvas, float padL, float baseY, float usableW, float spectrumH) {
+        float gap = dp(1.2f);
         float barW = Math.max(dp(2f), (usableW - gap * (BAR_COUNT - 1)) / BAR_COUNT);
-        if (barGradient != null) {
-            barPaint.setShader(barGradient);
-        } else {
-            barPaint.setColor(primaryColor);
-        }
+        float radius = Math.min(barW * 0.45f, dp(3f));
 
         for (int i = 0; i < BAR_COUNT; i++) {
             float level = clamp01(bars[i]);
-            float barH = Math.max(dp(3f), level * (h * 0.78f));
+            float barH = Math.max(dp(2.5f), level * spectrumH * 0.92f);
             float x = padL + i * (barW + gap);
-            float top = h - barH;
-            canvas.drawRoundRect(x, top, x + barW, h, dp(2f), dp(2f), barPaint);
+            float top = baseY - barH;
+
+            int col = barColors[i];
+            // Vertical gradient: bright top → deep base
+            LinearGradient grad = new LinearGradient(
+                    x, top, x, baseY,
+                    new int[]{
+                            ColorUtils.setAlphaComponent(0xFFFFFFFF, 200),
+                            ColorUtils.setAlphaComponent(col, 255),
+                            ColorUtils.setAlphaComponent(col, 180),
+                            ColorUtils.setAlphaComponent(col, 40)
+                    },
+                    new float[]{0f, 0.15f, 0.55f, 1f},
+                    Shader.TileMode.CLAMP);
+            barPaint.setShader(grad);
+
+            barRect.set(x, top, x + barW, baseY);
+            canvas.drawRoundRect(barRect, radius, radius, barPaint);
+
+            // Peak hold cap
+            float peakH = clamp01(peaks[i]) * spectrumH * 0.92f;
+            if (peakH > dp(4f)) {
+                float py = baseY - peakH;
+                peakCapPaint.setColor(ColorUtils.setAlphaComponent(
+                        ColorUtils.blendARGB(col, 0xFFFFFFFF, 0.55f), 220));
+                canvas.drawRoundRect(
+                        x, py - dp(2f), x + barW, py, dp(1f), dp(1f), peakCapPaint);
+            }
+
+            // Soft reflection under baseline
+            float refH = barH * 0.28f;
+            if (refH > dp(2f)) {
+                LinearGradient refGrad = new LinearGradient(
+                        x, baseY, x, baseY + refH,
+                        new int[]{
+                                ColorUtils.setAlphaComponent(col, 55),
+                                ColorUtils.setAlphaComponent(col, 0)
+                        },
+                        null,
+                        Shader.TileMode.CLAMP);
+                reflectionPaint.setShader(refGrad);
+                barRect.set(x, baseY, x + barW, baseY + refH);
+                canvas.drawRect(barRect, reflectionPaint);
+                reflectionPaint.setShader(null);
+            }
         }
         barPaint.setShader(null);
-
-        // EQ spline curve
-        drawEqCurve(canvas, padL, usableW, midY, h);
     }
 
-    private void drawEqCurve(Canvas canvas, float padL, float usableW, float midY, int h) {
-        if (eqCurve == null || eqCurve.length < 2) {
-            // Flat 0 dB guide if no curve
-            curvePath.reset();
-            curvePath.moveTo(padL, midY);
-            curvePath.lineTo(padL + usableW, midY);
-            canvas.drawPath(curvePath, curvePaint);
-            return;
-        }
+    private void drawEqCurve(Canvas canvas, float padL, float usableW, float midY, float spectrumH) {
+        float amp = spectrumH * 0.42f;
 
-        int n = eqCurve.length;
+        int n = (eqCurve != null && eqCurve.length >= 2) ? eqCurve.length : 2;
         float[] xs = new float[n];
         float[] ys = new float[n];
-        float amp = midY - dp(14f); // max excursion
 
-        for (int i = 0; i < n; i++) {
-            xs[i] = padL + (i / (float) (n - 1)) * usableW;
-            // eqCurve 0..1 → gain −12..+12 → y inverted
-            float gain01 = clamp01(eqCurve[i]);
-            float gainDb = (gain01 * 2f - 1f) * DB_RANGE;
-            ys[i] = midY - (gainDb / DB_RANGE) * amp;
+        if (eqCurve != null && eqCurve.length >= 2) {
+            for (int i = 0; i < n; i++) {
+                xs[i] = padL + (i / (float) (n - 1)) * usableW;
+                float gain01 = clamp01(eqCurve[i]);
+                float gainDb = (gain01 * 2f - 1f) * DB_RANGE;
+                ys[i] = midY - (gainDb / DB_RANGE) * amp;
+            }
+        } else {
+            xs[0] = padL;
+            xs[1] = padL + usableW;
+            ys[0] = midY;
+            ys[1] = midY;
         }
 
         curvePath.reset();
-        curvePath.moveTo(padL, ys[0]);
-        curvePath.lineTo(xs[0], ys[0]);
+        curveFillPath.reset();
+        curvePath.moveTo(xs[0], ys[0]);
+        curveFillPath.moveTo(xs[0], midY);
+        curveFillPath.lineTo(xs[0], ys[0]);
+
         for (int i = 0; i < n - 1; i++) {
             float cpX = (xs[i] + xs[i + 1]) * 0.5f;
             curvePath.cubicTo(cpX, ys[i], cpX, ys[i + 1], xs[i + 1], ys[i + 1]);
+            curveFillPath.cubicTo(cpX, ys[i], cpX, ys[i + 1], xs[i + 1], ys[i + 1]);
         }
-        curvePath.lineTo(padL + usableW, ys[n - 1]);
+        curveFillPath.lineTo(xs[n - 1], midY);
+        curveFillPath.close();
 
-        curvePaint.setColor(cyanColor);
+        // Soft fill under curve
+        LinearGradient fillGrad = new LinearGradient(
+                0, midY - amp, 0, midY + amp,
+                new int[]{
+                        ColorUtils.setAlphaComponent(cyanColor, 55),
+                        ColorUtils.setAlphaComponent(cyanColor, 12),
+                        ColorUtils.setAlphaComponent(primaryColor, 8)
+                },
+                new float[]{0f, 0.5f, 1f},
+                Shader.TileMode.CLAMP);
+        curveFillPaint.setShader(fillGrad);
+        canvas.drawPath(curveFillPath, curveFillPaint);
+        curveFillPaint.setShader(null);
+
+        // Glow + crisp stroke
+        canvas.drawPath(curvePath, curveGlowPaint);
         canvas.drawPath(curvePath, curvePaint);
 
-        // Control nodes
-        for (int i = 0; i < n; i++) {
-            float r = dp(i == n / 2 ? 5f : 3.5f);
-            nodePaint.setColor(i == n / 2 ? nodeFillColor : cyanColor);
-            canvas.drawCircle(xs[i], ys[i], r, nodePaint);
-            canvas.drawCircle(xs[i], ys[i], r, nodeStrokePaint);
+        // Nodes
+        if (eqCurve != null && eqCurve.length >= 2) {
+            for (int i = 0; i < n; i++) {
+                boolean selected = i == n / 2;
+                float r = selected ? dp(5.5f) : dp(3.8f);
+                nodePaint.setColor(selected ? 0xFFFFFFFF : cyanColor);
+                canvas.drawCircle(xs[i], ys[i], r + dp(2.5f),
+                        glowNodePaint(ColorUtils.setAlphaComponent(cyanColor, selected ? 90 : 40)));
+                canvas.drawCircle(xs[i], ys[i], r, nodePaint);
+                canvas.drawCircle(xs[i], ys[i], r, nodeRingPaint);
+            }
         }
     }
 
+    private final Paint tmpGlow = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    private Paint glowNodePaint(int color) {
+        tmpGlow.setStyle(Paint.Style.FILL);
+        tmpGlow.setColor(color);
+        return tmpGlow;
+    }
+
     private float dp(float v) {
-        return v * getResources().getDisplayMetrics().density;
+        return v * density;
     }
 
     private static float clamp01(float v) {
