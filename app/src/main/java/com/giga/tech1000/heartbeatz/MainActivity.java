@@ -177,8 +177,27 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
     @Override
     protected void onStart() {
         super.onStart();
-        // Check if user is signed in (non-null) and update UI accordingly.
         mAuth.addAuthStateListener(mAuthListener);
+        // Keep MediaController bound across theme / lifecycle
+        if (uiThread != null && uiThread.getMediaPlayerThread() != null) {
+            uiThread.getMediaPlayerThread().onStart();
+        }
+    }
+
+    @Override
+    public void onConfigurationChanged(@NonNull android.content.res.Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // uiMode theme toggle: do NOT recreate activity — prevents mini-player expand / panel jumps
+        android.util.Log.d("MainActivity", "onConfigurationChanged uiMode="
+                + (newConfig.uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK));
+        // Re-apply window background / status bar for new theme colors
+        try {
+            int surface = com.google.android.material.color.MaterialColors.getColor(
+                    this, com.google.android.material.R.attr.colorSurface, android.graphics.Color.BLACK);
+            getWindow().setStatusBarColor(surface);
+            getWindow().setNavigationBarColor(surface);
+        } catch (Exception ignored) {
+        }
     }
 
     @Override

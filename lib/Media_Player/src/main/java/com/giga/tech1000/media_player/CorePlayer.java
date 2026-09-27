@@ -117,21 +117,20 @@ public class CorePlayer implements MediaPlayerController.ControllerEventsListene
                     MediaController c = get();
                     if (c != null) {
                         sendPlayQueueCommand(c, queueIndex, queue, source);
-                    } else {
-                        ListenableFuture<MediaController> future = controllerManager.getControllerFuture();
-                        if (future != null) {
-                            future.addListener(() -> {
-                                try {
-                                    MediaController controller = future.get();
-                                    sendPlayQueueCommand(controller, queueIndex, queue, source);
-                                } catch (ExecutionException | InterruptedException e) {
-                                    Log.e("CorePlayer", "Failed to get MediaController for play command", e);
-                                }
-                            }, MoreExecutors.directExecutor());
-                        } else {
-                            Log.e("CorePlayer", "MediaController and future are both null");
-                        }
+                        return;
                     }
+                    // Reconnect if service/controller was never bound or was released
+                    controllerManager.ensureConnected(new MediaPlayerController.OnConnectedListener() {
+                        @Override
+                        public void onConnected(@NonNull MediaController controller) {
+                            sendPlayQueueCommand(controller, queueIndex, queue, source);
+                        }
+
+                        @Override
+                        public void onFailed(@NonNull Exception error) {
+                            Log.e("CorePlayer", "Cannot play — MediaController connect failed", error);
+                        }
+                    });
                 }
 
                 private void sendPlayQueueCommand(MediaController c, int queueIndex, List<Integer> queue, ItemSource source) {
