@@ -12,6 +12,7 @@ import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.Observer;
 
 import com.giga.tech1000.heartbeatz.architecture.media.PartyMediaObject;
+import com.giga.tech1000.heartbeatz.architecture.media.PartyMediaLifecycle;
 import com.giga.tech1000.heartbeatz.architecture.media.PartyTrackUploader;
 import com.giga.tech1000.heartbeatz.architecture.repositories.PlaybackStateRepository;
 import com.giga.tech1000.heartbeatz.architecture.timeengine.TimeAnchor;
@@ -34,6 +35,7 @@ public final class PartyLiveBridge {
 
     private final PartyTrackUploader uploader;
     private final PartyPlaybackSyncRepository syncRepo;
+    private final PartyMediaLifecycle mediaLifecycle;
     private final TimeEngine timeEngine = new TimeEngine();
     private final TimeEnginePlayerBridge playerBridge = new TimeEnginePlayerBridge(timeEngine);
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -74,9 +76,11 @@ public final class PartyLiveBridge {
 
     public PartyLiveBridge(
             @NonNull PartyTrackUploader uploader,
-            @NonNull PartyPlaybackSyncRepository syncRepo) {
+            @NonNull PartyPlaybackSyncRepository syncRepo,
+            @NonNull PartyMediaLifecycle mediaLifecycle) {
         this.uploader = uploader;
         this.syncRepo = syncRepo;
+        this.mediaLifecycle = mediaLifecycle;
     }
 
     @NonNull
@@ -191,6 +195,9 @@ public final class PartyLiveBridge {
                 PartyMediaObject obj = status.result;
                 lastMediaUrl = obj.mediaUrl;
                 lastObjectKey = obj.objectKey;
+                if (activePartyId != null && obj.objectKey != null) {
+                    mediaLifecycle.registerUploaded(activePartyId, obj.objectKey, lastUploadedTrackId);
+                }
                 publishFullSync(true, true);
             } else if (status.state == PartyTrackUploader.State.ERROR) {
                 Log.e(TAG, "Upload error: " + status.errorMessage);
@@ -336,4 +343,29 @@ public final class PartyLiveBridge {
                 + " ideal=" + ideal
                 + " untilRelease=" + timeEngine.msUntilRelease());
     }
+
+    public void onHostRemovedTrack(@Nullable String objectKey) {
+        if (objectKey == null || objectKey.isEmpty()) return;
+        if (activePartyId != null) {
+            mediaLifecycle.deleteTrackObject(activePartyId, objectKey);
+        } else {
+            mediaLifecycle.deleteTrackObject(objectKey);
+        }
+        if (objectKey.equals(lastObjectKey)) {
+            lastObjectKey = null;
+            lastMediaUrl = null;
+        }
+    }
+
+    public void onPartyClosed(@Nullable String partyId) {
+        if (partyId == null || partyId.isEmpty()) return;
+        mediaLifecycle.purgeParty(partyId);
+        if (partyId.equals(activePartyId)) {
+            lastObjectKey = null;
+            lastMediaUrl = null;
+            lastUploadedTrackId = null;
+        }
+        Log.i(TAG, "Party media purge scheduled for " + partyId);
+    }
+
 }

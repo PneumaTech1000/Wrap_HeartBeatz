@@ -129,8 +129,71 @@ public final class SupabasePartyMediaStore implements PartyMediaStore {
 
     @Override
     public void deletePartyPrefix(@NonNull String partyId) throws IOException {
-        // Supabase has no single “delete prefix” REST call; list+delete is backend-specific.
-        // Host should delete known track keys; lifecycle rules can purge stale prefixes.
+        if (!config.isConfigured()) return;
+        String prefix = PartyMediaKeys.partyPrefix(partyId);
+        java.util.List<String> keys = new java.util.ArrayList<>();
+        listKeysRecursive(prefix, keys);
+        if (keys.isEmpty()) return;
+        String url = trimSlash(config.supabaseUrl)
+                + "/storage/v1/object/"
+                + config.supabaseBucket;
+        StringBuilder json = new StringBuilder("[");
+        for (int i = 0; i < keys.size(); i++) {
+            if (i > 0) json.append(',');
+            json.append('"').append(keys.get(i).replace("\"", "\\"")).append('"');
+        }
+        json.append(']');
+        RequestBody body = RequestBody.create(json.toString(), MediaType.parse("application/json"));
+        Request request = new Request.Builder()
+                .url(url)
+                .delete(body)
+                .header("Authorization", "Bearer " + config.supabaseApiKey)
+                .header("apikey", config.supabaseApiKey)
+                .build();
+        try (Response response = http.newCall(request).execute()) {
+            if (!response.isSuccessful() && response.code() != 404) {
+                for (String key : keys) {
+                    try { delete(key); } catch (IOException ignored) {}
+                }
+            }
+        }
+    }
+
+    private void listKeysRecursive(@NonNull String prefix, @NonNull java.util.List<String> out) throws IOException {
+        String url = trimSlash(config.supabaseUrl)
+                + "/storage/v1/object/list/"
+                + config.supabaseBucket;
+        String payload = "{\"prefix\":\"" + prefix.replace("\"", "\\"")
+                + "\",\"limit\":1000,\"offset\":0}";
+        RequestBody body = RequestBody.create(payload, MediaType.parse("application/json"));
+        Request request = new Request.Builder()
+                .url(url)
+                .post(body)
+                .header("Authorization", "Bearer " + config.supabaseApiKey)
+                .header("apikey", config.supabaseApiKey)
+                .build();
+        try (Response response = http.newCall(request).execute()) {
+            if (!response.isSuccessful() || response.body() == null) return;
+            String text = response.body().string();
+            int idx = 0;
+            while ((idx = text.indexOf("\"name\"", idx)) >= 0) {
+                int colon = text.indexOf(':', idx);
+                int q1 = text.indexOf('"', colon + 1);
+                int q2 = text.indexOf('"', q1 + 1);
+                if (q1 < 0 || q2 < 0) break;
+                String name = text.substring(q1 + 1, q2);
+                idx = q2 + 1;
+                if (name.isEmpty()) continue;
+                String full = prefix.endsWith("/") ? prefix + name : prefix + "/" + name;
+                if (!name.contains(".")) {
+                    try {
+                        listKeysRecursive(full.endsWith("/") ? full : full + "/", out);
+                    } catch (IOException ignored) {}
+                } else {
+                    out.add(full);
+                }
+            }
+        }
     }
 
     @NonNull

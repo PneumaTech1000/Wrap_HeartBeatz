@@ -13,6 +13,7 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
 import com.giga.tech1000.heartbeatz.utils.PartyIdUtil;
+import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
 
 import com.google.firebase.BuildConfig;
 import com.google.firebase.database.ChildEventListener;
@@ -83,10 +84,12 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
     private final Map<String, Long> lastSeenTimestamps = new ConcurrentHashMap<>();
     private final List<NetworkChangeListener> networkListeners = new CopyOnWriteArrayList<>();
     private ConnectivityManager connectivityManager;
+    private final Context appContext;
     private ConnectivityManager.NetworkCallback networkCallback;
 
     public EnhancedFirebasePartyHostRepository(Context context) {
         super(PARTIES_NODE);
+        this.appContext = context.getApplicationContext();
         this.connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
         setupNetworkMonitoring();
         Log.d(TAG, "EnhancedFirebasePartyHostRepository initialized");
@@ -581,15 +584,22 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
 
         Log.d(TAG, "Stopping hosting for party: " + currentPartyId);
 
+        final String closingPartyId = currentPartyId;
+        try {
+            HeartBeatzApp.container(appContext).partyLiveBridge().onPartyClosed(closingPartyId);
+        } catch (Exception e) {
+            Log.w(TAG, "Party media purge schedule failed", e);
+        }
+
         // Stop listening to members
         stopListeningToMembers();
         // Clean up party listener
         cleanupPartyListener();
 
-        DatabaseReference partyRef = databaseReference.child(currentPartyId);
+        DatabaseReference partyRef = databaseReference.child(closingPartyId);
         partyRef.removeValue()
                 .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "Party stopped successfully: " + currentPartyId);
+                    Log.d(TAG, "Party stopped successfully: " + closingPartyId);
                     hostedPartyLiveData.postValue(null);
                     connectedHostLiveData.postValue(null);
                     connectedGuestsLiveData.postValue(new ArrayList<>());

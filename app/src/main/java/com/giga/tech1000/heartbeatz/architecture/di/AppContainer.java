@@ -10,6 +10,7 @@ import com.giga.tech1000.heartbeatz.architecture.media.PartyMediaConfig;
 import com.giga.tech1000.heartbeatz.architecture.media.PartyMediaStore;
 import com.giga.tech1000.heartbeatz.architecture.media.PartyMediaStoreProvider;
 import com.giga.tech1000.heartbeatz.architecture.media.PartyTrackUploader;
+import com.giga.tech1000.heartbeatz.architecture.media.PartyMediaLifecycle;
 import com.giga.tech1000.heartbeatz.architecture.party.PartyPlaybackSyncRepository;
 import com.giga.tech1000.heartbeatz.architecture.party.PartyLiveBridge;
 import com.giga.tech1000.heartbeatz.architecture.session.FirebasePartySession;
@@ -33,6 +34,7 @@ public final class AppContainer {
     private final PartyMediaConfig partyMediaConfig;
     private final PartyMediaStore partyMediaStore;
     private final PartyTrackUploader partyTrackUploader;
+    private final PartyMediaLifecycle partyMediaLifecycle;
     private final PartyPlaybackSyncRepository partyPlaybackSyncRepository;
     private final PartyLiveBridge partyLiveBridge;
 
@@ -50,8 +52,9 @@ public final class AppContainer {
         this.partyMediaConfig = PartyMediaConfig.debugDefaults();
         this.partyMediaStore = PartyMediaStoreProvider.create(partyMediaConfig);
         this.partyTrackUploader = new PartyTrackUploader(partyMediaStore);
+        this.partyMediaLifecycle = new PartyMediaLifecycle(partyMediaStore);
         this.partyPlaybackSyncRepository = new PartyPlaybackSyncRepository();
-        this.partyLiveBridge = new PartyLiveBridge(partyTrackUploader, partyPlaybackSyncRepository);
+        this.partyLiveBridge = new PartyLiveBridge(partyTrackUploader, partyPlaybackSyncRepository, partyMediaLifecycle);
     }
 
     @NonNull
@@ -78,6 +81,11 @@ public final class AppContainer {
     @NonNull
     public PartyTrackUploader partyTrackUploader() {
         return partyTrackUploader;
+    }
+
+    @NonNull
+    public PartyMediaLifecycle partyMediaLifecycle() {
+        return partyMediaLifecycle;
     }
 
     /** Host writes / guests observe parties/{id}/sync */

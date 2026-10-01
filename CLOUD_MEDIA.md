@@ -107,3 +107,16 @@ Rules: only party **owner** writes `sync`; members can read (see `firebase.rules
 - [ ] Drift correction threshold tuned
 - [ ] Switch `backend` to R2 + SigV4/presign for production
 - [ ] Remove frozen WebRTC audio path when stable
+
+
+---
+
+## Free-tier lifecycle (automatic)
+
+| Event | Action |
+|-------|--------|
+| Track uploaded | Indexed under parties/{partyId}/mediaIndex |
+| Host removes track | deleteTrackObject |
+| Host stops party | purgeParty — all parties/{partyId}/ objects removed |
+
+During an active party, uploaded files remain for guest streaming.
