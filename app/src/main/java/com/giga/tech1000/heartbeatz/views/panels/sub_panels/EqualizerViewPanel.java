@@ -22,6 +22,7 @@ import com.giga.tech1000.heartbeatz.views.SpectrumView;
 import com.giga.tech1000.heartbeatz.views.knobs.KnobView;
 import com.giga.tech1000.media_player.engine.AudioEngine;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.materialswitch.MaterialSwitch;
@@ -66,8 +67,8 @@ public final class EqualizerViewPanel {
 
     // Presets
     private ChipGroup presetGroup;
-    private Chip slotA;
-    private Chip slotB;
+    private MaterialButton slotA;
+    private MaterialButton slotB;
 
     // Spectrum
     private SpectrumView spectrumView;
