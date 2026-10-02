@@ -11,32 +11,34 @@ import androidx.lifecycle.MutableLiveData;
 import com.giga.tech1000.heartbeatz.architecture.party.PartyServerClock;
 
 /**
- * Production TimeEngine — single app API for party (and future lyrics/UI) timeline math.
+ * Schedule-based party timeline (production).
  * <p>
- * <b>Authority:</b> host-authored {@link TimeAnchor}s delivered via Firebase.<br>
- * <b>Coarse clock:</b> Firebase server time via {@link PartyServerClock}.<br>
- * <b>Local follower:</b> {@link SystemClock#elapsedRealtime()} only for intervals and arm waits.
- * <p>
- * Does not drive audio itself; callers apply {@link #idealTrackPositionMs()} and phase.
+ * Host publishes {@link TimeAnchor} schedules; guests compute ideal media position
+ * and only output audio while {@link #shouldOutputAudio()} is true.
+ * Lag / hard drift → {@link TimeEnginePhase#STALE} (silent) until re-arm.
  */
 public final class TimeEngine {
 
     private static final String TAG = "TimeEngine";
 
-    /** |drift| below this → no correction. */
-    public static final long DEAD_ZONE_MS = 35L;
-    /** Prefer rate nudge up to this drift. */
-    public static final long RATE_ZONE_MS = 750L;
-    /** Soft seek threshold (throttled). */
-    public static final long SOFT_SEEK_MS = 1_200L;
-    /** Hard seek threshold. */
-    public static final long HARD_SEEK_MS = 1_800L;
-    /** Min interval between seeks. */
-    public static final long MIN_SEEK_INTERVAL_MS = 3_500L;
-    /** Rate when guest is behind (need to catch up). */
-    public static final float RATE_CATCH_UP = 1.025f;
-    /** Rate when guest is ahead. */
-    public static final float RATE_SLOW = 0.975f;
+    // ── thresholds (TIME_ENGINE_ARCHITECTURE §6.2) ──────────────────────────
+    /** Lookahead default when host omits it. */
+    public static final long DEFAULT_LOOKAHEAD_MS = 4_000L;
+    /** Extra buffer past ideal before ARMED→LOCKED. */
+    public static final long BUFFER_MARGIN_MS = 1_500L;
+    /** Below this: no rate change. */
+    public static final long SOFT_DRIFT_MS = 40L;
+    /** Rate-correct band upper bound. */
+    public static final long RATE_CORRECT_MS = 80L;
+    /** Above this: STALE — mute, seek, re-arm. */
+    public static final long HARD_DRIFT_MS = 100L;
+    /** Min time between hard seeks. */
+    public static final long MIN_SEEK_INTERVAL_MS = 2_500L;
+    /** No usable schedule → stale/idle. */
+    public static final long STALE_TIMEOUT_MS = 8_000L;
+    /** Narrow rate band only. */
+    public static final float RATE_SLOW = 0.995f;
+    public static final float RATE_FAST = 1.005f;
 
     private final PartyServerClock serverClock = PartyServerClock.get();
 
@@ -44,20 +46,26 @@ public final class TimeEngine {
     private long highestScheduleId;
     private TimeEnginePhase phase = TimeEnginePhase.IDLE;
 
-    /** serverNow − deviceWall at last samples (EMA); used if PartyServerClock not ready. */
+    /** serverNow − deviceWall EMA from packets. */
     private long packetOffsetMs;
     private boolean hasPacketOffset;
-
-    /** Optional one-way lag compensation (ms), from RTT/2 when available. */
     private long lagCompensationMs;
 
     private long sessionEpochMonoMs = -1L;
     private long lastSeekMonoMs;
+    private long lastAnchorMonoMs;
+    /** Local mono aligned so scheduleNow ≈ localMono - scheduleOffset. */
+    private long scheduleOffsetMono;
+    private boolean hasScheduleOffset;
 
-    private final MutableLiveData<TimeEnginePhase> phaseLive = new MutableLiveData<>(TimeEnginePhase.IDLE);
+    private final MutableLiveData<TimeEnginePhase> phaseLive =
+            new MutableLiveData<>(TimeEnginePhase.IDLE);
     private final MutableLiveData<Long> idealLive = new MutableLiveData<>(0L);
     private final MutableLiveData<Long> driftLive = new MutableLiveData<>(0L);
     private final MutableLiveData<TimeAnchor> anchorLive = new MutableLiveData<>(null);
+    private final MutableLiveData<Boolean> outputLive = new MutableLiveData<>(false);
+
+    // ── session ─────────────────────────────────────────────────────────────
 
     public void startSession() {
         serverClock.start();
@@ -68,22 +76,35 @@ public final class TimeEngine {
         packetOffsetMs = 0;
         lagCompensationMs = 0;
         lastSeekMonoMs = 0;
+        lastAnchorMonoMs = 0;
+        hasScheduleOffset = false;
+        scheduleOffsetMono = 0;
         setPhase(TimeEnginePhase.IDLE);
-        Log.d(TAG, "session started");
+        outputLive.postValue(false);
+        idealLive.postValue(0L);
+        driftLive.postValue(0L);
+        Log.i(TAG, "session started");
     }
 
     public void stopSession() {
         latest = null;
+        hasScheduleOffset = false;
         setPhase(TimeEnginePhase.IDLE);
         idealLive.postValue(0L);
         driftLive.postValue(0L);
         anchorLive.postValue(null);
-        Log.d(TAG, "session stopped");
+        outputLive.postValue(false);
+        Log.i(TAG, "session stopped");
     }
 
     /**
-     * Feed a host anchor (guest path). Ignores stale {@code scheduleId}.
+     * Apply a host schedule. Stale {@code scheduleId} values are ignored.
      */
+    public void applySchedule(@NonNull TimeAnchor anchor) {
+        feed(anchor);
+    }
+
+    /** @deprecated use {@link #applySchedule(TimeAnchor)} */
     public void feed(@NonNull TimeAnchor anchor) {
         if (anchor.scheduleId > 0 && anchor.scheduleId < highestScheduleId) {
             Log.d(TAG, "ignore stale scheduleId=" + anchor.scheduleId
@@ -100,30 +121,57 @@ public final class TimeEngine {
                 packetOffsetMs = sample;
                 hasPacketOffset = true;
             } else {
-                packetOffsetMs = (packetOffsetMs * 3 + sample) / 4;
+                packetOffsetMs = (packetOffsetMs * 7 + sample) / 8;
             }
         }
 
+        boolean trackOrSeek =
+                latest == null
+                        || (anchor.mediaUrl != null
+                        && latest.mediaUrl != null
+                        && !anchor.mediaUrl.equals(latest.mediaUrl))
+                        || (anchor.scheduleId > highestScheduleId - 1
+                        && Math.abs(anchor.positionMs
+                        - (latest != null ? latest.positionMs : -1)) > 2_000);
+
         latest = anchor;
+        lastAnchorMonoMs = SystemClock.elapsedRealtime();
         anchorLive.postValue(anchor);
+
+        // Map schedule timeline using server target as schedule time origin
+        long targetServer = anchor.targetServerTimeMs();
+        if (targetServer > 0) {
+            long localMono = SystemClock.elapsedRealtime();
+            // scheduleNow = localMono - offset  ≈  serverNow mapped
+            long estServer = estimatedServerNowMs();
+            scheduleOffsetMono = localMono - estServer;
+            hasScheduleOffset = true;
+        }
 
         if (phase == TimeEnginePhase.IDLE && anchor.hasMedia()) {
             setPhase(TimeEnginePhase.LOADING);
         }
 
-        long ideal = idealTrackPositionMs();
-        idealLive.postValue(ideal);
+        // Transport change while locked → may need re-arm if pause/seek large
+        if (phase == TimeEnginePhase.LOCKED && trackOrSeek) {
+            // keep locked; bridge will soft-correct or go STALE
+        }
+
+        idealLive.postValue(idealTrackPositionMs());
+        outputLive.postValue(shouldOutputAudio());
     }
 
     public void setLagCompensationMs(long oneWayMs) {
-        this.lagCompensationMs = Math.max(0L, Math.min(oneWayMs, 2_000L));
+        this.lagCompensationMs = Math.max(0L, Math.min(oneWayMs, 1_500L));
     }
 
     public void setPhase(@NonNull TimeEnginePhase p) {
         if (phase == p) return;
+        TimeEnginePhase prev = phase;
         phase = p;
         phaseLive.postValue(p);
-        Log.d(TAG, "phase → " + p);
+        outputLive.postValue(shouldOutputAudio());
+        Log.d(TAG, "phase " + prev + " → " + p);
     }
 
     @NonNull
@@ -136,65 +184,72 @@ public final class TimeEngine {
         return latest;
     }
 
-    /** Session-local ms since {@link #startSession()} (debug / UI). */
     public long nowSessionMs() {
         if (sessionEpochMonoMs < 0) return 0L;
         return SystemClock.elapsedRealtime() - sessionEpochMonoMs;
     }
 
-    /** Estimated Firebase server now (ms UTC). */
     public long estimatedServerNowMs() {
         if (serverClock.isReady()) {
-            return serverClock.serverNowMs();
+            return serverClock.serverNowMs() + lagCompensationMs;
         }
-        return System.currentTimeMillis() + packetOffsetMs;
+        return System.currentTimeMillis() + packetOffsetMs + lagCompensationMs;
     }
 
     /**
-     * Ideal track position at this instant (ms).
-     * Uses 5s schedule: at targetServerTime → targetPosition; then extrapolate if playing.
+     * Shared schedule time ≈ estimated server timeline (ms).
+     */
+    public long scheduleNowMs() {
+        if (hasScheduleOffset) {
+            // Prefer mono mapping for smooth local waits
+            return SystemClock.elapsedRealtime() - scheduleOffsetMono;
+        }
+        return estimatedServerNowMs();
+    }
+
+    /**
+     * Ideal media position at this instant (ms into track).
      */
     public long idealTrackPositionMs() {
         TimeAnchor a = latest;
         if (a == null) return -1L;
 
-        long serverNow = estimatedServerNowMs() + lagCompensationMs;
-        long targetServer = a.targetServerTimeMs();
-
         if (!a.isPlaying) {
             return clamp(a.positionMs, a.durationMs);
         }
 
+        long scheduleNow = scheduleNowMs();
+        long targetServer = a.targetServerTimeMs();
+
         if (targetServer > 0) {
-            // At targetServer → targetPosition; before/after linear in real time
-            long ideal = a.targetPositionMs - (targetServer - serverNow);
+            // At targetServer → targetPosition; linear elsewhere
+            long ideal = a.targetPositionMs - (targetServer - scheduleNow);
             return clamp(ideal, a.durationMs);
         }
 
-        // Fallback: from write time + position
         if (a.serverWriteMs >= 0) {
-            long elapsed = serverNow - a.serverWriteMs;
+            long elapsed = scheduleNow - a.serverWriteMs;
             return clamp(a.positionMs + Math.max(0L, elapsed), a.durationMs);
         }
 
-        // Last resort: extrapolate from receive using mono
-        long monoNow = SystemClock.elapsedRealtime();
-        long sinceRecv = monoNow - a.receivedAtMonoMs;
+        // Receive-mono fallback
+        long sinceRecv = SystemClock.elapsedRealtime() - a.receivedAtMonoMs;
         return clamp(a.positionMs + Math.max(0L, sinceRecv), a.durationMs);
     }
 
-    /**
-     * Ms until scheduled release (target server time). Negative if already past.
-     */
+    /** Ms until scheduled release (target server time). Negative if past. */
     public long msUntilRelease() {
         TimeAnchor a = latest;
         if (a == null) return Long.MIN_VALUE;
         long targetServer = a.targetServerTimeMs();
-        if (targetServer < 0) return 0L;
-        return targetServer - estimatedServerNowMs() - lagCompensationMs;
+        if (targetServer < 0) {
+            // No server stamp yet: release ASAP after buffer
+            return 0L;
+        }
+        return targetServer - scheduleNowMs();
     }
 
-    /** localPosition − ideal (positive = guest ahead). */
+    /** localPosition − ideal (positive = guest ahead of schedule). */
     public long driftMs(long localPositionMs) {
         long ideal = idealTrackPositionMs();
         if (ideal < 0) return 0L;
@@ -204,13 +259,32 @@ public final class TimeEngine {
     }
 
     /**
-     * Correction decision for the player controller.
+     * True only in {@link TimeEnginePhase#LOCKED} while host wants playback.
+     * All other phases ⇒ silent (architecture lag policy).
+     */
+    public boolean shouldOutputAudio() {
+        if (phase != TimeEnginePhase.LOCKED) return false;
+        TimeAnchor a = latest;
+        return a != null && a.isPlaying;
+    }
+
+    /** True if schedule is too old to trust. */
+    public boolean isScheduleStale() {
+        if (latest == null) return true;
+        if (lastAnchorMonoMs <= 0) return false;
+        return SystemClock.elapsedRealtime() - lastAnchorMonoMs > STALE_TIMEOUT_MS;
+    }
+
+    /**
+     * Correction for the player bridge. Hard drift → HARD_SEEK + expect STALE handling.
      */
     @NonNull
     public Correction decideCorrection(long localPositionMs, boolean isLocalPlaying) {
         TimeAnchor a = latest;
-        if (a == null) {
-            return Correction.none();
+        if (a == null) return Correction.none();
+
+        if (isScheduleStale()) {
+            return Correction.stale(idealTrackPositionMs());
         }
 
         long ideal = idealTrackPositionMs();
@@ -220,36 +294,31 @@ public final class TimeEngine {
         long abs = Math.abs(drift);
         long nowMono = SystemClock.elapsedRealtime();
 
-        // Play/pause always honor host
         if (a.isPlaying != isLocalPlaying) {
             return Correction.transport(a.isPlaying, ideal, drift);
         }
 
         if (!a.isPlaying) {
-            return Correction.none();
-        }
-
-        if (abs <= DEAD_ZONE_MS) {
             return Correction.rate(1.0f, ideal, drift);
         }
 
-        if (abs <= RATE_ZONE_MS) {
-            float rate = drift > 0 ? RATE_SLOW : RATE_CATCH_UP;
+        if (abs <= SOFT_DRIFT_MS) {
+            return Correction.rate(1.0f, ideal, drift);
+        }
+
+        if (abs <= RATE_CORRECT_MS) {
+            float rate = drift > 0 ? RATE_SLOW : RATE_FAST;
             return Correction.rate(rate, ideal, drift);
         }
 
         boolean seekAllowed = (nowMono - lastSeekMonoMs) >= MIN_SEEK_INTERVAL_MS;
-        if (abs >= HARD_SEEK_MS && seekAllowed) {
+        if (abs >= HARD_DRIFT_MS && seekAllowed) {
             lastSeekMonoMs = nowMono;
             return Correction.hardSeek(ideal, drift);
         }
-        if (abs >= SOFT_SEEK_MS && seekAllowed) {
-            lastSeekMonoMs = nowMono;
-            return Correction.softSeek(ideal, drift);
-        }
 
-        // In between: keep mild rate
-        float rate = drift > 0 ? RATE_SLOW : RATE_CATCH_UP;
+        // Between rate and hard, or seek throttled: mild rate only
+        float rate = drift > 0 ? RATE_SLOW : RATE_FAST;
         return Correction.rate(rate, ideal, drift);
     }
 
@@ -267,10 +336,12 @@ public final class TimeEngine {
     @NonNull public LiveData<Long> getIdealPosition() { return idealLive; }
     @NonNull public LiveData<Long> getDrift() { return driftLive; }
     @NonNull public LiveData<TimeAnchor> getAnchor() { return anchorLive; }
+    @NonNull public LiveData<Boolean> getShouldOutputAudio() { return outputLive; }
 
-    /** Immutable correction command for the audio layer. */
+    // ── Correction ──────────────────────────────────────────────────────────
+
     public static final class Correction {
-        public enum Kind { NONE, RATE, SOFT_SEEK, HARD_SEEK, TRANSPORT }
+        public enum Kind { NONE, RATE, HARD_SEEK, TRANSPORT, STALE }
 
         @NonNull public final Kind kind;
         public final float rate;
@@ -294,16 +365,16 @@ public final class TimeEngine {
             return new Correction(Kind.RATE, r, ideal, drift, true);
         }
 
-        static Correction softSeek(long ideal, long drift) {
-            return new Correction(Kind.SOFT_SEEK, 1f, ideal, drift, true);
-        }
-
         static Correction hardSeek(long ideal, long drift) {
-            return new Correction(Kind.HARD_SEEK, 1f, ideal, drift, true);
+            return new Correction(Kind.HARD_SEEK, 1f, ideal, drift, false);
         }
 
         static Correction transport(boolean play, long ideal, long drift) {
             return new Correction(Kind.TRANSPORT, 1f, ideal, drift, play);
+        }
+
+        static Correction stale(long ideal) {
+            return new Correction(Kind.STALE, 1f, ideal, 0, false);
         }
     }
 }

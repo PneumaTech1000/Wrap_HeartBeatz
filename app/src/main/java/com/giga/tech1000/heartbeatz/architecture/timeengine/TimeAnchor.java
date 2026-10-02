@@ -12,7 +12,7 @@ import com.giga.tech1000.heartbeatz.architecture.party.PartyPlaybackSync;
  */
 public final class TimeAnchor {
 
-    public static final long DEFAULT_LOOKAHEAD_MS = 5_000L;
+    public static final long DEFAULT_LOOKAHEAD_MS = 4_000L;
 
     /** Monotonic id; guests ignore stale schedules. */
     public final long scheduleId;

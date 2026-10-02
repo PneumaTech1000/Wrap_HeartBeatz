@@ -5,6 +5,7 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.util.Log;
 
+import androidx.annotation.MainThread;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.LiveData;
@@ -13,14 +14,17 @@ import androidx.lifecycle.MutableLiveData;
 import com.giga.tech1000.heartbeatz.architecture.repositories.PlaybackStateRepository;
 
 /**
- * Guest-side: BUFFER → ARM → RELEASE using {@link TimeEngine}.
- * Production path: prepare early, wait for schedule, single play(), then soft lock.
+ * Guest player bridge: BUFFER → ARMED (muted) → LOCKED (audible).
+ * <p>
+ * Lag / hard drift → {@link TimeEnginePhase#STALE}: pause (silent), seek, re-arm.
+ * All Handler callbacks cleared on {@link #reset()} — no leaks.
  */
 public final class TimeEnginePlayerBridge {
 
     private static final String TAG = "TimeEnginePlayer";
-    private static final long ARM_POLL_MS = 15L;
-    private static final long CORRECT_INTERVAL_MS = 500L;
+    private static final long ARM_POLL_MS = 16L;
+    private static final long CORRECT_INTERVAL_MS = 400L;
+    private static final long BUFFER_SETTLE_MS = 350L;
 
     private final TimeEngine engine;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -30,24 +34,30 @@ public final class TimeEnginePlayerBridge {
     private long lastScheduleId = -1L;
     private boolean releasePosted;
     private boolean metaReadyNotified;
+    private boolean loopsActive;
 
     private final MutableLiveData<Boolean> readyForUi = new MutableLiveData<>(false);
 
     private final Runnable armLoop = new Runnable() {
         @Override
         public void run() {
-            if (playback == null) return;
+            if (!loopsActive || playback == null) return;
             TimeEnginePhase phase = engine.phase();
             if (phase != TimeEnginePhase.ARMED && phase != TimeEnginePhase.BUFFERING) {
                 return;
             }
-            long until = engine.msUntilRelease();
-            if (until <= 0) {
-                doRelease();
+            TimeAnchor latest = engine.latestAnchor();
+            if (latest != null && !latest.isPlaying) {
+                // Paused schedule: stay armed/silent
+                main.postDelayed(this, 200);
                 return;
             }
-            // High-rate poll near release for ms-level accuracy
-            long delay = until > 100 ? Math.min(until / 2, 50) : ARM_POLL_MS;
+            long until = engine.msUntilRelease();
+            if (until <= 0) {
+                tryRelease();
+                return;
+            }
+            long delay = until > 120 ? Math.min(until / 2, 40) : ARM_POLL_MS;
             main.postDelayed(this, Math.max(ARM_POLL_MS, delay));
         }
     };
@@ -55,9 +65,9 @@ public final class TimeEnginePlayerBridge {
     private final Runnable correctLoop = new Runnable() {
         @Override
         public void run() {
-            if (playback == null) return;
-            if (engine.phase() != TimeEnginePhase.LOCKED
-                    && engine.phase() != TimeEnginePhase.DRIFT_CORRECT) {
+            if (!loopsActive || playback == null) return;
+            TimeEnginePhase phase = engine.phase();
+            if (phase != TimeEnginePhase.LOCKED && phase != TimeEnginePhase.STALE) {
                 return;
             }
             applyCorrection();
@@ -73,9 +83,13 @@ public final class TimeEnginePlayerBridge {
         this.playback = repo;
     }
 
+    /** Cancel all callbacks and stop session — call on leave party / destroy. */
     public void reset() {
+        loopsActive = false;
         main.removeCallbacks(armLoop);
         main.removeCallbacks(correctLoop);
+        main.removeCallbacksAndMessages(null);
+        forceSilent();
         lastMediaUrl = null;
         lastScheduleId = -1L;
         releasePosted = false;
@@ -86,18 +100,23 @@ public final class TimeEnginePlayerBridge {
 
     public void onSessionStart() {
         reset();
+        loopsActive = true;
         engine.startSession();
     }
 
     /**
-     * Called on every host sync packet (guest).
+     * Every host sync packet (guest path).
      */
+    @MainThread
     public void onAnchor(@NonNull TimeAnchor anchor) {
-        engine.feed(anchor);
+        if (!loopsActive) {
+            loopsActive = true;
+            engine.startSession();
+        }
+        engine.applySchedule(anchor);
 
         if (playback == null) return;
 
-        // Metadata always
         try {
             playback.updatePartyMetadata(
                     anchor.title, anchor.artist, anchor.album, anchor.durationMs);
@@ -119,22 +138,40 @@ public final class TimeEnginePlayerBridge {
             return;
         }
 
-        if (newSchedule && engine.phase() == TimeEnginePhase.LOCKED) {
+        if (newSchedule) {
             lastScheduleId = anchor.scheduleId;
-            // Stay locked; correction loop will track new ideal
-            return;
+            releasePosted = false;
+            if (!anchor.isPlaying) {
+                forceSilent();
+                engine.setPhase(TimeEnginePhase.ARMED);
+                return;
+            }
+            // Seek / resume: re-arm muted if not already locking tightly
+            if (engine.phase() == TimeEnginePhase.LOCKED) {
+                long local = safePos();
+                long drift = Math.abs(engine.driftMs(local));
+                if (drift > TimeEngine.HARD_DRIFT_MS) {
+                    enterStaleAndRearm(anchor);
+                    return;
+                }
+            } else if (engine.phase() != TimeEnginePhase.LOADING
+                    && engine.phase() != TimeEnginePhase.BUFFERING) {
+                enterStaleAndRearm(anchor);
+                return;
+            }
         }
 
         if (engine.phase() == TimeEnginePhase.LOCKED
-                || engine.phase() == TimeEnginePhase.DRIFT_CORRECT) {
+                || engine.phase() == TimeEnginePhase.STALE) {
             applyCorrection();
         }
     }
 
     private void beginBuffer(@NonNull TimeAnchor anchor) {
         engine.setPhase(TimeEnginePhase.LOADING);
+        forceSilent();
+
         long parkAt = Math.max(0L, anchor.targetPositionMs);
-        // If we're already past the target time, park at ideal now
         long until = engine.msUntilRelease();
         if (until <= 0) {
             long ideal = engine.idealTrackPositionMs();
@@ -142,7 +179,6 @@ public final class TimeEnginePlayerBridge {
         }
 
         try {
-            // Prepare paused at park position
             playback.playPartyStream(
                     anchor.mediaUrl,
                     anchor.trackId,
@@ -150,53 +186,86 @@ public final class TimeEnginePlayerBridge {
                     anchor.artist,
                     anchor.album,
                     parkAt,
-                    false // do not play yet
+                    false // never audible until release
             );
         } catch (Exception e) {
             Log.e(TAG, "playPartyStream failed", e);
+            engine.setPhase(TimeEnginePhase.STALE);
             return;
         }
 
         engine.setPhase(TimeEnginePhase.BUFFERING);
-
-        // Short settle for Media3 buffer, then ARM
         main.postDelayed(() -> {
-            if (playback == null) return;
+            if (!loopsActive || playback == null) return;
+            if (engine.phase() != TimeEnginePhase.BUFFERING
+                    && engine.phase() != TimeEnginePhase.LOADING) {
+                return;
+            }
             engine.setPhase(TimeEnginePhase.ARMED);
-            if (anchor.hasTitle()) {
-                metaReadyNotified = true;
-            }
-            long left = engine.msUntilRelease();
-            if (left <= 0) {
-                doRelease();
-            } else {
-                main.removeCallbacks(armLoop);
-                main.post(armLoop);
-            }
-        }, 400);
+            if (anchor.hasTitle()) metaReadyNotified = true;
+            releasePosted = false;
+            main.removeCallbacks(armLoop);
+            main.post(armLoop);
+        }, BUFFER_SETTLE_MS);
     }
 
-    private void doRelease() {
+    private void enterStaleAndRearm(@NonNull TimeAnchor anchor) {
+        engine.setPhase(TimeEnginePhase.STALE);
+        forceSilent();
+        long ideal = engine.idealTrackPositionMs();
+        if (ideal < 0) ideal = Math.max(0L, anchor.positionMs);
+        try {
+            playback.seekTo(ideal);
+            playback.setPlaybackSpeed(1.0f);
+            engine.markSeekApplied();
+        } catch (Exception e) {
+            Log.w(TAG, "stale seek: " + e.getMessage());
+        }
+        engine.setPhase(TimeEnginePhase.ARMED);
+        releasePosted = false;
+        main.removeCallbacks(armLoop);
+        main.post(armLoop);
+        Log.d(TAG, "STALE→ARMED ideal=" + ideal);
+    }
+
+    private void tryRelease() {
         if (releasePosted || playback == null) return;
+        TimeAnchor a = engine.latestAnchor();
+        if (a == null) return;
+
+        if (!a.isPlaying) {
+            forceSilent();
+            engine.setPhase(TimeEnginePhase.ARMED);
+            return;
+        }
+
+        long ideal = engine.idealTrackPositionMs();
+        long local = safePos();
+        if (ideal >= 0) {
+            long drift = Math.abs(local - ideal);
+            // If still far off at release, stay silent and wait next poll
+            if (drift > TimeEngine.HARD_DRIFT_MS * 2) {
+                try {
+                    playback.seekTo(ideal);
+                    engine.markSeekApplied();
+                } catch (Exception ignored) { }
+                main.postDelayed(armLoop, 50);
+                return;
+            }
+        }
+
         releasePosted = true;
         main.removeCallbacks(armLoop);
 
-        long ideal = engine.idealTrackPositionMs();
-        TimeAnchor a = engine.latestAnchor();
-        boolean shouldPlay = a == null || a.isPlaying;
-
         try {
-            if (ideal >= 0) {
-                playback.seekTo(ideal);
-            }
+            if (ideal >= 0) playback.seekTo(ideal);
             playback.setPlaybackSpeed(1.0f);
-            if (shouldPlay) {
-                playback.play();
-            } else {
-                playback.pause();
-            }
+            playback.play();
         } catch (Exception e) {
             Log.e(TAG, "release failed", e);
+            releasePosted = false;
+            engine.setPhase(TimeEnginePhase.STALE);
+            return;
         }
 
         engine.setPhase(TimeEnginePhase.LOCKED);
@@ -204,56 +273,112 @@ public final class TimeEnginePlayerBridge {
         metaReadyNotified = true;
         main.removeCallbacks(correctLoop);
         main.post(correctLoop);
-        Log.d(TAG, "RELEASE ideal=" + ideal + " play=" + shouldPlay
-                + " mono=" + SystemClock.elapsedRealtime());
+        Log.i(TAG, "RELEASE ideal=" + ideal + " mono=" + SystemClock.elapsedRealtime());
     }
 
     private void applyCorrection() {
         if (playback == null) return;
-        long local;
-        boolean playing;
-        try {
-            local = playback.getCurrentPositionSync();
-            playing = playback.isPlayingSync();
-        } catch (Exception e) {
+
+        if (engine.isScheduleStale()) {
+            forceSilent();
+            engine.setPhase(TimeEnginePhase.STALE);
             return;
         }
 
+        long local = safePos();
+        boolean playing = safePlaying();
         TimeEngine.Correction c = engine.decideCorrection(local, playing);
+
         switch (c.kind) {
             case NONE:
                 break;
             case RATE:
+                if (!engine.shouldOutputAudio()) {
+                    forceSilent();
+                    break;
+                }
                 try {
                     playback.setPlaybackSpeed(c.rate);
                 } catch (Exception ignored) { }
+                // Ensure playing while locked
+                if (engine.shouldOutputAudio() && !playing) {
+                    try { playback.play(); } catch (Exception ignored) { }
+                }
                 break;
-            case SOFT_SEEK:
             case HARD_SEEK:
-                engine.setPhase(TimeEnginePhase.DRIFT_CORRECT);
+                engine.setPhase(TimeEnginePhase.STALE);
+                forceSilent();
                 try {
-                    playback.seekTo(c.idealPositionMs);
+                    if (c.idealPositionMs >= 0) {
+                        playback.seekTo(c.idealPositionMs);
+                        engine.markSeekApplied();
+                    }
                     playback.setPlaybackSpeed(1.0f);
-                    engine.markSeekApplied();
                 } catch (Exception ignored) { }
-                engine.setPhase(TimeEnginePhase.LOCKED);
-                Log.d(TAG, c.kind + " drift=" + c.driftMs + " → " + c.idealPositionMs);
+                releasePosted = false;
+                engine.setPhase(TimeEnginePhase.ARMED);
+                main.removeCallbacks(armLoop);
+                main.post(armLoop);
+                Log.d(TAG, "HARD_SEEK drift=" + c.driftMs + " → STALE→ARMED");
                 break;
             case TRANSPORT:
                 try {
-                    if (c.playWhenReady) playback.play();
-                    else playback.pause();
+                    if (c.playWhenReady) {
+                        // Only play if we are allowed to output
+                        if (engine.phase() == TimeEnginePhase.LOCKED) {
+                            playback.play();
+                        } else {
+                            releasePosted = false;
+                            engine.setPhase(TimeEnginePhase.ARMED);
+                            main.removeCallbacks(armLoop);
+                            main.post(armLoop);
+                        }
+                    } else {
+                        forceSilent();
+                    }
                     if (c.idealPositionMs >= 0
-                            && Math.abs(c.driftMs) > TimeEngine.SOFT_SEEK_MS) {
+                            && Math.abs(c.driftMs) > TimeEngine.HARD_DRIFT_MS) {
                         playback.seekTo(c.idealPositionMs);
                         engine.markSeekApplied();
                     }
                 } catch (Exception ignored) { }
                 break;
+            case STALE:
+                forceSilent();
+                engine.setPhase(TimeEnginePhase.STALE);
+                break;
+        }
+
+        // Enforce mute policy every tick
+        if (!engine.shouldOutputAudio() && playing) {
+            forceSilent();
         }
     }
 
-    /** True once first release completed (UI may expand full player). */
+    private void forceSilent() {
+        if (playback == null) return;
+        try {
+            playback.pause();
+            playback.setPlaybackSpeed(1.0f);
+        } catch (Exception ignored) { }
+    }
+
+    private long safePos() {
+        try {
+            return playback != null ? playback.getCurrentPositionSync() : 0L;
+        } catch (Exception e) {
+            return 0L;
+        }
+    }
+
+    private boolean safePlaying() {
+        try {
+            return playback != null && playback.isPlayingSync();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     @NonNull
     public LiveData<Boolean> getReadyForUi() {
         return readyForUi;
@@ -262,5 +387,10 @@ public final class TimeEnginePlayerBridge {
     public boolean isMetaReady() {
         TimeAnchor a = engine.latestAnchor();
         return metaReadyNotified && a != null && a.hasTitle() && a.hasMedia();
+    }
+
+    /** Whether audio should be audible right now. */
+    public boolean shouldOutputAudio() {
+        return engine.shouldOutputAudio();
     }
 }

@@ -24,8 +24,9 @@ import com.giga.tech1000.media_player.models.Song;
 import java.io.File;
 
 /**
- * Host: upload track + publish TimeEngine anchors (5s lookahead, scheduleId, host mono).
- * Guest: {@link TimeEngine} + {@link TimeEnginePlayerBridge} (buffer → arm → release → lock).
+ * Host: upload track + publish schedule anchors (4s lookahead, scheduleId, host mono).
+ * Guest: {@link TimeEngine} + {@link TimeEnginePlayerBridge}
+ * (LOADING → BUFFERING → ARMED muted → LOCKED; lag → STALE silent → re-arm).
  */
 public final class PartyLiveBridge {
 

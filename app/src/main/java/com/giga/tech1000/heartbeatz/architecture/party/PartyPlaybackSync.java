@@ -12,7 +12,7 @@ import androidx.annotation.Nullable;
  */
 public class PartyPlaybackSync {
 
-    public static final long DEFAULT_LOOKAHEAD_MS = 5_000L;
+    public static final long DEFAULT_LOOKAHEAD_MS = 4_000L;
 
     @Nullable public String objectKey;
     @Nullable public String mediaUrl;

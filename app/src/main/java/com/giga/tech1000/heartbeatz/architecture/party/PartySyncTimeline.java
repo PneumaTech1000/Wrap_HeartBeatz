@@ -9,7 +9,7 @@ import androidx.annotation.Nullable;
  * Packet model:
  * <ul>
  *   <li>{@code updatedAt} = server time when host measured {@code positionMs}</li>
- *   <li>{@code targetPositionMs} = position at {@code updatedAt + lookaheadMs} (5s ahead if playing)</li>
+ *   <li>{@code targetPositionMs} = position at {@code updatedAt + lookaheadMs} (4s ahead if playing)</li>
  * </ul>
  * Ideal at server now:
  * {@code positionMs + (serverNow - updatedAt)} while playing (clamped),
@@ -17,13 +17,11 @@ import androidx.annotation.Nullable;
  */
 public final class PartySyncTimeline {
 
-    /** Seek if local position drifts more than this from ideal. */
-    /** Soft correction via rate; seek only above this. */
-    public static final long SEEK_THRESHOLD_MS = 900L;
+    /** @deprecated Prefer TimeEngine thresholds. */
+    public static final long SEEK_THRESHOLD_MS = 80L;
 
-    /** Hard resync (ignore soft throttle). */
-    /** Hard seek (audible jump) only when badly out of sync. */
-    public static final long HARD_SEEK_THRESHOLD_MS = 1800L;
+    /** @deprecated Prefer TimeEngine.HARD_DRIFT_MS. */
+    public static final long HARD_SEEK_THRESHOLD_MS = 100L;
 
     private final PartyServerClock clock = PartyServerClock.get();
 
