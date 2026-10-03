@@ -140,7 +140,7 @@ public final class SupabasePartyMediaStore implements PartyMediaStore {
         StringBuilder json = new StringBuilder("[");
         for (int i = 0; i < keys.size(); i++) {
             if (i > 0) json.append(',');
-            json.append('"').append(keys.get(i).replace("\"", "\\"")).append('"');
+            json.append('"').append(jsonEscape(keys.get(i))).append('"');
         }
         json.append(']');
         RequestBody body = RequestBody.create(json.toString(), MediaType.parse("application/json"));
@@ -163,7 +163,7 @@ public final class SupabasePartyMediaStore implements PartyMediaStore {
         String url = trimSlash(config.supabaseUrl)
                 + "/storage/v1/object/list/"
                 + config.supabaseBucket;
-        String payload = "{\"prefix\":\"" + prefix.replace("\"", "\\"")
+        String payload = "{\"prefix\":\"" + jsonEscape(prefix)
                 + "\",\"limit\":1000,\"offset\":0}";
         RequestBody body = RequestBody.create(payload, MediaType.parse("application/json"));
         Request request = new Request.Builder()
@@ -194,6 +194,11 @@ public final class SupabasePartyMediaStore implements PartyMediaStore {
                 }
             }
         }
+    }
+
+    @NonNull
+    private static String jsonEscape(@NonNull String s) {
+        return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     @NonNull
