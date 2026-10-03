@@ -16,15 +16,25 @@ import com.giga.tech1000.heartbeatz.architecture.repositories.PlaybackStateRepos
 /**
  * Guest player bridge: BUFFER → ARMED (muted) → LOCKED (audible).
  * <p>
- * Lag / hard drift → {@link TimeEnginePhase#STALE}: pause (silent), seek, re-arm.
- * All Handler callbacks cleared on {@link #reset()} — no leaks.
+ * Join mid-track: seek to ideal, <b>wait</b> until player position is near ideal,
+ * then release. Never thrash ARMED↔STALE while still loading/seeking.
+ * Lag after lock → STALE (silent) → re-arm once, not every packet.
  */
 public final class TimeEnginePlayerBridge {
 
     private static final String TAG = "TimeEnginePlayer";
-    private static final long ARM_POLL_MS = 16L;
-    private static final long CORRECT_INTERVAL_MS = 400L;
-    private static final long BUFFER_SETTLE_MS = 350L;
+
+    private static final long ARM_POLL_MS = 50L;
+    private static final long CORRECT_INTERVAL_MS = 500L;
+    private static final long BUFFER_SETTLE_MS = 500L;
+    /** After seek, ignore drift checks briefly (Media3 seek is async). */
+    private static final long SEEK_SETTLE_MS = 400L;
+    /** First unlock tolerance (join mid-track). */
+    private static final long RELEASE_TOLERANCE_MS = 750L;
+    /** Min gap between seeks while arming. */
+    private static final long ARM_SEEK_COOLDOWN_MS = 800L;
+    /** Max time waiting in ARMED before force-release attempt. */
+    private static final long ARM_TIMEOUT_MS = 12_000L;
 
     private final TimeEngine engine;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -35,6 +45,10 @@ public final class TimeEnginePlayerBridge {
     private boolean releasePosted;
     private boolean metaReadyNotified;
     private boolean loopsActive;
+
+    private long lastArmSeekMonoMs;
+    private long armedSinceMonoMs;
+    private long lastStaleMonoMs;
 
     private final MutableLiveData<Boolean> readyForUi = new MutableLiveData<>(false);
 
@@ -48,17 +62,17 @@ public final class TimeEnginePlayerBridge {
             }
             TimeAnchor latest = engine.latestAnchor();
             if (latest != null && !latest.isPlaying) {
-                // Paused schedule: stay armed/silent
-                main.postDelayed(this, 200);
+                forceSilent();
+                main.postDelayed(this, 250);
                 return;
             }
             long until = engine.msUntilRelease();
-            if (until <= 0) {
-                tryRelease();
+            if (until > 50) {
+                long delay = Math.min(Math.max(until / 2, ARM_POLL_MS), 200L);
+                main.postDelayed(this, delay);
                 return;
             }
-            long delay = until > 120 ? Math.min(until / 2, 40) : ARM_POLL_MS;
-            main.postDelayed(this, Math.max(ARM_POLL_MS, delay));
+            tryRelease();
         }
     };
 
@@ -66,11 +80,10 @@ public final class TimeEnginePlayerBridge {
         @Override
         public void run() {
             if (!loopsActive || playback == null) return;
-            TimeEnginePhase phase = engine.phase();
-            if (phase != TimeEnginePhase.LOCKED && phase != TimeEnginePhase.STALE) {
+            if (engine.phase() != TimeEnginePhase.LOCKED) {
                 return;
             }
-            applyCorrection();
+            applyLockedCorrection();
             main.postDelayed(this, CORRECT_INTERVAL_MS);
         }
     };
@@ -83,7 +96,6 @@ public final class TimeEnginePlayerBridge {
         this.playback = repo;
     }
 
-    /** Cancel all callbacks and stop session — call on leave party / destroy. */
     public void reset() {
         loopsActive = false;
         main.removeCallbacks(armLoop);
@@ -94,6 +106,9 @@ public final class TimeEnginePlayerBridge {
         lastScheduleId = -1L;
         releasePosted = false;
         metaReadyNotified = false;
+        lastArmSeekMonoMs = 0;
+        armedSinceMonoMs = 0;
+        lastStaleMonoMs = 0;
         readyForUi.postValue(false);
         engine.stopSession();
     }
@@ -104,9 +119,6 @@ public final class TimeEnginePlayerBridge {
         engine.startSession();
     }
 
-    /**
-     * Every host sync packet (guest path).
-     */
     @MainThread
     public void onAnchor(@NonNull TimeAnchor anchor) {
         if (!loopsActive) {
@@ -115,7 +127,10 @@ public final class TimeEnginePlayerBridge {
         }
         engine.applySchedule(anchor);
 
-        if (playback == null) return;
+        if (playback == null) {
+            Log.w(TAG, "onAnchor: playback repo null — attachPlayback first");
+            return;
+        }
 
         try {
             playback.updatePartyMetadata(
@@ -126,7 +141,7 @@ public final class TimeEnginePlayerBridge {
 
         boolean newMedia = anchor.hasMedia()
                 && (lastMediaUrl == null || !lastMediaUrl.equals(anchor.mediaUrl));
-        boolean newSchedule = anchor.scheduleId > 0 && anchor.scheduleId != lastScheduleId;
+        boolean scheduleAdvanced = anchor.scheduleId > 0 && anchor.scheduleId != lastScheduleId;
 
         if (newMedia) {
             lastMediaUrl = anchor.mediaUrl;
@@ -138,45 +153,74 @@ public final class TimeEnginePlayerBridge {
             return;
         }
 
-        if (newSchedule) {
+        if (scheduleAdvanced) {
             lastScheduleId = anchor.scheduleId;
-            releasePosted = false;
-            if (!anchor.isPlaying) {
-                forceSilent();
-                engine.setPhase(TimeEnginePhase.ARMED);
-                return;
-            }
-            // Seek / resume: re-arm muted if not already locking tightly
-            if (engine.phase() == TimeEnginePhase.LOCKED) {
-                long local = safePos();
-                long drift = Math.abs(engine.driftMs(local));
-                if (drift > TimeEngine.HARD_DRIFT_MS) {
-                    enterStaleAndRearm(anchor);
-                    return;
-                }
-            } else if (engine.phase() != TimeEnginePhase.LOADING
-                    && engine.phase() != TimeEnginePhase.BUFFERING) {
-                enterStaleAndRearm(anchor);
-                return;
-            }
         }
 
-        if (engine.phase() == TimeEnginePhase.LOCKED
-                || engine.phase() == TimeEnginePhase.STALE) {
-            applyCorrection();
+        TimeEnginePhase phase = engine.phase();
+
+        // Still preparing — only refresh schedule math, never STALE-thrash
+        if (phase == TimeEnginePhase.LOADING
+                || phase == TimeEnginePhase.BUFFERING
+                || phase == TimeEnginePhase.ARMED) {
+            if (!anchor.isPlaying) {
+                forceSilent();
+            }
+            // Keep arm loop alive
+            if (phase == TimeEnginePhase.ARMED) {
+                main.removeCallbacks(armLoop);
+                main.post(armLoop);
+            }
+            return;
+        }
+
+        if (phase == TimeEnginePhase.IDLE && anchor.hasMedia()) {
+            beginBuffer(anchor);
+            return;
+        }
+
+        if (phase == TimeEnginePhase.LOCKED) {
+            if (!anchor.isPlaying) {
+                forceSilent();
+                return;
+            }
+            // Large intentional seek from host (schedule advanced + big jump)
+            if (scheduleAdvanced) {
+                long local = safePos();
+                long drift = Math.abs(engine.driftMs(local));
+                if (drift > TimeEngine.HARD_DRIFT_MS * 3) {
+                    rearmOnce(anchor, "host-seek");
+                }
+            }
+            return;
+        }
+
+        if (phase == TimeEnginePhase.STALE) {
+            // Single re-arm path; cooldown prevents packet storms
+            if (SystemClock.elapsedRealtime() - lastStaleMonoMs > 1_000L) {
+                rearmOnce(anchor, "stale-recovery");
+            }
         }
     }
 
     private void beginBuffer(@NonNull TimeAnchor anchor) {
         engine.setPhase(TimeEnginePhase.LOADING);
         forceSilent();
+        releasePosted = false;
 
-        long parkAt = Math.max(0L, anchor.targetPositionMs);
+        long ideal = engine.idealTrackPositionMs();
+        long parkAt = ideal >= 0 ? ideal : Math.max(0L, anchor.targetPositionMs);
+        // If release is still in the future, park at target; else at live ideal
         long until = engine.msUntilRelease();
-        if (until <= 0) {
-            long ideal = engine.idealTrackPositionMs();
-            if (ideal >= 0) parkAt = ideal;
+        if (until > 200 && anchor.targetPositionMs > 0) {
+            parkAt = anchor.targetPositionMs;
         }
+
+        Log.i(TAG, "beginBuffer url=" + shortUrl(anchor.mediaUrl)
+                + " parkAt=" + parkAt
+                + " ideal=" + ideal
+                + " untilRelease=" + until
+                + " playing=" + anchor.isPlaying);
 
         try {
             playback.playPartyStream(
@@ -186,11 +230,13 @@ public final class TimeEnginePlayerBridge {
                     anchor.artist,
                     anchor.album,
                     parkAt,
-                    false // never audible until release
+                    false
             );
+            lastArmSeekMonoMs = SystemClock.elapsedRealtime();
         } catch (Exception e) {
             Log.e(TAG, "playPartyStream failed", e);
             engine.setPhase(TimeEnginePhase.STALE);
+            lastStaleMonoMs = SystemClock.elapsedRealtime();
             return;
         }
 
@@ -202,69 +248,132 @@ public final class TimeEnginePlayerBridge {
                 return;
             }
             engine.setPhase(TimeEnginePhase.ARMED);
+            armedSinceMonoMs = SystemClock.elapsedRealtime();
             if (anchor.hasTitle()) metaReadyNotified = true;
             releasePosted = false;
             main.removeCallbacks(armLoop);
             main.post(armLoop);
+            Log.i(TAG, "ARMED waiting release until=" + engine.msUntilRelease()
+                    + " ideal=" + engine.idealTrackPositionMs());
         }, BUFFER_SETTLE_MS);
     }
 
-    private void enterStaleAndRearm(@NonNull TimeAnchor anchor) {
+    /**
+     * One controlled re-arm (not per-frame).
+     */
+    private void rearmOnce(@NonNull TimeAnchor anchor, @NonNull String reason) {
+        long now = SystemClock.elapsedRealtime();
+        if (now - lastStaleMonoMs < 800L && engine.phase() == TimeEnginePhase.STALE) {
+            return;
+        }
+        lastStaleMonoMs = now;
         engine.setPhase(TimeEnginePhase.STALE);
         forceSilent();
+
         long ideal = engine.idealTrackPositionMs();
         if (ideal < 0) ideal = Math.max(0L, anchor.positionMs);
-        try {
-            playback.seekTo(ideal);
-            playback.setPlaybackSpeed(1.0f);
-            engine.markSeekApplied();
-        } catch (Exception e) {
-            Log.w(TAG, "stale seek: " + e.getMessage());
+
+        long sinceSeek = now - lastArmSeekMonoMs;
+        if (sinceSeek >= ARM_SEEK_COOLDOWN_MS) {
+            try {
+                playback.seekTo(ideal);
+                playback.setPlaybackSpeed(1.0f);
+                lastArmSeekMonoMs = now;
+                engine.markSeekApplied();
+            } catch (Exception e) {
+                Log.w(TAG, "rearm seek: " + e.getMessage());
+            }
         }
-        engine.setPhase(TimeEnginePhase.ARMED);
+
         releasePosted = false;
+        engine.setPhase(TimeEnginePhase.ARMED);
+        armedSinceMonoMs = SystemClock.elapsedRealtime();
         main.removeCallbacks(armLoop);
-        main.post(armLoop);
-        Log.d(TAG, "STALE→ARMED ideal=" + ideal);
+        main.postDelayed(armLoop, SEEK_SETTLE_MS);
+        Log.i(TAG, "rearm (" + reason + ") ideal=" + ideal);
     }
 
     private void tryRelease() {
         if (releasePosted || playback == null) return;
         TimeAnchor a = engine.latestAnchor();
-        if (a == null) return;
-
-        if (!a.isPlaying) {
-            forceSilent();
-            engine.setPhase(TimeEnginePhase.ARMED);
+        if (a == null) {
+            main.postDelayed(armLoop, ARM_POLL_MS);
             return;
         }
 
-        long ideal = engine.idealTrackPositionMs();
-        long local = safePos();
-        if (ideal >= 0) {
-            long drift = Math.abs(local - ideal);
-            // If still far off at release, stay silent and wait next poll
-            if (drift > TimeEngine.HARD_DRIFT_MS * 2) {
-                try {
-                    playback.seekTo(ideal);
-                    engine.markSeekApplied();
-                } catch (Exception ignored) { }
-                main.postDelayed(armLoop, 50);
-                return;
-            }
+        if (!a.isPlaying) {
+            forceSilent();
+            main.postDelayed(armLoop, 250);
+            return;
         }
 
+        long now = SystemClock.elapsedRealtime();
+        long sinceSeek = now - lastArmSeekMonoMs;
+        long ideal = engine.idealTrackPositionMs();
+        long local = safePos();
+
+        // Seek still settling — wait
+        if (sinceSeek < SEEK_SETTLE_MS) {
+            main.postDelayed(armLoop, SEEK_SETTLE_MS - sinceSeek);
+            return;
+        }
+
+        if (ideal < 0) {
+            main.postDelayed(armLoop, ARM_POLL_MS);
+            return;
+        }
+
+        long drift = Math.abs(local - ideal);
+        long armedFor = armedSinceMonoMs > 0 ? now - armedSinceMonoMs : 0;
+
+        // Player still at 0 / far from ideal: seek once (cooldown) and wait
+        if (drift > RELEASE_TOLERANCE_MS) {
+            if (now - lastArmSeekMonoMs >= ARM_SEEK_COOLDOWN_MS) {
+                try {
+                    // Lead the ideal slightly so we land closer after async seek
+                    long seekTo = ideal + Math.min(200L, RELEASE_TOLERANCE_MS / 2);
+                    if (a.durationMs > 0) {
+                        seekTo = Math.min(seekTo, a.durationMs);
+                    }
+                    playback.seekTo(seekTo);
+                    lastArmSeekMonoMs = now;
+                    engine.markSeekApplied();
+                    Log.d(TAG, "arm seek local=" + local + " → " + seekTo
+                            + " ideal=" + ideal);
+                } catch (Exception e) {
+                    Log.w(TAG, "arm seek failed: " + e.getMessage());
+                }
+            }
+            // Force unlock after timeout even if position API is sticky
+            if (armedFor > ARM_TIMEOUT_MS) {
+                Log.w(TAG, "arm timeout — force release local=" + local + " ideal=" + ideal);
+                doRelease(ideal);
+                return;
+            }
+            main.postDelayed(armLoop, ARM_POLL_MS);
+            return;
+        }
+
+        doRelease(ideal);
+    }
+
+    private void doRelease(long ideal) {
+        if (releasePosted || playback == null) return;
         releasePosted = true;
         main.removeCallbacks(armLoop);
 
         try {
-            if (ideal >= 0) playback.seekTo(ideal);
+            if (ideal >= 0) {
+                playback.seekTo(ideal);
+            }
             playback.setPlaybackSpeed(1.0f);
             playback.play();
         } catch (Exception e) {
-            Log.e(TAG, "release failed", e);
+            Log.e(TAG, "release play failed", e);
             releasePosted = false;
             engine.setPhase(TimeEnginePhase.STALE);
+            lastStaleMonoMs = SystemClock.elapsedRealtime();
+            main.postDelayed(armLoop, 1_000L);
             return;
         }
 
@@ -273,15 +382,29 @@ public final class TimeEnginePlayerBridge {
         metaReadyNotified = true;
         main.removeCallbacks(correctLoop);
         main.post(correctLoop);
-        Log.i(TAG, "RELEASE ideal=" + ideal + " mono=" + SystemClock.elapsedRealtime());
+        Log.i(TAG, "RELEASE ok ideal=" + ideal
+                + " local=" + safePos()
+                + " mono=" + SystemClock.elapsedRealtime());
     }
 
-    private void applyCorrection() {
+    /** Drift correction only while LOCKED — never during ARMED. */
+    private void applyLockedCorrection() {
         if (playback == null) return;
+        if (engine.phase() != TimeEnginePhase.LOCKED) return;
 
         if (engine.isScheduleStale()) {
+            Log.w(TAG, "schedule stale while locked");
             forceSilent();
             engine.setPhase(TimeEnginePhase.STALE);
+            lastStaleMonoMs = SystemClock.elapsedRealtime();
+            return;
+        }
+
+        TimeAnchor a = engine.latestAnchor();
+        if (a == null) return;
+
+        if (!a.isPlaying) {
+            forceSilent();
             return;
         }
 
@@ -291,65 +414,31 @@ public final class TimeEnginePlayerBridge {
 
         switch (c.kind) {
             case NONE:
-                break;
             case RATE:
-                if (!engine.shouldOutputAudio()) {
-                    forceSilent();
-                    break;
-                }
                 try {
                     playback.setPlaybackSpeed(c.rate);
+                    if (!playing) playback.play();
                 } catch (Exception ignored) { }
-                // Ensure playing while locked
-                if (engine.shouldOutputAudio() && !playing) {
-                    try { playback.play(); } catch (Exception ignored) { }
-                }
                 break;
             case HARD_SEEK:
-                engine.setPhase(TimeEnginePhase.STALE);
-                forceSilent();
-                try {
-                    if (c.idealPositionMs >= 0) {
-                        playback.seekTo(c.idealPositionMs);
-                        engine.markSeekApplied();
-                    }
-                    playback.setPlaybackSpeed(1.0f);
-                } catch (Exception ignored) { }
-                releasePosted = false;
-                engine.setPhase(TimeEnginePhase.ARMED);
-                main.removeCallbacks(armLoop);
-                main.post(armLoop);
-                Log.d(TAG, "HARD_SEEK drift=" + c.driftMs + " → STALE→ARMED");
+                // One re-arm, not a thrash loop
+                if (a != null) {
+                    rearmOnce(a, "hard-drift=" + c.driftMs);
+                }
                 break;
             case TRANSPORT:
                 try {
-                    if (c.playWhenReady) {
-                        // Only play if we are allowed to output
-                        if (engine.phase() == TimeEnginePhase.LOCKED) {
-                            playback.play();
-                        } else {
-                            releasePosted = false;
-                            engine.setPhase(TimeEnginePhase.ARMED);
-                            main.removeCallbacks(armLoop);
-                            main.post(armLoop);
-                        }
-                    } else {
-                        forceSilent();
-                    }
-                    if (c.idealPositionMs >= 0
-                            && Math.abs(c.driftMs) > TimeEngine.HARD_DRIFT_MS) {
-                        playback.seekTo(c.idealPositionMs);
-                        engine.markSeekApplied();
-                    }
+                    if (c.playWhenReady) playback.play();
+                    else forceSilent();
                 } catch (Exception ignored) { }
                 break;
             case STALE:
                 forceSilent();
                 engine.setPhase(TimeEnginePhase.STALE);
+                lastStaleMonoMs = SystemClock.elapsedRealtime();
                 break;
         }
 
-        // Enforce mute policy every tick
         if (!engine.shouldOutputAudio() && playing) {
             forceSilent();
         }
@@ -380,6 +469,13 @@ public final class TimeEnginePlayerBridge {
     }
 
     @NonNull
+    private static String shortUrl(@Nullable String url) {
+        if (url == null) return "null";
+        int n = url.length();
+        return n <= 48 ? url : ("…" + url.substring(n - 40));
+    }
+
+    @NonNull
     public LiveData<Boolean> getReadyForUi() {
         return readyForUi;
     }
@@ -389,7 +485,6 @@ public final class TimeEnginePlayerBridge {
         return metaReadyNotified && a != null && a.hasTitle() && a.hasMedia();
     }
 
-    /** Whether audio should be audible right now. */
     public boolean shouldOutputAudio() {
         return engine.shouldOutputAudio();
     }

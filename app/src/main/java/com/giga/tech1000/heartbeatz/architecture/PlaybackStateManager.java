@@ -456,9 +456,19 @@ public class PlaybackStateManager implements PlaybackStateRepository {
 
     public void seekTo(long positionMs) {
         try {
-            if (playerThread != null) {
-                playerThread.getCallback().onSetSeekbar((int) positionMs);
+            long pos = Math.max(0L, positionMs);
+            if (playerThread != null && playerThread.getCorePlayer() != null) {
+                MediaController c = playerThread.getCorePlayer().getMediaController();
+                if (c != null) {
+                    c.seekTo(pos);
+                    currentPosition.postValue(pos);
+                    return;
+                }
             }
+            if (playerThread != null) {
+                playerThread.getCallback().onSetSeekbar((int) pos);
+            }
+            currentPosition.postValue(pos);
         } catch (Exception e) {
             Log.e(TAG, "Failed to seek", e);
         }
@@ -551,6 +561,17 @@ public class PlaybackStateManager implements PlaybackStateRepository {
     }
 
     public long getCurrentPositionSync() {
+        // Prefer live MediaController position — LiveData lags while paused/seeking
+        // and was the root cause of guest ARMED↔STALE thrash (always read 0).
+        try {
+            if (playerThread != null && playerThread.getCorePlayer() != null) {
+                MediaController c = playerThread.getCorePlayer().getMediaController();
+                if (c != null) {
+                    long p = c.getCurrentPosition();
+                    if (p >= 0) return p;
+                }
+            }
+        } catch (Exception ignored) { }
         Long pos = currentPosition.getValue();
         return pos != null ? pos : 0L;
     }
@@ -564,6 +585,12 @@ public class PlaybackStateManager implements PlaybackStateRepository {
     
     @Override
     public boolean isPlayingSync() {
+        try {
+            if (playerThread != null && playerThread.getCorePlayer() != null) {
+                MediaController c = playerThread.getCorePlayer().getMediaController();
+                if (c != null) return c.isPlaying();
+            }
+        } catch (Exception ignored) { }
         Boolean playing = isPlaying.getValue();
         return playing != null && playing;
     }
