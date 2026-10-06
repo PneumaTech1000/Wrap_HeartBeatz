@@ -26,12 +26,14 @@ public final class TimeEngine {
     public static final long DEFAULT_LOOKAHEAD_MS = 4_000L;
     /** Extra buffer past ideal before ARMED→LOCKED. */
     public static final long BUFFER_MARGIN_MS = 1_500L;
-    /** Below this: no rate change. */
-    public static final long SOFT_DRIFT_MS = 40L;
-    /** Rate-correct band upper bound. */
-    public static final long RATE_CORRECT_MS = 80L;
-    /** Above this: STALE — mute, seek, re-arm. */
-    public static final long HARD_DRIFT_MS = 100L;
+    /** Below this: in sync — no player action (heartbeat is a no-op). */
+    public static final long SOFT_DRIFT_MS = 45L;
+    /** Rate-correct band upper bound (gentle speed only). */
+    public static final long RATE_CORRECT_MS = 120L;
+    /** Above this: in-place seek while staying LOCKED. */
+    public static final long HARD_DRIFT_MS = 180L;
+    /** Above this: full mute + re-arm (major desync / host jump). */
+    public static final long REARM_DRIFT_MS = 2_000L;
     /** Min time between hard seeks. */
     public static final long MIN_SEEK_INTERVAL_MS = 2_500L;
     /** No usable schedule → stale/idle. */
@@ -276,7 +278,14 @@ public final class TimeEngine {
     }
 
     /**
-     * Correction for the player bridge. Hard drift → HARD_SEEK + expect STALE handling.
+     * Locked-state correction. Heartbeats that still match → {@link Correction.Kind#NONE}
+     * (no seek, no rate change, no buffer interrupt).
+     * <ul>
+     *   <li>|drift| ≤ soft → NONE (aligned)</li>
+     *   <li>soft &lt; |drift| ≤ rate → gentle rate only</li>
+     *   <li>rate &lt; |drift| ≤ rearm → HARD_SEEK in place (stay LOCKED)</li>
+     *   <li>|drift| &gt; rearm → STALE path (full re-arm)</li>
+     * </ul>
      */
     @NonNull
     public Correction decideCorrection(long localPositionMs, boolean isLocalPlaying) {
@@ -294,30 +303,47 @@ public final class TimeEngine {
         long abs = Math.abs(drift);
         long nowMono = SystemClock.elapsedRealtime();
 
+        // Play/pause mismatch always wins
         if (a.isPlaying != isLocalPlaying) {
             return Correction.transport(a.isPlaying, ideal, drift);
         }
 
         if (!a.isPlaying) {
-            return Correction.rate(1.0f, ideal, drift);
+            // Frozen timeline — only nudge position if badly off while paused
+            if (abs > HARD_DRIFT_MS
+                    && (nowMono - lastSeekMonoMs) >= MIN_SEEK_INTERVAL_MS) {
+                lastSeekMonoMs = nowMono;
+                return Correction.hardSeek(ideal, drift);
+            }
+            return Correction.none();
         }
 
+        // ── Aligned: do nothing (this is the common case on every heartbeat) ──
         if (abs <= SOFT_DRIFT_MS) {
-            return Correction.rate(1.0f, ideal, drift);
+            return Correction.none();
         }
 
+        // ── Mild drift: rate only, no seek ──
         if (abs <= RATE_CORRECT_MS) {
             float rate = drift > 0 ? RATE_SLOW : RATE_FAST;
             return Correction.rate(rate, ideal, drift);
         }
 
-        boolean seekAllowed = (nowMono - lastSeekMonoMs) >= MIN_SEEK_INTERVAL_MS;
-        if (abs >= HARD_DRIFT_MS && seekAllowed) {
+        // ── Major jump (host seek / long stall): full re-arm ──
+        if (abs >= REARM_DRIFT_MS
+                && (nowMono - lastSeekMonoMs) >= MIN_SEEK_INTERVAL_MS) {
+            lastSeekMonoMs = nowMono;
+            return Correction.stale(ideal);
+        }
+
+        // ── Hard but recoverable: in-place seek, stay LOCKED ──
+        if (abs >= HARD_DRIFT_MS
+                && (nowMono - lastSeekMonoMs) >= MIN_SEEK_INTERVAL_MS) {
             lastSeekMonoMs = nowMono;
             return Correction.hardSeek(ideal, drift);
         }
 
-        // Between rate and hard, or seek throttled: mild rate only
+        // Seek throttled — keep gentle rate until next window
         float rate = drift > 0 ? RATE_SLOW : RATE_FAST;
         return Correction.rate(rate, ideal, drift);
     }

@@ -58,6 +58,8 @@ public final class TimeEnginePlayerBridge {
      * We freeze the first deadline when entering ARMED.
      */
     private long frozenReleaseMonoMs = -1L;
+    /** Last playback rate applied — skip redundant setPlaybackSpeed calls. */
+    private float lastAppliedRate = 1.0f;
 
     private final MutableLiveData<Boolean> readyForUi = new MutableLiveData<>(false);
 
@@ -122,6 +124,7 @@ public final class TimeEnginePlayerBridge {
         armedSinceMonoMs = 0;
         lastStaleMonoMs = 0;
         frozenReleaseMonoMs = -1L;
+        lastAppliedRate = 1.0f;
         readyForUi.postValue(false);
         engine.stopSession();
     }
@@ -197,12 +200,14 @@ public final class TimeEnginePlayerBridge {
                 forceSilent();
                 return;
             }
-            // Large intentional seek from host (schedule advanced + big jump)
+            // Heartbeat only refreshes ideal math (already applied above).
+            // Correction runs on correctLoop — if aligned, it is a pure no-op.
+            // Full re-arm only on huge host jump (e.g. scrub / track skip residue).
             if (scheduleAdvanced) {
                 long local = safePos();
                 long drift = Math.abs(engine.driftMs(local));
-                if (drift > TimeEngine.HARD_DRIFT_MS * 3) {
-                    rearmOnce(anchor, "host-seek");
+                if (drift >= TimeEngine.REARM_DRIFT_MS) {
+                    rearmOnce(anchor, "host-jump drift=" + drift);
                 }
             }
             return;
@@ -414,7 +419,10 @@ public final class TimeEnginePlayerBridge {
                 + " mono=" + SystemClock.elapsedRealtime());
     }
 
-    /** Drift correction only while LOCKED — never during ARMED. */
+    /**
+     * Locked-state sync tick. When guest matches host ideal → no player calls.
+     * Only rate / in-place seek / re-arm when drift exceeds thresholds.
+     */
     private void applyLockedCorrection() {
         if (playback == null) return;
         if (engine.phase() != TimeEnginePhase.LOCKED) return;
@@ -441,28 +449,59 @@ public final class TimeEnginePlayerBridge {
 
         switch (c.kind) {
             case NONE:
-            case RATE:
-                try {
-                    playback.setPlaybackSpeed(c.rate);
-                    if (!playing) playback.play();
-                } catch (Exception ignored) { }
-                break;
-            case HARD_SEEK:
-                // One re-arm, not a thrash loop
-                if (a != null) {
-                    rearmOnce(a, "hard-drift=" + c.driftMs);
+                // Aligned with host — leave buffering and playback alone
+                if (lastAppliedRate != 1.0f) {
+                    try {
+                        playback.setPlaybackSpeed(1.0f);
+                        lastAppliedRate = 1.0f;
+                    } catch (Exception ignored) { }
+                }
+                if (!playing) {
+                    try { playback.play(); } catch (Exception ignored) { }
                 }
                 break;
+
+            case RATE:
+                if (Math.abs(lastAppliedRate - c.rate) > 0.0005f) {
+                    try {
+                        playback.setPlaybackSpeed(c.rate);
+                        lastAppliedRate = c.rate;
+                        Log.d(TAG, "rate=" + c.rate + " drift=" + c.driftMs
+                                + " local=" + local + " ideal=" + c.idealPositionMs);
+                    } catch (Exception ignored) { }
+                }
+                if (!playing) {
+                    try { playback.play(); } catch (Exception ignored) { }
+                }
+                break;
+
+            case HARD_SEEK:
+                // In-place seek — stay LOCKED, do not mute/re-buffer whole stream
+                try {
+                    if (c.idealPositionMs >= 0) {
+                        playback.seekTo(c.idealPositionMs);
+                        engine.markSeekApplied();
+                    }
+                    playback.setPlaybackSpeed(1.0f);
+                    lastAppliedRate = 1.0f;
+                    if (!playing) playback.play();
+                    Log.i(TAG, "in-place seek drift=" + c.driftMs
+                            + " → " + c.idealPositionMs);
+                } catch (Exception e) {
+                    Log.w(TAG, "in-place seek failed: " + e.getMessage());
+                }
+                break;
+
             case TRANSPORT:
                 try {
                     if (c.playWhenReady) playback.play();
                     else forceSilent();
                 } catch (Exception ignored) { }
                 break;
+
             case STALE:
-                forceSilent();
-                engine.setPhase(TimeEnginePhase.STALE);
-                lastStaleMonoMs = SystemClock.elapsedRealtime();
+                // Only true major desync — full silent re-arm
+                rearmOnce(a, "stale-desync");
                 break;
         }
 
