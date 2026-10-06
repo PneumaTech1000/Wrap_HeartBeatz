@@ -34,7 +34,9 @@ public final class TimeEnginePlayerBridge {
     /** Min gap between seeks while arming. */
     private static final long ARM_SEEK_COOLDOWN_MS = 800L;
     /** Max time waiting in ARMED before force-release attempt. */
-    private static final long ARM_TIMEOUT_MS = 12_000L;
+    private static final long ARM_TIMEOUT_MS = 8_000L;
+    /** Cap frozen wait so host heartbeats cannot push release forever. */
+    private static final long MAX_FROZEN_WAIT_MS = 5_000L;
 
     private final TimeEngine engine;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -49,6 +51,13 @@ public final class TimeEnginePlayerBridge {
     private long lastArmSeekMonoMs;
     private long armedSinceMonoMs;
     private long lastStaleMonoMs;
+    /**
+     * One-shot release deadline in {@link SystemClock#elapsedRealtime()}.
+     * Host heartbeats refresh targetServerTime (~lookahead into the future every
+     * 2s), which would keep {@link TimeEngine#msUntilRelease()} positive forever.
+     * We freeze the first deadline when entering ARMED.
+     */
+    private long frozenReleaseMonoMs = -1L;
 
     private final MutableLiveData<Boolean> readyForUi = new MutableLiveData<>(false);
 
@@ -66,9 +75,12 @@ public final class TimeEnginePlayerBridge {
                 main.postDelayed(this, 250);
                 return;
             }
-            long until = engine.msUntilRelease();
-            if (until > 50) {
-                long delay = Math.min(Math.max(until / 2, ARM_POLL_MS), 200L);
+            long now = SystemClock.elapsedRealtime();
+            long untilFrozen = frozenReleaseMonoMs > 0
+                    ? frozenReleaseMonoMs - now
+                    : engine.msUntilRelease();
+            if (untilFrozen > 50) {
+                long delay = Math.min(Math.max(untilFrozen / 2, ARM_POLL_MS), 200L);
                 main.postDelayed(this, delay);
                 return;
             }
@@ -109,6 +121,7 @@ public final class TimeEnginePlayerBridge {
         lastArmSeekMonoMs = 0;
         armedSinceMonoMs = 0;
         lastStaleMonoMs = 0;
+        frozenReleaseMonoMs = -1L;
         readyForUi.postValue(false);
         engine.stopSession();
     }
@@ -248,12 +261,23 @@ public final class TimeEnginePlayerBridge {
                 return;
             }
             engine.setPhase(TimeEnginePhase.ARMED);
-            armedSinceMonoMs = SystemClock.elapsedRealtime();
+            long now = SystemClock.elapsedRealtime();
+            armedSinceMonoMs = now;
+            // Freeze deadline once — host heartbeats must not push it forever
+            long liveUntil = engine.msUntilRelease();
+            if (liveUntil < 0 || liveUntil > MAX_FROZEN_WAIT_MS) {
+                liveUntil = Math.min(MAX_FROZEN_WAIT_MS,
+                        Math.max(800L, anchor.lookaheadMs > 0
+                                ? Math.min(anchor.lookaheadMs, MAX_FROZEN_WAIT_MS)
+                                : 3_000L));
+            }
+            frozenReleaseMonoMs = now + liveUntil;
             if (anchor.hasTitle()) metaReadyNotified = true;
             releasePosted = false;
             main.removeCallbacks(armLoop);
             main.post(armLoop);
-            Log.i(TAG, "ARMED waiting release until=" + engine.msUntilRelease()
+            Log.i(TAG, "ARMED frozenReleaseIn=" + liveUntil
+                    + "ms liveUntil=" + engine.msUntilRelease()
                     + " ideal=" + engine.idealTrackPositionMs());
         }, BUFFER_SETTLE_MS);
     }
@@ -287,7 +311,10 @@ public final class TimeEnginePlayerBridge {
 
         releasePosted = false;
         engine.setPhase(TimeEnginePhase.ARMED);
-        armedSinceMonoMs = SystemClock.elapsedRealtime();
+        long now2 = SystemClock.elapsedRealtime();
+        armedSinceMonoMs = now2;
+        // Short re-arm window after recovery (do not wait full lookahead again)
+        frozenReleaseMonoMs = now2 + SEEK_SETTLE_MS;
         main.removeCallbacks(armLoop);
         main.postDelayed(armLoop, SEEK_SETTLE_MS);
         Log.i(TAG, "rearm (" + reason + ") ideal=" + ideal);
