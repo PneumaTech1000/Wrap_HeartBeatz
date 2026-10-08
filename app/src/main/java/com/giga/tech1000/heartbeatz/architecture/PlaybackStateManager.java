@@ -589,7 +589,12 @@ public class PlaybackStateManager implements PlaybackStateRepository {
         try {
             if (playerThread != null && playerThread.getCorePlayer() != null) {
                 MediaController c = playerThread.getCorePlayer().getMediaController();
-                if (c != null) return c.isPlaying();
+                if (c != null) {
+                    // isPlaying() is false while buffering even if playWhenReady.
+                    // Treat playWhenReady as "should be playing" for party sync.
+                    if (c.getPlayWhenReady()) return true;
+                    return c.isPlaying();
+                }
             }
         } catch (Exception ignored) { }
         Boolean playing = isPlaying.getValue();

@@ -246,9 +246,25 @@ public final class TimeEnginePlayerBridge {
         }
 
         if (phase == TimeEnginePhase.STALE) {
-            // Single re-arm path; cooldown prevents packet storms
-            if (SystemClock.elapsedRealtime() - lastStaleMonoMs > 1_000L) {
-                rearmOnce(anchor, "stale-recovery");
+            // Prefer returning to LOCKED free-run without a full silent re-arm
+            if (anchor.isPlaying && anchor.hasMedia()) {
+                long now = SystemClock.elapsedRealtime();
+                if (now - lastStaleMonoMs > 1_500L) {
+                    lastStaleMonoMs = now;
+                    try {
+                        long ideal = engine.idealTrackPositionMs();
+                        if (ideal >= 0) playback.seekTo(ideal);
+                        playback.setPlaybackSpeed(1.0f);
+                        playback.play();
+                        lockedSinceMonoMs = now;
+                        engine.setPhase(TimeEnginePhase.LOCKED);
+                        main.removeCallbacks(correctLoop);
+                        main.postDelayed(correctLoop, LOCKED_GRACE_MS);
+                        PartyLog.i("TimeEnginePlayerBridge", "STALE→LOCKED free-run ideal=" + ideal);
+                    } catch (Exception e) {
+                        rearmOnce(anchor, "stale-recovery");
+                    }
+                }
             }
         }
     }
@@ -258,13 +274,11 @@ public final class TimeEnginePlayerBridge {
         forceSilent();
         releasePosted = false;
 
+        // Park at live ideal (host position + elapsed), NOT the 4s lookahead target.
+        // Parking at targetPosition made local stuck at 0 and forced noisy arm-timeouts.
         long ideal = engine.idealTrackPositionMs();
-        long parkAt = ideal >= 0 ? ideal : Math.max(0L, anchor.targetPositionMs);
-        // If release is still in the future, park at target; else at live ideal
+        long parkAt = ideal >= 0 ? ideal : Math.max(0L, anchor.positionMs);
         long until = engine.msUntilRelease();
-        if (until > 200 && anchor.targetPositionMs > 0) {
-            parkAt = anchor.targetPositionMs;
-        }
 
         PartyLog.i("TimeEnginePlayerBridge", "beginBuffer url=" + shortUrl(anchor.mediaUrl)
                 + " parkAt=" + parkAt
@@ -480,61 +494,48 @@ public final class TimeEnginePlayerBridge {
             return;
         }
 
-        // Grace after unlock: free-run only
+        // Free-run while LOCKED: do not mute on packet gaps. STALE mute was the
+        // main source of click/glitch noise when Firebase heartbeats lagged.
         long now = SystemClock.elapsedRealtime();
-        if (lockedSinceMonoMs > 0 && now - lockedSinceMonoMs < LOCKED_GRACE_MS) {
-            if (!safePlaying()) {
-                try { playback.play(); } catch (Exception ignored) { }
-            }
+        if (engine.isScheduleStale()) {
+            // Soft: keep playing; wait for next host packet without tearing down
+            PartyLog.d("TimeEnginePlayerBridge", "schedule gap while locked — free-run");
+            ensurePlayingOnce(now);
             return;
         }
 
-        if (engine.isScheduleStale()) {
-            // Only stale if host also claims playing; otherwise stay paused
-            PartyLog.w("TimeEnginePlayerBridge", "schedule stale while locked");
-            forceSilent();
-            engine.setPhase(TimeEnginePhase.STALE);
-            lastStaleMonoMs = now;
+        // Grace after unlock
+        if (lockedSinceMonoMs > 0 && now - lockedSinceMonoMs < LOCKED_GRACE_MS) {
+            ensurePlayingOnce(now);
             return;
         }
 
         long local = safePos();
-        // Position not ready yet — do not correct
-        if (local <= 0) return;
+        if (local <= 0) {
+            ensurePlayingOnce(now);
+            return;
+        }
 
         boolean playing = safePlaying();
-        TimeEngine.Correction c = engine.decideCorrection(local, playing);
+        // Tell decideCorrection we are "playing" if host wants play — avoids
+        // transport thrash while Media3 is still buffering (isPlaying=false).
+        TimeEngine.Correction c = engine.decideCorrection(local, playing || a.isPlaying);
 
         switch (c.kind) {
             case NONE:
-                // Aligned with host — leave buffering and playback alone
-                if (lastAppliedRate != 1.0f) {
-                    try {
-                        playback.setPlaybackSpeed(1.0f);
-                        lastAppliedRate = 1.0f;
-                    } catch (Exception ignored) { }
-                }
-                if (!playing) {
-                    try { playback.play(); } catch (Exception ignored) { }
-                }
-                break;
-
             case RATE:
-                // Pitch-bend disabled — causes audible distortion on many devices.
-                // Free-run at 1.0 until a HARD_SEEK window opens.
+            case TRANSPORT:
                 if (lastAppliedRate != 1.0f) {
                     try {
                         playback.setPlaybackSpeed(1.0f);
                         lastAppliedRate = 1.0f;
                     } catch (Exception ignored) { }
                 }
-                if (!playing) {
-                    try { playback.play(); } catch (Exception ignored) { }
-                }
+                if (a.isPlaying) ensurePlayingOnce(now);
                 break;
 
             case HARD_SEEK:
-                // In-place seek — stay LOCKED, do not mute/re-buffer whole stream
+                // Rare: only on large drift. Stay LOCKED — no mute/re-buffer.
                 try {
                     if (c.idealPositionMs >= 0) {
                         playback.seekTo(c.idealPositionMs);
@@ -542,7 +543,7 @@ public final class TimeEnginePlayerBridge {
                     }
                     playback.setPlaybackSpeed(1.0f);
                     lastAppliedRate = 1.0f;
-                    if (!playing) playback.play();
+                    ensurePlayingOnce(now);
                     PartyLog.i("TimeEnginePlayerBridge", "in-place seek drift=" + c.driftMs
                             + " → " + c.idealPositionMs);
                 } catch (Exception e) {
@@ -550,22 +551,34 @@ public final class TimeEnginePlayerBridge {
                 }
                 break;
 
-            case TRANSPORT:
-                try {
-                    if (c.playWhenReady) playback.play();
-                    else forceSilent();
-                } catch (Exception ignored) { }
-                break;
-
             case STALE:
-                // Only true major desync — full silent re-arm
-                rearmOnce(a, "stale-desync");
+                // Do not mute. Soft in-place seek if far off; stay LOCKED.
+                if (c.idealPositionMs >= 0 && Math.abs(local - c.idealPositionMs) > HARD_DRIFT_HINT_MS) {
+                    try {
+                        playback.seekTo(c.idealPositionMs);
+                        engine.markSeekApplied();
+                        PartyLog.i("TimeEnginePlayerBridge", "soft recover seek → " + c.idealPositionMs);
+                    } catch (Exception ignored) { }
+                }
+                ensurePlayingOnce(now);
                 break;
         }
+    }
 
-        if (!engine.shouldOutputAudio() && playing) {
-            forceSilent();
-        }
+    private static final long HARD_DRIFT_HINT_MS = 1_200L;
+    private static final long PLAY_REQUEST_COOLDOWN_MS = 1_200L;
+    private long lastPlayRequestMonoMs;
+
+    /** At most one play() per cooldown — stops LOCKED resume spam / audio glitches. */
+    private void ensurePlayingOnce(long nowMono) {
+        if (playback == null) return;
+        if (nowMono - lastPlayRequestMonoMs < PLAY_REQUEST_COOLDOWN_MS) return;
+        try {
+            if (!playback.isPlayingSync()) {
+                playback.play();
+                lastPlayRequestMonoMs = nowMono;
+            }
+        } catch (Exception ignored) { }
     }
 
     private void forceSilent() {
@@ -573,6 +586,7 @@ public final class TimeEnginePlayerBridge {
         try {
             playback.pause();
             playback.setPlaybackSpeed(1.0f);
+            lastPlayRequestMonoMs = 0;
         } catch (Exception ignored) { }
     }
 

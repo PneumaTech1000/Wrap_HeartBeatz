@@ -34,8 +34,8 @@ public final class TimeEngine {
     public static final long REARM_DRIFT_MS = 3_500L;
     /** Min time between hard seeks (prevents stutter). */
     public static final long MIN_SEEK_INTERVAL_MS = 5_000L;
-    /** No usable schedule → stale/idle. */
-    public static final long STALE_TIMEOUT_MS = 12_000L;
+    /** Host packet gap before schedule is soft-stale (guest keeps free-running). */
+    public static final long STALE_TIMEOUT_MS = 25_000L;
     /** Very mild rate band — less pitch artifact. */
     public static final float RATE_SLOW = 0.992f;
     public static final float RATE_FAST = 1.008f;
