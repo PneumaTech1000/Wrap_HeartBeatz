@@ -19,26 +19,26 @@ import com.giga.tech1000.heartbeatz.architecture.party.PartyLog;
  * Lag / hard drift → {@link TimeEnginePhase#STALE} (silent) until re-arm.
  */
 public final class TimeEngine {
-    // ── thresholds (TIME_ENGINE_ARCHITECTURE §6.2) ──────────────────────────
-    /** Lookahead default when host omits it. */
+    // ── thresholds (lightweight: prefer free-run, rare seeks = clean audio) ─
+    /** Lookahead default when host omits it (release arm only). */
     public static final long DEFAULT_LOOKAHEAD_MS = 4_000L;
     /** Extra buffer past ideal before ARMED→LOCKED. */
     public static final long BUFFER_MARGIN_MS = 1_500L;
-    /** Below this: in sync — no player action (heartbeat is a no-op). */
-    public static final long SOFT_DRIFT_MS = 45L;
+    /** Below this: in sync — no player action. */
+    public static final long SOFT_DRIFT_MS = 180L;
     /** Rate-correct band upper bound (gentle speed only). */
-    public static final long RATE_CORRECT_MS = 120L;
-    /** Above this: in-place seek while staying LOCKED. */
-    public static final long HARD_DRIFT_MS = 180L;
-    /** Above this: full mute + re-arm (major desync / host jump). */
-    public static final long REARM_DRIFT_MS = 2_000L;
-    /** Min time between hard seeks. */
-    public static final long MIN_SEEK_INTERVAL_MS = 2_500L;
+    public static final long RATE_CORRECT_MS = 550L;
+    /** Above this: one in-place seek while staying LOCKED. */
+    public static final long HARD_DRIFT_MS = 1_200L;
+    /** Above this: full mute + re-arm (track jump / scrub). */
+    public static final long REARM_DRIFT_MS = 3_500L;
+    /** Min time between hard seeks (prevents stutter). */
+    public static final long MIN_SEEK_INTERVAL_MS = 5_000L;
     /** No usable schedule → stale/idle. */
-    public static final long STALE_TIMEOUT_MS = 8_000L;
-    /** Narrow rate band only. */
-    public static final float RATE_SLOW = 0.995f;
-    public static final float RATE_FAST = 1.005f;
+    public static final long STALE_TIMEOUT_MS = 12_000L;
+    /** Very mild rate band — less pitch artifact. */
+    public static final float RATE_SLOW = 0.992f;
+    public static final float RATE_FAST = 1.008f;
 
     private final PartyServerClock serverClock = PartyServerClock.get();
 
@@ -209,6 +209,12 @@ public final class TimeEngine {
 
     /**
      * Ideal media position at this instant (ms into track).
+     * <p>
+     * While playing we extrapolate from the host's last <b>positionMs</b> plus
+     * elapsed mono since the packet was received. We intentionally do <b>not</b>
+     * chase the 4s lookahead target for continuous ideal — that raced ahead of
+     * the decoder and forced constant seeks (distortion). Lookahead is only for
+     * {@link #msUntilRelease()} arm timing.
      */
     public long idealTrackPositionMs() {
         TimeAnchor a = latest;
@@ -218,23 +224,17 @@ public final class TimeEngine {
             return clamp(a.positionMs, a.durationMs);
         }
 
-        long scheduleNow = scheduleNowMs();
-        long targetServer = a.targetServerTimeMs();
-
-        if (targetServer > 0) {
-            // At targetServer → targetPosition; linear elsewhere
-            long ideal = a.targetPositionMs - (targetServer - scheduleNow);
-            return clamp(ideal, a.durationMs);
+        long sinceRecv = 0L;
+        if (a.receivedAtMonoMs > 0) {
+            sinceRecv = Math.max(0L, SystemClock.elapsedRealtime() - a.receivedAtMonoMs);
+        } else if (a.serverWriteMs >= 0) {
+            sinceRecv = Math.max(0L, scheduleNowMs() - a.serverWriteMs);
         }
-
-        if (a.serverWriteMs >= 0) {
-            long elapsed = scheduleNow - a.serverWriteMs;
-            return clamp(a.positionMs + Math.max(0L, elapsed), a.durationMs);
+        // Cap runaway if packets stop (stale path will mute)
+        if (sinceRecv > STALE_TIMEOUT_MS) {
+            sinceRecv = STALE_TIMEOUT_MS;
         }
-
-        // Receive-mono fallback
-        long sinceRecv = SystemClock.elapsedRealtime() - a.receivedAtMonoMs;
-        return clamp(a.positionMs + Math.max(0L, sinceRecv), a.durationMs);
+        return clamp(a.positionMs + sinceRecv, a.durationMs);
     }
 
     /** Ms until scheduled release (target server time). Negative if past. */

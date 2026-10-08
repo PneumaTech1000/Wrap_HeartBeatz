@@ -22,19 +22,22 @@ import com.giga.tech1000.heartbeatz.architecture.party.PartyLog;
  * Lag after lock → STALE (silent) → re-arm once, not every packet.
  */
 public final class TimeEnginePlayerBridge {
-    private static final long ARM_POLL_MS = 50L;
-    private static final long CORRECT_INTERVAL_MS = 500L;
-    private static final long BUFFER_SETTLE_MS = 500L;
+    private static final long ARM_POLL_MS = 80L;
+    /** Sparse correction — fewer seeks = less distortion / heat. */
+    private static final long CORRECT_INTERVAL_MS = 1_500L;
+    private static final long BUFFER_SETTLE_MS = 600L;
     /** After seek, ignore drift checks briefly (Media3 seek is async). */
-    private static final long SEEK_SETTLE_MS = 400L;
-    /** First unlock tolerance (join mid-track). */
-    private static final long RELEASE_TOLERANCE_MS = 750L;
+    private static final long SEEK_SETTLE_MS = 500L;
+    /** Accept coarse park at unlock; free-run handles the rest. */
+    private static final long RELEASE_TOLERANCE_MS = 1_500L;
     /** Min gap between seeks while arming. */
-    private static final long ARM_SEEK_COOLDOWN_MS = 800L;
+    private static final long ARM_SEEK_COOLDOWN_MS = 1_200L;
     /** Max time waiting in ARMED before force-release attempt. */
-    private static final long ARM_TIMEOUT_MS = 8_000L;
+    private static final long ARM_TIMEOUT_MS = 6_000L;
     /** Cap frozen wait so host heartbeats cannot push release forever. */
     private static final long MAX_FROZEN_WAIT_MS = 5_000L;
+    /** After RELEASE, no seek/rate (decoder settle, clean audio). */
+    private static final long LOCKED_GRACE_MS = 3_000L;
 
     private final TimeEngine engine;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -49,6 +52,7 @@ public final class TimeEnginePlayerBridge {
     private long lastArmSeekMonoMs;
     private long armedSinceMonoMs;
     private long lastStaleMonoMs;
+    private long lockedSinceMonoMs;
     /**
      * One-shot release deadline in {@link SystemClock#elapsedRealtime()}.
      * Host heartbeats refresh targetServerTime (~lookahead into the future every
@@ -121,6 +125,7 @@ public final class TimeEnginePlayerBridge {
         lastArmSeekMonoMs = 0;
         armedSinceMonoMs = 0;
         lastStaleMonoMs = 0;
+        lockedSinceMonoMs = 0;
         frozenReleaseMonoMs = -1L;
         lastAppliedRate = 1.0f;
         readyForUi.postValue(false);
@@ -142,6 +147,7 @@ public final class TimeEnginePlayerBridge {
             lastArmSeekMonoMs = 0;
             armedSinceMonoMs = 0;
             lastStaleMonoMs = 0;
+            lockedSinceMonoMs = 0;
             frozenReleaseMonoMs = -1L;
             lastAppliedRate = 1.0f;
             readyForUi.postValue(false);
@@ -383,16 +389,21 @@ public final class TimeEnginePlayerBridge {
         long drift = Math.abs(local - ideal);
         long armedFor = armedSinceMonoMs > 0 ? now - armedSinceMonoMs : 0;
 
-        // Player still at 0 / far from ideal: seek once (cooldown) and wait
+        // local==0 often means Media3 has not reported position yet — wait, do not spam seek
+        if (local <= 0 && armedFor < 2_500L) {
+            main.postDelayed(armLoop, ARM_POLL_MS);
+            return;
+        }
+
+        // Far from ideal: at most one seek every ARM_SEEK_COOLDOWN, then wait
         if (drift > RELEASE_TOLERANCE_MS) {
-            if (now - lastArmSeekMonoMs >= ARM_SEEK_COOLDOWN_MS) {
+            if (local > 0 && now - lastArmSeekMonoMs >= ARM_SEEK_COOLDOWN_MS) {
                 try {
-                    // Lead the ideal slightly so we land closer after async seek
-                    long seekTo = ideal + Math.min(200L, RELEASE_TOLERANCE_MS / 2);
+                    long seekTo = ideal;
                     if (a.durationMs > 0) {
                         seekTo = Math.min(seekTo, a.durationMs);
                     }
-                    playback.seekTo(seekTo);
+                    playback.seekTo(Math.max(0L, seekTo));
                     lastArmSeekMonoMs = now;
                     engine.markSeekApplied();
                     PartyLog.d("TimeEnginePlayerBridge", "arm seek local=" + local + " → " + seekTo
@@ -401,9 +412,9 @@ public final class TimeEnginePlayerBridge {
                     PartyLog.w("TimeEnginePlayerBridge", "arm seek failed: " + e.getMessage());
                 }
             }
-            // Force unlock after timeout even if position API is sticky
             if (armedFor > ARM_TIMEOUT_MS) {
-                PartyLog.w("TimeEnginePlayerBridge", "arm timeout — force release local=" + local + " ideal=" + ideal);
+                PartyLog.w("TimeEnginePlayerBridge", "arm timeout — force release local="
+                        + local + " ideal=" + ideal);
                 doRelease(ideal);
                 return;
             }
@@ -420,10 +431,14 @@ public final class TimeEnginePlayerBridge {
         main.removeCallbacks(armLoop);
 
         try {
-            if (ideal >= 0) {
+            // Only seek if clearly off; avoid double-seek click at unlock
+            long local = safePos();
+            if (ideal >= 0 && (local <= 0 || Math.abs(local - ideal) > 400L)) {
                 playback.seekTo(ideal);
+                lastArmSeekMonoMs = SystemClock.elapsedRealtime();
             }
             playback.setPlaybackSpeed(1.0f);
+            lastAppliedRate = 1.0f;
             playback.play();
         } catch (Exception e) {
             PartyLog.e("TimeEnginePlayerBridge", "release play failed", e);
@@ -434,11 +449,13 @@ public final class TimeEnginePlayerBridge {
             return;
         }
 
+        lockedSinceMonoMs = SystemClock.elapsedRealtime();
         engine.setPhase(TimeEnginePhase.LOCKED);
         readyForUi.postValue(true);
         metaReadyNotified = true;
         main.removeCallbacks(correctLoop);
-        main.post(correctLoop);
+        // Start correction after grace so first seconds are clean audio
+        main.postDelayed(correctLoop, LOCKED_GRACE_MS);
         PartyLog.i("TimeEnginePlayerBridge", "RELEASE ok ideal=" + ideal
                 + " local=" + safePos()
                 + " mono=" + SystemClock.elapsedRealtime());
@@ -452,23 +469,37 @@ public final class TimeEnginePlayerBridge {
         if (playback == null) return;
         if (engine.phase() != TimeEnginePhase.LOCKED) return;
 
-        if (engine.isScheduleStale()) {
-            PartyLog.w("TimeEnginePlayerBridge", "schedule stale while locked");
-            forceSilent();
-            engine.setPhase(TimeEnginePhase.STALE);
-            lastStaleMonoMs = SystemClock.elapsedRealtime();
-            return;
-        }
-
         TimeAnchor a = engine.latestAnchor();
         if (a == null) return;
 
+        // Host paused — stop and stay LOCKED (do not STALE-thrash)
         if (!a.isPlaying) {
             forceSilent();
             return;
         }
 
+        // Grace after unlock: free-run only
+        long now = SystemClock.elapsedRealtime();
+        if (lockedSinceMonoMs > 0 && now - lockedSinceMonoMs < LOCKED_GRACE_MS) {
+            if (!safePlaying()) {
+                try { playback.play(); } catch (Exception ignored) { }
+            }
+            return;
+        }
+
+        if (engine.isScheduleStale()) {
+            // Only stale if host also claims playing; otherwise stay paused
+            PartyLog.w("TimeEnginePlayerBridge", "schedule stale while locked");
+            forceSilent();
+            engine.setPhase(TimeEnginePhase.STALE);
+            lastStaleMonoMs = now;
+            return;
+        }
+
         long local = safePos();
+        // Position not ready yet — do not correct
+        if (local <= 0) return;
+
         boolean playing = safePlaying();
         TimeEngine.Correction c = engine.decideCorrection(local, playing);
 
