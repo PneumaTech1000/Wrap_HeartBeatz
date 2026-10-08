@@ -27,6 +27,7 @@ import com.giga.tech1000.heartbeatz.architecture.party.PartyLiveBridge;
 import com.giga.tech1000.heartbeatz.architecture.party.PartyPlaybackSync;
 import com.giga.tech1000.utils.interfaces.PartyModeUICallback;
 
+import com.giga.tech1000.heartbeatz.architecture.party.PartyLog;
 /**
  * PartyViewModel - Modernized MVVM Architecture
  *
@@ -49,9 +50,6 @@ import com.giga.tech1000.utils.interfaces.PartyModeUICallback;
  */
 @OptIn(markerClass = UnstableApi.class)
 public class PartyViewModel extends AndroidViewModel {
-
-    private static final String TAG = "PartyViewModel";
-
     // ============ INJECTED REPOSITORIES ============
 
     /** May be null until UIThread.init(); resolved lazily. */
@@ -106,7 +104,7 @@ public class PartyViewModel extends AndroidViewModel {
             throw new IllegalArgumentException("PartySession must expose PartyHostRepository for this ViewModel revision");
         }
 
-        Log.d(TAG, "PartyViewModel created playbackReady=" + (playbackStateRepo != null));
+        PartyLog.d("PartyViewModel", "PartyViewModel created playbackReady=" + (playbackStateRepo != null));
         initializeStateObservers();
     }
 
@@ -120,7 +118,7 @@ public class PartyViewModel extends AndroidViewModel {
         this.playbackState = playbackStateRepo;
         this.partyHost = partyHostRepo;
         this.partySession = null;
-        Log.d(TAG, "PartyViewModel (legacy repo ctor) playbackReady=" + (playbackStateRepo != null));
+        PartyLog.d("PartyViewModel", "PartyViewModel (legacy repo ctor) playbackReady=" + (playbackStateRepo != null));
         initializeStateObservers();
     }
 
@@ -130,7 +128,7 @@ public class PartyViewModel extends AndroidViewModel {
     public void attachPlaybackRepository(@NonNull PlaybackStateRepository repo) {
         if (this.playbackState == repo) return;
         this.playbackState = repo;
-        Log.d(TAG, "PlaybackStateRepository attached");
+        PartyLog.d("PartyViewModel", "PlaybackStateRepository attached");
         initializePlaybackObservers();
     }
 
@@ -143,7 +141,7 @@ public class PartyViewModel extends AndroidViewModel {
                     playbackState = ui.getPlaybackStateRepository();
                 }
             } catch (Exception e) {
-                Log.w(TAG, "PlaybackStateRepository not ready: " + e.getMessage());
+                PartyLog.w("PartyViewModel", "PlaybackStateRepository not ready: " + e.getMessage());
             }
         }
         if (playbackState == null) {
@@ -171,7 +169,7 @@ public class PartyViewModel extends AndroidViewModel {
             if (host != null && partyHost.isHosting()) {
                 partyState.postValue(PartyState.HOSTING);
                 pendingPartyName = host.getPartyName();
-                Log.d(TAG, "State → HOSTING (" + host.getPartyName() + ")");
+                PartyLog.d("PartyViewModel", "State → HOSTING (" + host.getPartyName() + ")");
                 startHostBridge(host.getPartyId());
             }
         });
@@ -182,7 +180,7 @@ public class PartyViewModel extends AndroidViewModel {
                 PartyState cur = partyState.getValue();
                 if (cur == PartyState.CONNECTING || cur == PartyState.SEARCHING || cur == PartyState.FOUND) {
                     // Stay CONNECTING until isGuestAuthenticated
-                    Log.d(TAG, "Connected host set while " + cur + " — waiting auth");
+                    PartyLog.d("PartyViewModel", "Connected host set while " + cur + " — waiting auth");
                 }
             }
             // host == null: leaveParty / stopHosting owns transition to IDLE
@@ -191,7 +189,7 @@ public class PartyViewModel extends AndroidViewModel {
         partyHost.isGuestAuthenticated().observeForever(authenticated -> {
             if (Boolean.TRUE.equals(authenticated) && !partyHost.isHosting()) {
                 partyState.postValue(PartyState.JOINED);
-                Log.d(TAG, "State → JOINED");
+                PartyLog.d("PartyViewModel", "State → JOINED");
                 PartyHost ch = partyHost.getConnectedHost().getValue();
                 if (ch != null && ch.getPartyId() != null) {
                     startGuestBridge(ch.getPartyId());
@@ -213,7 +211,7 @@ public class PartyViewModel extends AndroidViewModel {
         ((EnhancedFirebasePartyHostRepository) partyHost).getPartyError().observeForever(error -> {
             if (error != null && !error.isEmpty()) {
                 partyError.postValue(error);
-                Log.e(TAG, "Party error: " + error);
+                PartyLog.e("PartyViewModel", "Party error: " + error);
                 PartyState cur = partyState.getValue();
                 if (cur == PartyState.CONNECTING) {
                     partyState.postValue(PartyState.SEARCHING);
@@ -410,7 +408,7 @@ public class PartyViewModel extends AndroidViewModel {
      * Start discovering parties
      */
     public void startDiscovery() {
-        Log.d(TAG, "Starting party discovery");
+        PartyLog.d("PartyViewModel", "Starting party discovery");
         partyState.postValue(PartyState.SEARCHING);
         partyHost.startDiscovery();
     }
@@ -419,7 +417,7 @@ public class PartyViewModel extends AndroidViewModel {
      * Stop discovering parties
      */
     public void stopDiscovery() {
-        Log.d(TAG, "Stopping party discovery");
+        PartyLog.d("PartyViewModel", "Stopping party discovery");
         if (partyState.getValue() == PartyState.SEARCHING) {
             partyState.postValue(PartyState.IDLE);
         }
@@ -432,7 +430,7 @@ public class PartyViewModel extends AndroidViewModel {
     public void createParty(@NonNull String partyName, @NonNull String pin) {
         partyState.postValue(PartyState.CREATING);
         partyError.postValue(null);
-        Log.d(TAG, "Creating party: " + partyName);
+        PartyLog.d("PartyViewModel", "Creating party: " + partyName);
         pendingPartyName = partyName;
         pendingPartyPin = pin;
         partyHost.createParty(partyName, pin);
@@ -446,7 +444,7 @@ public class PartyViewModel extends AndroidViewModel {
             partyError.postValue("Host not available");
             return;
         }
-        Log.d(TAG, "Joining party: " + host.getPartyName());
+        PartyLog.d("PartyViewModel", "Joining party: " + host.getPartyName());
         pendingPartyPin = pin;
         partyState.postValue(PartyState.CONNECTING);
         partyHost.joinParty(host, pin);
@@ -456,7 +454,7 @@ public class PartyViewModel extends AndroidViewModel {
      * Leave current party (host or guest)
      */
     public void leaveParty() {
-        Log.d(TAG, "Leaving party (hosting=" + partyHost.isHosting()
+        PartyLog.d("PartyViewModel", "Leaving party (hosting=" + partyHost.isHosting()
                 + " guest=" + partyHost.isGuest() + ")");
         partyError.postValue(null);
         stopPartyBridge();
@@ -476,7 +474,7 @@ public class PartyViewModel extends AndroidViewModel {
             PlaybackStateRepository repo = requirePlayback();
             bridge.startHost(partyId, repo);
         } catch (Exception e) {
-            Log.e(TAG, "startHostBridge failed", e);
+            PartyLog.e("PartyViewModel", "startHostBridge failed", e);
         }
     }
 
@@ -488,7 +486,7 @@ public class PartyViewModel extends AndroidViewModel {
             try {
                 repo = requirePlayback();
             } catch (Exception e) {
-                Log.e(TAG, "startGuestBridge: playback not ready", e);
+                PartyLog.e("PartyViewModel", "startGuestBridge: playback not ready", e);
                 // Retry once after UIThread/player may be up
                 new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                     try {
@@ -496,16 +494,16 @@ public class PartyViewModel extends AndroidViewModel {
                         bridge.attachPlaybackForGuest(retry);
                         bridge.startGuest(partyId);
                     } catch (Exception e2) {
-                        Log.e(TAG, "startGuestBridge retry failed", e2);
+                        PartyLog.e("PartyViewModel", "startGuestBridge retry failed", e2);
                     }
                 }, 600);
                 return;
             }
             bridge.attachPlaybackForGuest(repo);
             bridge.startGuest(partyId);
-            Log.i(TAG, "startGuestBridge party=" + partyId);
+            PartyLog.i("PartyViewModel", "startGuestBridge party=" + partyId);
         } catch (Exception e) {
-            Log.e(TAG, "startGuestBridge failed", e);
+            PartyLog.e("PartyViewModel", "startGuestBridge failed", e);
         }
     }
 
@@ -751,7 +749,7 @@ public class PartyViewModel extends AndroidViewModel {
     @Deprecated
     public void setUiCallback(PartyModeUICallback callback) {
         // Legacy support - no-op, callbacks are handled by repositories
-        Log.w(TAG, "setUiCallback() is deprecated. Use LiveData observers instead.");
+        PartyLog.w("PartyViewModel", "setUiCallback() is deprecated. Use LiveData observers instead.");
     }
 
     /**
@@ -767,7 +765,7 @@ public class PartyViewModel extends AndroidViewModel {
      */
     @Deprecated
     public void initiateHandover(String guestName) {
-        Log.w(TAG, "initiateHandover() is not implemented in modern architecture");
+        PartyLog.w("PartyViewModel", "initiateHandover() is not implemented in modern architecture");
     }
 
     /**
@@ -775,7 +773,7 @@ public class PartyViewModel extends AndroidViewModel {
      */
     @Deprecated
     public void acceptHandover() {
-        Log.w(TAG, "acceptHandover() is not implemented in modern architecture");
+        PartyLog.w("PartyViewModel", "acceptHandover() is not implemented in modern architecture");
     }
 
     /**
@@ -783,7 +781,7 @@ public class PartyViewModel extends AndroidViewModel {
      */
     @Deprecated
     public void declineHandover() {
-        Log.w(TAG, "declineHandover() is not implemented in modern architecture");
+        PartyLog.w("PartyViewModel", "declineHandover() is not implemented in modern architecture");
     }
 
     // ============ ENHANCED FEATURES ============
@@ -861,7 +859,7 @@ public class PartyViewModel extends AndroidViewModel {
     @Override
     protected void onCleared() {
         super.onCleared();
-        Log.d(TAG, "onCleared: Cleaning up ViewModel resources");
+        PartyLog.d("PartyViewModel", "onCleared: Cleaning up ViewModel resources");
 
         // Stop discovery if active
         if (isDiscovering()) {

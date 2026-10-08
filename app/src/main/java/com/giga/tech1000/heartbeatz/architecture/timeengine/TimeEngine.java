@@ -10,6 +10,7 @@ import androidx.lifecycle.MutableLiveData;
 
 import com.giga.tech1000.heartbeatz.architecture.party.PartyServerClock;
 
+import com.giga.tech1000.heartbeatz.architecture.party.PartyLog;
 /**
  * Schedule-based party timeline (production).
  * <p>
@@ -18,9 +19,6 @@ import com.giga.tech1000.heartbeatz.architecture.party.PartyServerClock;
  * Lag / hard drift → {@link TimeEnginePhase#STALE} (silent) until re-arm.
  */
 public final class TimeEngine {
-
-    private static final String TAG = "TimeEngine";
-
     // ── thresholds (TIME_ENGINE_ARCHITECTURE §6.2) ──────────────────────────
     /** Lookahead default when host omits it. */
     public static final long DEFAULT_LOOKAHEAD_MS = 4_000L;
@@ -85,7 +83,7 @@ public final class TimeEngine {
         outputLive.postValue(false);
         idealLive.postValue(0L);
         driftLive.postValue(0L);
-        Log.i(TAG, "session started");
+        PartyLog.i("TimeEngine", "session started");
     }
 
     public void stopSession() {
@@ -96,7 +94,7 @@ public final class TimeEngine {
         driftLive.postValue(0L);
         anchorLive.postValue(null);
         outputLive.postValue(false);
-        Log.i(TAG, "session stopped");
+        PartyLog.i("TimeEngine", "session stopped");
     }
 
     /**
@@ -109,7 +107,7 @@ public final class TimeEngine {
     /** @deprecated use {@link #applySchedule(TimeAnchor)} */
     public void feed(@NonNull TimeAnchor anchor) {
         if (anchor.scheduleId > 0 && anchor.scheduleId < highestScheduleId) {
-            Log.d(TAG, "ignore stale scheduleId=" + anchor.scheduleId
+            PartyLog.d("TimeEngine", "ignore stale scheduleId=" + anchor.scheduleId
                     + " < " + highestScheduleId);
             return;
         }
@@ -173,7 +171,7 @@ public final class TimeEngine {
         phase = p;
         phaseLive.postValue(p);
         outputLive.postValue(shouldOutputAudio());
-        Log.d(TAG, "phase " + prev + " → " + p);
+        PartyLog.d("TimeEngine", "phase " + prev + " → " + p);
     }
 
     @NonNull

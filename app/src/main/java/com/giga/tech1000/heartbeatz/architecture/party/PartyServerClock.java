@@ -10,13 +10,12 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
+import com.giga.tech1000.heartbeatz.architecture.party.PartyLog;
 /**
  * Firebase {@code .info/serverTimeOffset}: difference between server UTC and device clock.
  * {@code serverNow = System.currentTimeMillis() + offset}.
  */
 public final class PartyServerClock {
-
-    private static final String TAG = "PartyServerClock";
     private static final PartyServerClock INSTANCE = new PartyServerClock();
 
     private volatile long offsetMs;
@@ -44,7 +43,7 @@ public final class PartyServerClock {
 
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
-                Log.w(TAG, "serverTimeOffset cancelled: " + error.getMessage());
+                PartyLog.w("PartyServerClock", "serverTimeOffset cancelled: " + error.getMessage());
             }
         };
         FirebaseDatabase.getInstance()

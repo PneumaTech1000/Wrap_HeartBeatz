@@ -26,6 +26,7 @@ import com.giga.tech1000.party_mode.model.SyncPacket;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.giga.tech1000.heartbeatz.architecture.party.PartyLog;
 /**
  * Concrete implementation of {@link PlaybackStateRepository}.
  *
@@ -325,13 +326,13 @@ public class PlaybackStateManager implements PlaybackStateRepository {
             if (playerThread == null || playerThread.getCorePlayer() == null) return;
             MediaController c = playerThread.getCorePlayer().getMediaController();
             if (c == null) {
-                Log.w(TAG, "playPartyStream: MediaController null — retry in 400ms");
+                PartyLog.w("Playback", "playPartyStream: MediaController null — retry in 400ms");
                 new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() ->
                         playPartyStream(mediaUrl, mediaId, title, artist, album, positionMs, playWhenReady), 400);
                 return;
             }
             if (mediaUrl.contains("example.invalid")) {
-                Log.w(TAG, "playPartyStream: stub URL: " + mediaUrl);
+                PartyLog.w("Playback", "playPartyStream: stub URL: " + mediaUrl);
                 updatePartyMetadata(title, artist, album, 0);
                 return;
             }
@@ -360,9 +361,9 @@ public class PlaybackStateManager implements PlaybackStateRepository {
             // Media3 often reports duration after buffer — poll briefly
             pollPartyDuration(c, synthetic, 0);
 
-            Log.d(TAG, "playPartyStream url=" + mediaUrl + " pos=" + positionMs + " play=" + playWhenReady);
+            PartyLog.d("Playback", "playPartyStream url=" + mediaUrl + " pos=" + positionMs + " play=" + playWhenReady);
         } catch (Exception e) {
-            Log.e(TAG, "playPartyStream failed", e);
+            PartyLog.e("Playback", "playPartyStream failed", e);
         }
     }
 
@@ -415,11 +416,11 @@ public class PlaybackStateManager implements PlaybackStateRepository {
                                 .onSongChanged(song);
                     }
                 } catch (Exception e) {
-                    Log.w(TAG, "notifyUiSongChanged: " + e.getMessage());
+                    PartyLog.w("Playback", "notifyUiSongChanged: " + e.getMessage());
                 }
             });
         } catch (Exception e) {
-            Log.w(TAG, "notifyUiSongChanged failed", e);
+            PartyLog.w("Playback", "notifyUiSongChanged failed", e);
         }
     }
 

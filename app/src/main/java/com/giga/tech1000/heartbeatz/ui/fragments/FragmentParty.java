@@ -66,6 +66,7 @@ import com.journeyapps.barcodescanner.ScanOptions;
 
 import java.util.List;
 
+import com.giga.tech1000.heartbeatz.architecture.party.PartyLog;
 public class FragmentParty extends Fragment implements PartyModeUICallback, OnBackPressedHandler, DisplayMarginCallback {
 
     private PartyViewModel viewModel;
@@ -1096,7 +1097,7 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
                 }
             });
         } catch (Exception e) {
-            android.util.Log.w("FragmentParty", "guest sync UI observe failed", e);
+            android.util.PartyLog.w("FragmentParty", "guest sync UI observe failed", e);
             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
                     this::dismissGuestLoadingDialog, 5000);
         }
@@ -1162,7 +1163,7 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
                 panel.expandPlayer();
             }
         } catch (Exception e) {
-            android.util.Log.w("FragmentParty", "expand player skipped", e);
+            android.util.PartyLog.w("FragmentParty", "expand player skipped", e);
         }
     }
 

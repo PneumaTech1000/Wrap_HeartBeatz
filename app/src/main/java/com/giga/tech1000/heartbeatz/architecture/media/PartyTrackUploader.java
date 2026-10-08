@@ -14,13 +14,11 @@ import java.io.File;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import com.giga.tech1000.heartbeatz.architecture.party.PartyLog;
 /**
  * Host-side: upload local file → object storage → report progress on main thread.
  */
 public final class PartyTrackUploader {
-
-    private static final String TAG = "PartyTrackUploader";
-
     public enum State { IDLE, UPLOADING, SUCCESS, ERROR }
 
     public static final class Status {
@@ -75,7 +73,7 @@ public final class PartyTrackUploader {
                         fraction -> post(new Status(State.UPLOADING, fraction, null, null)));
                 post(new Status(State.SUCCESS, 1f, obj, null));
             } catch (Exception e) {
-                Log.e(TAG, "upload failed", e);
+                PartyLog.e("PartyTrackUploader", "upload failed", e);
                 post(new Status(State.ERROR, 0f, null, e.getMessage() != null ? e.getMessage() : "upload failed"));
             }
         });

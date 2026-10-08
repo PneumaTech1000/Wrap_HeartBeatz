@@ -16,14 +16,12 @@ import com.google.firebase.database.ValueEventListener;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.giga.tech1000.heartbeatz.architecture.party.PartyLog;
 /**
  * Owns /presence/{uid} reads and writes only.
  * Callers must pass the authenticated uid that matches Firebase Auth.
  */
 public final class PartyPresenceStore {
-
-    private static final String TAG = "PartyPresenceStore";
-
     public interface Listener {
         void onPresenceUpdate(@NonNull String userId, boolean online, long lastSeen);
     }
@@ -33,7 +31,7 @@ public final class PartyPresenceStore {
 
     public void setOnline(@NonNull String userId, boolean isOnline, boolean authenticated) {
         if (!authenticated || userId.isEmpty()) {
-            Log.w(TAG, "Skip presence: not authenticated or empty uid");
+            PartyLog.w("PartyPresenceStore", "Skip presence: not authenticated or empty uid");
             return;
         }
 
@@ -54,9 +52,9 @@ public final class PartyPresenceStore {
         }
 
         presenceRef.setValue(presenceData)
-                .addOnSuccessListener(aVoid -> Log.d(TAG, "Presence updated uid=" + userId))
+                .addOnSuccessListener(aVoid -> PartyLog.d("PartyPresenceStore", "Presence updated uid=" + userId))
                 .addOnFailureListener(e ->
-                        Log.w(TAG, "Presence write failed (check firebase.rules /presence): "
+                        PartyLog.w("PartyPresenceStore", "Presence write failed (check firebase.rules /presence): "
                                 + e.getMessage()));
     }
 
@@ -80,7 +78,7 @@ public final class PartyPresenceStore {
 
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
-                Log.e(TAG, "Presence listener cancelled: " + error.getMessage());
+                PartyLog.e("PartyPresenceStore", "Presence listener cancelled: " + error.getMessage());
             }
         };
         presenceRef.addValueEventListener(presenceEventListener);

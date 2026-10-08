@@ -17,14 +17,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import com.giga.tech1000.heartbeatz.architecture.party.PartyLog;
 /**
  * Keeps free-tier object storage lean for online party media.
  * During party: files stay. On track remove or party end: deleted from cloud.
  */
 public final class PartyMediaLifecycle {
-
-    private static final String TAG = "PartyMediaLifecycle";
-
     private final PartyMediaStore store;
     private final ExecutorService io = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "party-media-lifecycle");
@@ -48,9 +46,9 @@ public final class PartyMediaLifecycle {
             if (trackId != null) row.put("trackId", trackId);
             row.put("uploadedAt", System.currentTimeMillis());
             ref.setValue(row);
-            Log.d(TAG, "Registered media " + objectKey);
+            PartyLog.d("PartyMediaLifecycle", "Registered media " + objectKey);
         } catch (Exception e) {
-            Log.w(TAG, "registerUploaded failed", e);
+            PartyLog.w("PartyMediaLifecycle", "registerUploaded failed", e);
         }
     }
 
@@ -59,9 +57,9 @@ public final class PartyMediaLifecycle {
         io.execute(() -> {
             try {
                 store.delete(objectKey);
-                Log.i(TAG, "Deleted track object: " + objectKey);
+                PartyLog.i("PartyMediaLifecycle", "Deleted track object: " + objectKey);
             } catch (Exception e) {
-                Log.w(TAG, "deleteTrackObject failed: " + objectKey, e);
+                PartyLog.w("PartyMediaLifecycle", "deleteTrackObject failed: " + objectKey, e);
             }
         });
         String partyId = partyIdFromKey(objectKey);
@@ -78,9 +76,9 @@ public final class PartyMediaLifecycle {
         io.execute(() -> {
             try {
                 store.delete(objectKey);
-                Log.i(TAG, "Deleted track object: " + objectKey);
+                PartyLog.i("PartyMediaLifecycle", "Deleted track object: " + objectKey);
             } catch (Exception e) {
-                Log.w(TAG, "deleteTrackObject failed: " + objectKey, e);
+                PartyLog.w("PartyMediaLifecycle", "deleteTrackObject failed: " + objectKey, e);
             }
         });
         try {
@@ -97,26 +95,26 @@ public final class PartyMediaLifecycle {
             try {
                 keys.addAll(readIndexKeysBlocking(id));
             } catch (Exception e) {
-                Log.w(TAG, "mediaIndex read failed", e);
+                PartyLog.w("PartyMediaLifecycle", "mediaIndex read failed", e);
             }
             for (String key : keys) {
                 try {
                     store.delete(key);
                 } catch (Exception e) {
-                    Log.w(TAG, "delete key failed: " + key, e);
+                    PartyLog.w("PartyMediaLifecycle", "delete key failed: " + key, e);
                 }
             }
             try {
                 store.deletePartyPrefix(id);
             } catch (Exception e) {
-                Log.w(TAG, "deletePartyPrefix failed", e);
+                PartyLog.w("PartyMediaLifecycle", "deletePartyPrefix failed", e);
             }
             try {
                 mediaIndexRef(id).removeValue();
             } catch (Exception e) {
-                Log.w(TAG, "mediaIndex clear failed", e);
+                PartyLog.w("PartyMediaLifecycle", "mediaIndex clear failed", e);
             }
-            Log.i(TAG, "Purged party media for " + id + " (index keys=" + keys.size() + ")");
+            PartyLog.i("PartyMediaLifecycle", "Purged party media for " + id + " (index keys=" + keys.size() + ")");
         });
     }
 

@@ -40,14 +40,13 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import com.giga.tech1000.heartbeatz.architecture.party.PartyLog;
 /**
  * Enhanced Firebase-based implementation of PartyHostRepository
  * Replaces the UDP-based discovery with Firebase Realtime Database
  * Includes improved error handling, network awareness, and additional features
  */
 public class EnhancedFirebasePartyHostRepository extends FirebaseRepository implements PartyHostRepository {
-
-    private static final String TAG = "EnhancedFirebasePartyHostRepository";
     private static final String PARTIES_NODE = PartyFirebasePaths.PARTIES;
     private static final String PRESENCE_NODE = PartyFirebasePaths.PRESENCE;
     private final PartyPresenceStore presenceStore = new PartyPresenceStore();
@@ -92,7 +91,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
         this.appContext = context.getApplicationContext();
         this.connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
         setupNetworkMonitoring();
-        Log.d(TAG, "EnhancedFirebasePartyHostRepository initialized");
+        PartyLog.d("EnhancedFirebasePartyHostRepository", "EnhancedFirebasePartyHostRepository initialized");
     }
 
     public void release() {
@@ -180,7 +179,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
     }
 
     private void handleNetworkLoss() {
-        Log.w(TAG, "Network connection lost");
+        PartyLog.w("EnhancedFirebasePartyHostRepository", "Network connection lost");
         // Pause discovery to save battery
         if (isDiscovering) {
             stopDiscoveryInternal();
@@ -189,7 +188,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
     }
 
     private void handleNetworkRestore() {
-        Log.i(TAG, "Network connection restored");
+        PartyLog.i("EnhancedFirebasePartyHostRepository", "Network connection restored");
         // Resume discovery if it was active
         if (isDiscovering) {
             startDiscoveryInternal();
@@ -225,12 +224,12 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
     @Override
     public void startDiscovery() {
         if (!isNetworkConnected) {
-            Log.w(TAG, "Cannot start discovery: no network connection");
+            PartyLog.w("EnhancedFirebasePartyHostRepository", "Cannot start discovery: no network connection");
             partyErrorLiveData.postValue("No internet connection");
             return;
         }
 
-        Log.d(TAG, "Starting enhanced party discovery via Firebase");
+        PartyLog.d("EnhancedFirebasePartyHostRepository", "Starting enhanced party discovery via Firebase");
         isDiscovering = true;
 
         // Listen for parties in the database with enhanced error handling
@@ -257,7 +256,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
                         }
                     }
                 } catch (Exception e) {
-                    Log.e(TAG, "Error processing party onChildAdded", e);
+                    PartyLog.e("EnhancedFirebasePartyHostRepository", "Error processing party onChildAdded", e);
                     partyErrorLiveData.postValue("Error processing party data");
                 }
             }
@@ -275,7 +274,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
                         }
                     }
                 } catch (Exception e) {
-                    Log.e(TAG, "Error processing party onChildChanged", e);
+                    PartyLog.e("EnhancedFirebasePartyHostRepository", "Error processing party onChildChanged", e);
                     partyErrorLiveData.postValue("Error processing party data");
                 }
             }
@@ -288,7 +287,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
                         updateDiscoveredHostsList(party, false);
                     }
                 } catch (Exception e) {
-                    Log.e(TAG, "Error processing party onChildRemoved", e);
+                    PartyLog.e("EnhancedFirebasePartyHostRepository", "Error processing party onChildRemoved", e);
                 }
             }
 
@@ -299,7 +298,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
 
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
-                Log.e(TAG, "Discovery cancelled: " + error.getMessage());
+                PartyLog.e("EnhancedFirebasePartyHostRepository", "Discovery cancelled: " + error.getMessage());
                 partyErrorLiveData.postValue("Discovery failed: " + error.getMessage());
                 isDiscovering = false;
             }
@@ -311,11 +310,11 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
     @Override
     public void stopDiscovery() {
         if (!isNetworkConnected) {
-            Log.w(TAG, "Cannot stop discovery: no network connection");
+            PartyLog.w("EnhancedFirebasePartyHostRepository", "Cannot stop discovery: no network connection");
             return;
         }
 
-        Log.d(TAG, "Stopping party discovery");
+        PartyLog.d("EnhancedFirebasePartyHostRepository", "Stopping party discovery");
         isDiscovering = false;
 
         if (databaseReference != null && partiesEventListener != null) {
@@ -467,7 +466,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
 
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
-                Log.e(TAG, "Presence listener cancelled: " + error.getMessage());
+                PartyLog.e("EnhancedFirebasePartyHostRepository", "Presence listener cancelled: " + error.getMessage());
             }
         };
 
@@ -488,19 +487,19 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
     @Override
     public void createParty(@NonNull String partyName, @NonNull String pin) {
         if (!isNetworkConnected) {
-            Log.w(TAG, "Cannot create party: no network connection");
+            PartyLog.w("EnhancedFirebasePartyHostRepository", "Cannot create party: no network connection");
             partyErrorLiveData.postValue("No internet connection");
             return;
         }
 
         // Check if user is authenticated
         if (!isAuthenticated()) {
-            Log.w(TAG, "Cannot create party: user not authenticated");
+            PartyLog.w("EnhancedFirebasePartyHostRepository", "Cannot create party: user not authenticated");
             partyErrorLiveData.postValue("Please sign in to create a party");
             return;
         }
 
-        Log.d(TAG, "Creating party: " + partyName);
+        PartyLog.d("EnhancedFirebasePartyHostRepository", "Creating party: " + partyName);
 
         // Validate inputs
         if (partyName == null || partyName.trim().isEmpty()) {
@@ -517,7 +516,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
         String partyId = databaseReference.push().getKey();
 
         if (partyId == null) {
-            Log.e(TAG, "Failed to generate party ID");
+            PartyLog.e("EnhancedFirebasePartyHostRepository", "Failed to generate party ID");
             partyErrorLiveData.postValue("Failed to create party");
             return;
         }
@@ -536,7 +535,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
         DatabaseReference partyRef = databaseReference.child(partyId);
         partyRef.setValue(host)
                 .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "Party created successfully: " + partyId);
+                    PartyLog.d("EnhancedFirebasePartyHostRepository", "Party created successfully: " + partyId);
                     hostedPartyLiveData.postValue(host);
                     isHosting = true;
                     currentPartyId = partyId;
@@ -563,7 +562,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
                     partyErrorLiveData.postValue(null);
                 })
                 .addOnFailureListener(e -> {
-                    Log.e(TAG, "Failed to create party: " + e.getMessage());
+                    PartyLog.e("EnhancedFirebasePartyHostRepository", "Failed to create party: " + e.getMessage());
                     partyErrorLiveData.postValue("Failed to create party: " + e.getMessage());
                 });
     }
@@ -571,24 +570,24 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
     @Override
     public void stopHosting() {
         if (!isNetworkConnected) {
-            Log.w(TAG, "Cannot stop hosting: no network connection");
+            PartyLog.w("EnhancedFirebasePartyHostRepository", "Cannot stop hosting: no network connection");
             partyErrorLiveData.postValue("No internet connection");
             return;
         }
 
         if (!isHosting || currentPartyId == null) {
-            Log.w(TAG, "Not currently hosting a party");
+            PartyLog.w("EnhancedFirebasePartyHostRepository", "Not currently hosting a party");
             partyErrorLiveData.postValue("Not hosting a party");
             return;
         }
 
-        Log.d(TAG, "Stopping hosting for party: " + currentPartyId);
+        PartyLog.d("EnhancedFirebasePartyHostRepository", "Stopping hosting for party: " + currentPartyId);
 
         final String closingPartyId = currentPartyId;
         try {
             HeartBeatzApp.container(appContext).partyLiveBridge().onPartyClosed(closingPartyId);
         } catch (Exception e) {
-            Log.w(TAG, "Party media purge schedule failed", e);
+            PartyLog.w("EnhancedFirebasePartyHostRepository", "Party media purge schedule failed", e);
         }
 
         // Stop listening to members
@@ -599,7 +598,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
         DatabaseReference partyRef = databaseReference.child(closingPartyId);
         partyRef.removeValue()
                 .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "Party stopped successfully: " + closingPartyId);
+                    PartyLog.d("EnhancedFirebasePartyHostRepository", "Party stopped successfully: " + closingPartyId);
                     hostedPartyLiveData.postValue(null);
                     connectedHostLiveData.postValue(null);
                     connectedGuestsLiveData.postValue(new ArrayList<>());
@@ -612,7 +611,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
                     updateUserPresence(getCurrentUserId(), false);
                 })
                 .addOnFailureListener(e -> {
-                    Log.e(TAG, "Failed to stop party: " + e.getMessage());
+                    PartyLog.e("EnhancedFirebasePartyHostRepository", "Failed to stop party: " + e.getMessage());
                     partyErrorLiveData.postValue("Failed to stop party: " + e.getMessage());
                 });
     }
@@ -640,19 +639,19 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
     @Override
     public void joinParty(@NonNull PartyHost host, @NonNull String pin) {
         if (!isNetworkConnected) {
-            Log.w(TAG, "Cannot join party: no network connection");
+            PartyLog.w("EnhancedFirebasePartyHostRepository", "Cannot join party: no network connection");
             partyErrorLiveData.postValue("No internet connection");
             return;
         }
 
         // Check if user is authenticated
         if (!isAuthenticated()) {
-            Log.w(TAG, "Cannot join party: user not authenticated");
+            PartyLog.w("EnhancedFirebasePartyHostRepository", "Cannot join party: user not authenticated");
             partyErrorLiveData.postValue("Please sign in to join a party");
             return;
         }
 
-        Log.d(TAG, "Joining party: " + host.getPartyName() + " (ID: " + host.getPartyId() + ")");
+        PartyLog.d("EnhancedFirebasePartyHostRepository", "Joining party: " + host.getPartyName() + " (ID: " + host.getPartyId() + ")");
 
         // Validate inputs
         if (host == null) {
@@ -667,7 +666,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
 
         // Validate PIN first
         if (!host.validatePin(pin)) {
-            Log.w(TAG, "Invalid PIN for party: " + host.getPartyName());
+            PartyLog.w("EnhancedFirebasePartyHostRepository", "Invalid PIN for party: " + host.getPartyName());
             guestAuthenticatedLiveData.postValue(false);
             partyErrorLiveData.postValue("Invalid PIN");
             return;
@@ -702,12 +701,12 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
 
         // 1) Mark self authenticated under this party (rules: $uid == auth.uid)
         authRef.setValue(true)
-                .addOnFailureListener(e -> Log.w(TAG, "authenticatedUsers write: " + e.getMessage()));
+                .addOnFailureListener(e -> PartyLog.w("EnhancedFirebasePartyHostRepository", "authenticatedUsers write: " + e.getMessage()));
 
         // 2) Join members list
         partyRef.child("members").child(currentUserId).setValue(session)
                 .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "Joined party as member: " + host.getPartyName());
+                    PartyLog.d("EnhancedFirebasePartyHostRepository", "Joined party as member: " + host.getPartyName());
                     guestAuthenticatedLiveData.postValue(true);
                     connectedHostLiveData.postValue(host);
                     startListeningToMembers(currentPartyId);
@@ -715,7 +714,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
                     partyErrorLiveData.postValue(null);
                 })
                 .addOnFailureListener(e -> {
-                    Log.e(TAG, "Failed to join party as member", e);
+                    PartyLog.e("EnhancedFirebasePartyHostRepository", "Failed to join party as member", e);
                     guestAuthenticatedLiveData.postValue(false);
                     partyErrorLiveData.postValue("Failed to join party: " + e.getMessage());
                 });
@@ -760,29 +759,29 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
     @Override
     public void leaveParty() {
         if (!isNetworkConnected) {
-            Log.w(TAG, "Cannot leave party: no network connection");
+            PartyLog.w("EnhancedFirebasePartyHostRepository", "Cannot leave party: no network connection");
             partyErrorLiveData.postValue("No internet connection");
             return;
         }
 
         if (currentPartyId == null) {
-            Log.w(TAG, "Not currently connected to a party");
+            PartyLog.w("EnhancedFirebasePartyHostRepository", "Not currently connected to a party");
             partyErrorLiveData.postValue("Not in a party");
             return;
         }
 
         // Prevent host from leaving without transferring host first
         if (isHosting) {
-            Log.w(TAG, "Host must transfer host to a guest before leaving the party");
+            PartyLog.w("EnhancedFirebasePartyHostRepository", "Host must transfer host to a guest before leaving the party");
             partyErrorLiveData.postValue("Transfer host before leaving");
             return;
         }
 
-        Log.d(TAG, "Leaving party: " + currentPartyId);
+        PartyLog.d("EnhancedFirebasePartyHostRepository", "Leaving party: " + currentPartyId);
         String userId = getCurrentUserId();
 
         if (userId == null) {
-            Log.w(TAG, "Cannot leave party: user not authenticated");
+            PartyLog.w("EnhancedFirebasePartyHostRepository", "Cannot leave party: user not authenticated");
             partyErrorLiveData.postValue("Please sign in");
             return;
         }
@@ -798,11 +797,11 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
             partyRef.child("members").child(userId).removeValue();
             partyRef.child("authenticatedUsers").child(userId).removeValue()
                     .addOnSuccessListener(aVoid -> {
-                        Log.d(TAG, "Successfully left party");
+                        PartyLog.d("EnhancedFirebasePartyHostRepository", "Successfully left party");
                         updateUserPresence(userId, false);
                     })
                     .addOnFailureListener(e -> {
-                        Log.e(TAG, "Failed to leave party", e);
+                        PartyLog.e("EnhancedFirebasePartyHostRepository", "Failed to leave party", e);
                         partyErrorLiveData.postValue("Failed to leave party: " + e.getMessage());
                     });
         }
@@ -897,13 +896,13 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
 
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
-                Log.e(TAG, "Members listener cancelled: " + error.getMessage());
+                PartyLog.e("EnhancedFirebasePartyHostRepository", "Members listener cancelled: " + error.getMessage());
                 partyErrorLiveData.postValue("Failed to listen to party members: " + error.getMessage());
             }
         };
 
         membersRef.addChildEventListener(membersEventListener);
-        Log.d(TAG, "Started listening to members for party: " + partyId);
+        PartyLog.d("EnhancedFirebasePartyHostRepository", "Started listening to members for party: " + partyId);
     }
 
     /**
@@ -915,7 +914,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
                     .child("members");
             membersRef.removeEventListener(membersEventListener);
             membersEventListener = null;
-            Log.d(TAG, "Stopped listening to members for party: " + currentPartyId);
+            PartyLog.d("EnhancedFirebasePartyHostRepository", "Stopped listening to members for party: " + currentPartyId);
         }
         memberUidToName.clear();
     }
@@ -959,13 +958,13 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
 
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
-                Log.e(TAG, "Party listener cancelled: " + error.getMessage());
+                PartyLog.e("EnhancedFirebasePartyHostRepository", "Party listener cancelled: " + error.getMessage());
                 partyErrorLiveData.postValue("Failed to listen to party updates: " + error.getMessage());
             }
         };
 
         partyRef.addValueEventListener(partyEventListener);
-        Log.d(TAG, "Set up party listener for: " + partyId);
+        PartyLog.d("EnhancedFirebasePartyHostRepository", "Set up party listener for: " + partyId);
     }
 
     /**
@@ -976,7 +975,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
             DatabaseReference partyRef = databaseReference.child(currentPartyId);
             partyRef.removeEventListener(partyEventListener);
             partyEventListener = null;
-            Log.d(TAG, "Cleaned up party listener for: " + currentPartyId);
+            PartyLog.d("EnhancedFirebasePartyHostRepository", "Cleaned up party listener for: " + currentPartyId);
         }
     }
 
@@ -1023,13 +1022,13 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
      */
     public void kickGuest(String userIdToKick) {
         if (!isNetworkConnected) {
-            Log.w(TAG, "Cannot kick guest: no network connection");
+            PartyLog.w("EnhancedFirebasePartyHostRepository", "Cannot kick guest: no network connection");
             partyErrorLiveData.postValue("No internet connection");
             return;
         }
 
         if (!isHosting || currentPartyId == null) {
-            Log.w(TAG, "Cannot kick guest: not hosting or no active party");
+            PartyLog.w("EnhancedFirebasePartyHostRepository", "Cannot kick guest: not hosting or no active party");
             partyErrorLiveData.postValue("Not hosting a party");
             return;
         }
@@ -1037,7 +1036,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
         // Verify we are the owner
         String ownerId = getOwnerId();
         if (ownerId == null || !ownerId.equals(getCurrentUserId())) {
-            Log.w(TAG, "Cannot kick guest: not the party owner");
+            PartyLog.w("EnhancedFirebasePartyHostRepository", "Cannot kick guest: not the party owner");
             partyErrorLiveData.postValue("Only the host can kick guests");
             return;
         }
@@ -1052,27 +1051,27 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 if (snapshot.exists()) {
                     // User is a member, proceed with kick
-                    Log.d(TAG, "Host kicking user: " + userIdToKick);
+                    PartyLog.d("EnhancedFirebasePartyHostRepository", "Host kicking user: " + userIdToKick);
 
                     // Remove the user from members
                     membersRef.removeValue()
                             .addOnSuccessListener(aVoid -> {
-                                Log.d(TAG, "Successfully kicked user: " + userIdToKick);
+                                PartyLog.d("EnhancedFirebasePartyHostRepository", "Successfully kicked user: " + userIdToKick);
                                 // Optionally send a real-time notification via WebRTC
                             })
                             .addOnFailureListener(e -> {
-                                Log.e(TAG, "Failed to kick user: " + e.getMessage());
+                                PartyLog.e("EnhancedFirebasePartyHostRepository", "Failed to kick user: " + e.getMessage());
                                 partyErrorLiveData.postValue("Failed to kick user: " + e.getMessage());
                             });
                 } else {
-                    Log.w(TAG, "Cannot kick guest: user is not a member of the party");
+                    PartyLog.w("EnhancedFirebasePartyHostRepository", "Cannot kick guest: user is not a member of the party");
                     partyErrorLiveData.postValue("User is not in this party");
                 }
             }
 
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
-                Log.e(TAG, "Failed to check membership for kicking: " + error.getMessage());
+                PartyLog.e("EnhancedFirebasePartyHostRepository", "Failed to check membership for kicking: " + error.getMessage());
                 partyErrorLiveData.postValue("Error checking membership: " + error.getMessage());
             }
         });
@@ -1087,13 +1086,13 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
      */
     public void transferHost(String newHostUserId) {
         if (!isNetworkConnected) {
-            Log.w(TAG, "Cannot transfer host: no network connection");
+            PartyLog.w("EnhancedFirebasePartyHostRepository", "Cannot transfer host: no network connection");
             partyErrorLiveData.postValue("No internet connection");
             return;
         }
 
         if (!isHosting || currentPartyId == null) {
-            Log.w(TAG, "Cannot transfer host: not hosting or no active party");
+            PartyLog.w("EnhancedFirebasePartyHostRepository", "Cannot transfer host: not hosting or no active party");
             partyErrorLiveData.postValue("Not hosting a party");
             return;
         }
@@ -1101,13 +1100,13 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
         // Verify we are the owner
         String ownerId = getOwnerId();
         if (ownerId == null || !ownerId.equals(getCurrentUserId())) {
-            Log.w(TAG, "Cannot transfer host: not the party owner");
+            PartyLog.w("EnhancedFirebasePartyHostRepository", "Cannot transfer host: not the party owner");
             partyErrorLiveData.postValue("Only the current host can transfer host");
             return;
         }
 
         if (newHostUserId == null || newHostUserId.isEmpty()) {
-            Log.w(TAG, "Cannot transfer host: invalid user ID");
+            PartyLog.w("EnhancedFirebasePartyHostRepository", "Cannot transfer host: invalid user ID");
             partyErrorLiveData.postValue("Invalid user ID");
             return;
         }
@@ -1122,7 +1121,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 if (snapshot.exists()) {
                     // User is a member, proceed with transfer
-                    Log.d(TAG, "Host transferring host role to user: " + newHostUserId);
+                    PartyLog.d("EnhancedFirebasePartyHostRepository", "Host transferring host role to user: " + newHostUserId);
 
                     // Update the ownerId in Firebase
                     DatabaseReference partyRef = databaseReference.child(currentPartyId);
@@ -1132,7 +1131,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
 
                     partyRef.updateChildren(updates)
                             .addOnSuccessListener(aVoid -> {
-                                Log.d(TAG, "Host transferred to user: " + newHostUserId);
+                                PartyLog.d("EnhancedFirebasePartyHostRepository", "Host transferred to user: " + newHostUserId);
                                 // Update local state: we are no longer the host
                                 isHosting = false;
                                 // Note: We remain in the party as a guest (if we don't leave)
@@ -1140,18 +1139,18 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
                                 // when the ownerId change is propagated from Firebase.
                             })
                             .addOnFailureListener(e -> {
-                                Log.e(TAG, "Failed to transfer host: " + e.getMessage());
+                                PartyLog.e("EnhancedFirebasePartyHostRepository", "Failed to transfer host: " + e.getMessage());
                                 partyErrorLiveData.postValue("Failed to transfer host: " + e.getMessage());
                             });
                 } else {
-                    Log.w(TAG, "Cannot transfer host: user is not a member of the party");
+                    PartyLog.w("EnhancedFirebasePartyHostRepository", "Cannot transfer host: user is not a member of the party");
                     partyErrorLiveData.postValue("User is not in this party");
                 }
             }
 
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
-                Log.e(TAG, "Failed to check membership for host transfer: " + error.getMessage());
+                PartyLog.e("EnhancedFirebasePartyHostRepository", "Failed to check membership for host transfer: " + error.getMessage());
                 partyErrorLiveData.postValue("Error checking membership: " + error.getMessage());
             }
         });
@@ -1268,7 +1267,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
                 }
             }
         } catch (Exception e) {
-            Log.e(TAG, "Failed to get local IP address", e);
+            PartyLog.e("EnhancedFirebasePartyHostRepository", "Failed to get local IP address", e);
         }
         return "127.0.0.1"; // Fallback
     }
@@ -1341,7 +1340,7 @@ public class EnhancedFirebasePartyHostRepository extends FirebaseRepository impl
                 }
             }
         } catch (Exception e) {
-            Log.e(TAG, "Failed to get IPv4 address", e);
+            PartyLog.e("EnhancedFirebasePartyHostRepository", "Failed to get IPv4 address", e);
         }
         return null;
     }

@@ -23,14 +23,13 @@ import com.giga.tech1000.media_player.models.Song;
 
 import java.io.File;
 
+import com.giga.tech1000.heartbeatz.architecture.party.PartyLog;
 /**
  * Host: upload track + publish schedule anchors (4s lookahead, scheduleId, host mono).
  * Guest: {@link TimeEngine} + {@link TimeEnginePlayerBridge}
  * (LOADING → BUFFERING → ARMED muted → LOCKED; lag → STALE silent → re-arm).
  */
 public final class PartyLiveBridge {
-
-    private static final String TAG = "PartyLiveBridge";
     /** Host heartbeat; balance heat vs schedule freshness. */
     private static final long HEARTBEAT_MS = 2_000L;
 
@@ -138,7 +137,7 @@ public final class PartyLiveBridge {
             onHostSong(song);
         }
         main.postDelayed(heartbeat, HEARTBEAT_MS);
-        Log.d(TAG, "Host bridge started party=" + partyId);
+        PartyLog.d("PartyLiveBridge", "Host bridge started party=" + partyId);
     }
 
     /**
@@ -153,7 +152,7 @@ public final class PartyLiveBridge {
             if (playback != null) {
                 playerBridge.attachPlayback(playback);
             }
-            Log.d(TAG, "Guest bridge already active party=" + partyId
+            PartyLog.d("PartyLiveBridge", "Guest bridge already active party=" + partyId
                     + " phase=" + timeEngine.phase());
             return;
         }
@@ -165,7 +164,7 @@ public final class PartyLiveBridge {
         PartyServerClock.get().start();
 
         if (playback == null) {
-            Log.e(TAG, "startGuest: PlaybackStateRepository is null — "
+            PartyLog.e("PartyLiveBridge", "startGuest: PlaybackStateRepository is null — "
                     + "call attachPlaybackForGuest() first");
         }
         playerBridge.attachPlayback(playback);
@@ -181,7 +180,7 @@ public final class PartyLiveBridge {
             main.post(() -> onGuestSync(existing));
         }
 
-        Log.i(TAG, "Guest bridge started party=" + partyId
+        PartyLog.i("PartyLiveBridge", "Guest bridge started party=" + partyId
                 + " playback=" + (playback != null)
                 + " hasCachedSync=" + (existing != null));
     }
@@ -212,7 +211,7 @@ public final class PartyLiveBridge {
     public void attachPlaybackForGuest(@Nullable PlaybackStateRepository repo) {
         this.playback = repo;
         playerBridge.attachPlayback(repo);
-        Log.d(TAG, "attachPlaybackForGuest repo=" + (repo != null));
+        PartyLog.d("PartyLiveBridge", "attachPlaybackForGuest repo=" + (repo != null));
     }
 
     private void bindHostObservers() {
@@ -240,7 +239,7 @@ public final class PartyLiveBridge {
                 }
                 publishFullSync(true, true);
             } else if (status.state == PartyTrackUploader.State.ERROR) {
-                Log.e(TAG, "Upload error: " + status.errorMessage);
+                PartyLog.e("PartyLiveBridge", "Upload error: " + status.errorMessage);
             }
         };
         uploader.getStatus().observeForever(uploadObserver);
@@ -288,7 +287,7 @@ public final class PartyLiveBridge {
                 file = new File(data);
             }
         } catch (Exception e) {
-            Log.w(TAG, "No local path for song", e);
+            PartyLog.w("PartyLiveBridge", "No local path for song", e);
         }
         if (file == null || !file.exists()) {
             long pos = playback != null ? playback.getCurrentPositionSync() : 0;
@@ -298,10 +297,10 @@ public final class PartyLiveBridge {
                     null, null, trackId, lastTitle, lastArtist, lastAlbum, pos, dur, playing);
             latestSync.postValue(meta);
             syncRepo.publishHostSync(activePartyId, meta);
-            Log.w(TAG, "No file to upload for track " + trackId);
+            PartyLog.w("PartyLiveBridge", "No file to upload for track " + trackId);
             return;
         }
-        Log.d(TAG, "Uploading party track " + trackId + " " + file.getName());
+        PartyLog.d("PartyLiveBridge", "Uploading party track " + trackId + " " + file.getName());
         uploader.uploadAsync(activePartyId, trackId, file, "audio/*", null);
     }
 
@@ -352,7 +351,7 @@ public final class PartyLiveBridge {
                 scheduleId);
         latestSync.postValue(sync);
         syncRepo.publishHostSync(activePartyId, sync);
-        Log.d(TAG, "sync scheduleId=" + scheduleId
+        PartyLog.d("PartyLiveBridge", "sync scheduleId=" + scheduleId
                 + " pos=" + pos
                 + " target=" + sync.targetPositionMs
                 + " mono=" + sync.hostMonoMs
@@ -364,7 +363,7 @@ public final class PartyLiveBridge {
         if (activePartyId == null) return;
         if (sync == null) {
             latestSync.postValue(null);
-            Log.d(TAG, "guest sync: null (waiting for host publish)");
+            PartyLog.d("PartyLiveBridge", "guest sync: null (waiting for host publish)");
             return;
         }
         if (sync.receivedAtDeviceMs <= 0) {
@@ -372,7 +371,7 @@ public final class PartyLiveBridge {
         }
 
         boolean hasUrl = sync.mediaUrl != null && !sync.mediaUrl.isEmpty();
-        Log.i(TAG, "guest sync in scheduleId=" + sync.scheduleId
+        PartyLog.i("PartyLiveBridge", "guest sync in scheduleId=" + sync.scheduleId
                 + " hasUrl=" + hasUrl
                 + " playing=" + sync.isPlaying
                 + " pos=" + sync.positionMs
@@ -386,7 +385,7 @@ public final class PartyLiveBridge {
         }
 
         if (playback == null) {
-            Log.e(TAG, "guest sync: playback still null — cannot start stream");
+            PartyLog.e("PartyLiveBridge", "guest sync: playback still null — cannot start stream");
             latestSync.postValue(sync);
             return;
         }
@@ -400,7 +399,7 @@ public final class PartyLiveBridge {
         }
         latestSync.postValue(sync);
 
-        Log.i(TAG, "guest feed scheduleId=" + anchor.scheduleId
+        PartyLog.i("PartyLiveBridge", "guest feed scheduleId=" + anchor.scheduleId
                 + " phase=" + timeEngine.phase()
                 + " ideal=" + ideal
                 + " untilRelease=" + timeEngine.msUntilRelease());
@@ -427,7 +426,7 @@ public final class PartyLiveBridge {
             lastMediaUrl = null;
             lastUploadedTrackId = null;
         }
-        Log.i(TAG, "Party media purge scheduled for " + partyId);
+        PartyLog.i("PartyLiveBridge", "Party media purge scheduled for " + partyId);
     }
 
 }

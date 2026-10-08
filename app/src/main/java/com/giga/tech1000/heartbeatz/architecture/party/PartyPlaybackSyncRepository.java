@@ -16,13 +16,11 @@ import com.google.firebase.database.ValueEventListener;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.giga.tech1000.heartbeatz.architecture.party.PartyLog;
 /**
  * Firebase delivery for TimeEngine anchors under {@code parties/{id}/sync}.
  */
 public class PartyPlaybackSyncRepository {
-
-    private static final String TAG = "PartySyncRepo";
-
     private final FirebaseDatabase db = FirebaseDatabase.getInstance();
     private final MutableLiveData<PartyPlaybackSync> syncLive = new MutableLiveData<>(null);
 
@@ -51,7 +49,7 @@ public class PartyPlaybackSyncRepository {
 
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
-                Log.w(TAG, "sync observe cancelled: " + error.getMessage());
+                PartyLog.w("PartyPlaybackSyncRepository", "sync observe cancelled: " + error.getMessage());
             }
         };
         syncRef.addValueEventListener(listener);
@@ -90,7 +88,7 @@ public class PartyPlaybackSyncRepository {
                 .child(partyId)
                 .child(PartyFirebasePaths.SYNC)
                 .updateChildren(map)
-                .addOnFailureListener(e -> Log.e(TAG, "publish sync failed", e));
+                .addOnFailureListener(e -> PartyLog.e("PartyPlaybackSyncRepository", "publish sync failed", e));
     }
 
     public void clearSync(@NonNull String partyId) {

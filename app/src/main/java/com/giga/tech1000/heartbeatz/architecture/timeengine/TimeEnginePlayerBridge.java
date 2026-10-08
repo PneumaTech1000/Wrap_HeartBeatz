@@ -13,6 +13,7 @@ import androidx.lifecycle.MutableLiveData;
 
 import com.giga.tech1000.heartbeatz.architecture.repositories.PlaybackStateRepository;
 
+import com.giga.tech1000.heartbeatz.architecture.party.PartyLog;
 /**
  * Guest player bridge: BUFFER → ARMED (muted) → LOCKED (audible).
  * <p>
@@ -21,9 +22,6 @@ import com.giga.tech1000.heartbeatz.architecture.repositories.PlaybackStateRepos
  * Lag after lock → STALE (silent) → re-arm once, not every packet.
  */
 public final class TimeEnginePlayerBridge {
-
-    private static final String TAG = "TimeEnginePlayer";
-
     private static final long ARM_POLL_MS = 50L;
     private static final long CORRECT_INTERVAL_MS = 500L;
     private static final long BUFFER_SETTLE_MS = 500L;
@@ -162,7 +160,7 @@ public final class TimeEnginePlayerBridge {
         engine.applySchedule(anchor);
 
         if (playback == null) {
-            Log.w(TAG, "onAnchor: playback repo null — attachPlayback first");
+            PartyLog.w("TimeEnginePlayerBridge", "onAnchor: playback repo null — attachPlayback first");
             return;
         }
 
@@ -170,7 +168,7 @@ public final class TimeEnginePlayerBridge {
             playback.updatePartyMetadata(
                     anchor.title, anchor.artist, anchor.album, anchor.durationMs);
         } catch (Exception e) {
-            Log.w(TAG, "metadata: " + e.getMessage());
+            PartyLog.w("TimeEnginePlayerBridge", "metadata: " + e.getMessage());
         }
 
         boolean newMedia = anchor.hasMedia()
@@ -252,7 +250,7 @@ public final class TimeEnginePlayerBridge {
             parkAt = anchor.targetPositionMs;
         }
 
-        Log.i(TAG, "beginBuffer url=" + shortUrl(anchor.mediaUrl)
+        PartyLog.i("TimeEnginePlayerBridge", "beginBuffer url=" + shortUrl(anchor.mediaUrl)
                 + " parkAt=" + parkAt
                 + " ideal=" + ideal
                 + " untilRelease=" + until
@@ -270,7 +268,7 @@ public final class TimeEnginePlayerBridge {
             );
             lastArmSeekMonoMs = SystemClock.elapsedRealtime();
         } catch (Exception e) {
-            Log.e(TAG, "playPartyStream failed", e);
+            PartyLog.e("TimeEnginePlayerBridge", "playPartyStream failed", e);
             engine.setPhase(TimeEnginePhase.STALE);
             lastStaleMonoMs = SystemClock.elapsedRealtime();
             return;
@@ -299,7 +297,7 @@ public final class TimeEnginePlayerBridge {
             releasePosted = false;
             main.removeCallbacks(armLoop);
             main.post(armLoop);
-            Log.i(TAG, "ARMED frozenReleaseIn=" + liveUntil
+            PartyLog.i("TimeEnginePlayerBridge", "ARMED frozenReleaseIn=" + liveUntil
                     + "ms liveUntil=" + engine.msUntilRelease()
                     + " ideal=" + engine.idealTrackPositionMs());
         }, BUFFER_SETTLE_MS);
@@ -328,7 +326,7 @@ public final class TimeEnginePlayerBridge {
                 lastArmSeekMonoMs = now;
                 engine.markSeekApplied();
             } catch (Exception e) {
-                Log.w(TAG, "rearm seek: " + e.getMessage());
+                PartyLog.w("TimeEnginePlayerBridge", "rearm seek: " + e.getMessage());
             }
         }
 
@@ -340,7 +338,7 @@ public final class TimeEnginePlayerBridge {
         frozenReleaseMonoMs = now2 + SEEK_SETTLE_MS;
         main.removeCallbacks(armLoop);
         main.postDelayed(armLoop, SEEK_SETTLE_MS);
-        Log.i(TAG, "rearm (" + reason + ") ideal=" + ideal);
+        PartyLog.i("TimeEnginePlayerBridge", "rearm (" + reason + ") ideal=" + ideal);
     }
 
     private void tryRelease() {
@@ -388,15 +386,15 @@ public final class TimeEnginePlayerBridge {
                     playback.seekTo(seekTo);
                     lastArmSeekMonoMs = now;
                     engine.markSeekApplied();
-                    Log.d(TAG, "arm seek local=" + local + " → " + seekTo
+                    PartyLog.d("TimeEnginePlayerBridge", "arm seek local=" + local + " → " + seekTo
                             + " ideal=" + ideal);
                 } catch (Exception e) {
-                    Log.w(TAG, "arm seek failed: " + e.getMessage());
+                    PartyLog.w("TimeEnginePlayerBridge", "arm seek failed: " + e.getMessage());
                 }
             }
             // Force unlock after timeout even if position API is sticky
             if (armedFor > ARM_TIMEOUT_MS) {
-                Log.w(TAG, "arm timeout — force release local=" + local + " ideal=" + ideal);
+                PartyLog.w("TimeEnginePlayerBridge", "arm timeout — force release local=" + local + " ideal=" + ideal);
                 doRelease(ideal);
                 return;
             }
@@ -419,7 +417,7 @@ public final class TimeEnginePlayerBridge {
             playback.setPlaybackSpeed(1.0f);
             playback.play();
         } catch (Exception e) {
-            Log.e(TAG, "release play failed", e);
+            PartyLog.e("TimeEnginePlayerBridge", "release play failed", e);
             releasePosted = false;
             engine.setPhase(TimeEnginePhase.STALE);
             lastStaleMonoMs = SystemClock.elapsedRealtime();
@@ -432,7 +430,7 @@ public final class TimeEnginePlayerBridge {
         metaReadyNotified = true;
         main.removeCallbacks(correctLoop);
         main.post(correctLoop);
-        Log.i(TAG, "RELEASE ok ideal=" + ideal
+        PartyLog.i("TimeEnginePlayerBridge", "RELEASE ok ideal=" + ideal
                 + " local=" + safePos()
                 + " mono=" + SystemClock.elapsedRealtime());
     }
@@ -446,7 +444,7 @@ public final class TimeEnginePlayerBridge {
         if (engine.phase() != TimeEnginePhase.LOCKED) return;
 
         if (engine.isScheduleStale()) {
-            Log.w(TAG, "schedule stale while locked");
+            PartyLog.w("TimeEnginePlayerBridge", "schedule stale while locked");
             forceSilent();
             engine.setPhase(TimeEnginePhase.STALE);
             lastStaleMonoMs = SystemClock.elapsedRealtime();
@@ -484,7 +482,7 @@ public final class TimeEnginePlayerBridge {
                     try {
                         playback.setPlaybackSpeed(c.rate);
                         lastAppliedRate = c.rate;
-                        Log.d(TAG, "rate=" + c.rate + " drift=" + c.driftMs
+                        PartyLog.d("TimeEnginePlayerBridge", "rate=" + c.rate + " drift=" + c.driftMs
                                 + " local=" + local + " ideal=" + c.idealPositionMs);
                     } catch (Exception ignored) { }
                 }
@@ -503,10 +501,10 @@ public final class TimeEnginePlayerBridge {
                     playback.setPlaybackSpeed(1.0f);
                     lastAppliedRate = 1.0f;
                     if (!playing) playback.play();
-                    Log.i(TAG, "in-place seek drift=" + c.driftMs
+                    PartyLog.i("TimeEnginePlayerBridge", "in-place seek drift=" + c.driftMs
                             + " → " + c.idealPositionMs);
                 } catch (Exception e) {
-                    Log.w(TAG, "in-place seek failed: " + e.getMessage());
+                    PartyLog.w("TimeEnginePlayerBridge", "in-place seek failed: " + e.getMessage());
                 }
                 break;
 
