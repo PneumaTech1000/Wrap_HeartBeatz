@@ -82,10 +82,6 @@ public abstract class BasePanelView extends FrameLayout implements IPanel<View> 
                     - this.mParentSlidingPanel.getPaddingBottom();
             if (hostH > 0) {
                 if (this.mExpandedHeight != hostH) {
-                    Log.d("UIInfo", "[BasePanelView.getPanelExpandedHeight] "
-                            + getClass().getSimpleName()
-                            + " hostH=" + hostH
-                            + " (was cached=" + this.mExpandedHeight + ")");
                     this.mExpandedHeight = hostH;
                     // Collapsed real height depends on expanded height math in callers
                     this.mRealPanelHeight = 0;
@@ -103,8 +99,6 @@ public abstract class BasePanelView extends FrameLayout implements IPanel<View> 
             int offset = this.mParentSlidingPanel != null
                     ? this.mParentSlidingPanel.getNoLimitsOffset() : 0;
             this.mExpandedHeight = dm.heightPixels + offset;
-            Log.d("UIInfo", "[BasePanelView.getPanelExpandedHeight] fallback displayH="
-                    + this.mExpandedHeight + " self=" + getClass().getSimpleName());
         }
         return this.mExpandedHeight;
     }
@@ -208,14 +202,6 @@ public abstract class BasePanelView extends FrameLayout implements IPanel<View> 
 
         }
 
-        Log.d("UIInfo", "[BasePanelView.setPanelState] " + getClass().getSimpleName()
-                + " " + prev + "->" + panelState
-                + " isHidden=" + isHidden
-                + " floor=" + mIndex
-                + " peak=" + getPeakHeight()
-                + " collapsedH=" + getPanelCollapsedHeight()
-                + " top=" + getTop()
-                + " bottom=" + getBottom());
 
         this.onPanelStateChanged(panelState);
     }
@@ -259,8 +245,6 @@ public abstract class BasePanelView extends FrameLayout implements IPanel<View> 
     private int getPrevPanelsHeight(int currentPosition) {
         int maxHeight = 0;
         if (this.mParentSlidingPanel == null || this.mParentSlidingPanel.getAdapter() == null) {
-            Log.d("UIInfo", "[BasePanelView.getPrevPanelsHeight] parent/adapter null self="
-                    + getClass().getSimpleName());
             return 0;
         }
 
@@ -288,8 +272,6 @@ public abstract class BasePanelView extends FrameLayout implements IPanel<View> 
                     .append(" add=").append(add);
         }
         sb.append(" => totalPrev=").append(maxHeight);
-        Log.d("UIInfo", sb.toString());
-
         return maxHeight;
     }
 

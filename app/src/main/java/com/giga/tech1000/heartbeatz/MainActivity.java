@@ -27,7 +27,6 @@ import androidx.lifecycle.ViewModelProvider;
 
 
 import com.giga.tech1000.heartbeatz.observers.LibraryObservers;
-import com.giga.tech1000.heartbeatz.ui.UIInfoLog;
 import com.giga.tech1000.heartbeatz.ui.UIThread;
 import com.giga.tech1000.heartbeatz.view_models.extended_models.PartyViewModel;
 import com.giga.tech1000.heartbeatz.view_models.extended_models.SettingViewModel;
@@ -110,10 +109,6 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
             Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
             int bottom = Math.max(systemBars.bottom, ime.bottom);
             v.setPadding(systemBars.left, 0, systemBars.right, bottom);
-            Log.d("UIInfo", "[MainActivity.insets] content pad L=" + systemBars.left
-                    + " R=" + systemBars.right + " B=" + bottom
-                    + " statusTop kept for children=" + systemBars.top
-                    + " contentH=" + v.getHeight());
 
             // Consume left/right/bottom so children do not double-pad; keep status bar for FragmentHome.
             return new WindowInsetsCompat.Builder(insets)
@@ -323,7 +318,6 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
 
         // Avoid double-init (permission callback can fire after UI already built).
         if (uiThread != null && uiThread.getNavigationPanel() != null) {
-            UIInfoLog.d("MainActivity.loadAudioFiles", "UI already initialized — skip re-init");
             HeartBeatzApp.container(this).attachUiThread(uiThread);
             return;
         }
@@ -499,7 +493,6 @@ public class MainActivity extends AppCompatActivity implements DrawerController 
                 return insets;
             });
         }
-        android.util.Log.d("UIInfo", "[MainActivity.setupAppDrawer] drawer ready");
     }
 
     @Override

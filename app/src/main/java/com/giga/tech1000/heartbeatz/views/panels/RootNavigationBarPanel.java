@@ -15,7 +15,6 @@ import androidx.lifecycle.Lifecycle;
 import androidx.media3.common.util.UnstableApi;
 
 import com.giga.tech1000.heartbeatz.R;
-import com.giga.tech1000.heartbeatz.ui.UIInfoLog;
 import com.giga.tech1000.heartbeatz.ui.fragments.FragmentHome;
 import com.giga.tech1000.heartbeatz.ui.fragments.FragmentParty;
 import com.giga.tech1000.utils.interfaces.DisplayMarginCallback;
@@ -53,7 +52,6 @@ public class RootNavigationBarPanel extends BasePanelView {
         isHidden = false;
         setPanelState(MultiSlidingUpPanelLayout.COLLAPSED);
         setSlideDirection(MultiSlidingUpPanelLayout.SLIDE_VERTICAL);
-        UIInfoLog.d("RootNav.onCreateView", "COLLAPSED peak=" + getPeakHeight());
     }
 
     @Override
@@ -100,7 +98,6 @@ public class RootNavigationBarPanel extends BasePanelView {
             tx.hide(party);
         }
         tx.commitNowAllowingStateLoss();
-        UIInfoLog.d("RootNav.tabs", "attached home+party (show/hide)");
     }
 
     public void selectTab(int tabId) {
@@ -141,8 +138,6 @@ public class RootNavigationBarPanel extends BasePanelView {
         }
         tx.commitNowAllowingStateLoss();
         currentTabId = tabId;
-        UIInfoLog.d("RootNav.selectTab", "tab=" + tabId
-                + " active=" + (activeFragment != null ? activeFragment.getClass().getSimpleName() : "null"));
         updatePaddingWhenWhenBarChanged(
                 activeFragment instanceof DisplayMarginCallback);
         // Re-apply with real player visibility after bind
@@ -159,8 +154,6 @@ public class RootNavigationBarPanel extends BasePanelView {
     }
 
     public void updatePaddingWhenWhenBarChanged(boolean isDisplaying) {
-        UIInfoLog.d("RootNav.updatePadding", "isDisplaying=" + isDisplaying
-                + " activeFragment=" + (activeFragment != null ? activeFragment.getClass().getSimpleName() : "null"));
         if (activeFragment instanceof DisplayMarginCallback listener) {
             listener.onDisplayBarPlayerChanged(isDisplaying);
         }
@@ -168,7 +161,5 @@ public class RootNavigationBarPanel extends BasePanelView {
 
     @Override
     public void onPanelStateChanged(int i) {
-        UIInfoLog.d("RootNav.onPanelStateChanged", "state=" + UIInfoLog.stateName(i)
-                + " isHidden=" + isUserHidden());
     }
 }

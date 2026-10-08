@@ -2,8 +2,6 @@ package com.giga.tech1000.heartbeatz.ui;
 
 import com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp;
 
-// UIInfoLog is same package
-
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -149,7 +147,6 @@ public class UIThread implements IPlaybackCallback {
     public boolean isPlayerBarVisible() {
         boolean v = lastPlaybackState != Player.STATE_IDLE;
         UIThreadBridgePad.setPlayerBarVisible(v);
-        UIInfoLog.d("UIThread.isPlayerBarVisible", "visible=" + v + " lastPlaybackState=" + lastPlaybackState);
         return v;
     }
 
@@ -185,37 +182,24 @@ public class UIThread implements IPlaybackCallback {
         playerCache.cachePlaybackStateChanged(isPlaying, playbackState);
 
         RootMediaPlayerPanel mediaPanel = getMediaPlayerPanel();
-        UIInfoLog.d("UIThread.onPlaybackStateChanged",
-                "isPlaying=" + isPlaying + " playbackState=" + playbackState
-                        + " mediaPanel=" + (mediaPanel != null)
-                        + " song=" + (mediaPanel != null && mediaPanel.getCurrentSong() != null));
         if (mediaPanel != null) {
             int panelState = mediaPanel.getPanelState();
             // Idle with no active item → hide chrome
             if (playbackState == Player.STATE_IDLE && mediaPanel.getCurrentSong() == null) {
-                UIInfoLog.d("UIThread.onPlaybackStateChanged", "-> hideMiniPlayer");
                 mediaPanel.hideMiniPlayer();
             } else if (playbackState != Player.STATE_IDLE || mediaPanel.getCurrentSong() != null) {
                 if (mediaPanel.isUserHidden()
                         || panelState == RootMediaPlayerPanel.STATE_HIDDEN) {
-                    UIInfoLog.d("UIThread.onPlaybackStateChanged", "-> showMini (was HIDDEN)");
                     mediaPanel.showMiniPlayerCollapsed();
                 } else {
-                    UIInfoLog.d("UIThread.onPlaybackStateChanged",
-                            "keep panelState=" + panelState);
                 }
             }
-            UIInfoLog.panelSnapshot("UIThread.afterPlayback", mediaPanel);
         }
 
         RootNavigationBarPanel navPanel = getNavigationPanel();
         if (navPanel != null) {
-            UIInfoLog.d("UIThread.nav", "tab=" + navPanel.getCurrentTabId()
-                    + " active=" + (navPanel.getActiveFragment() != null
-                    ? navPanel.getActiveFragment().getClass().getSimpleName() : "null"));
             navPanel.updatePaddingWhenWhenBarChanged(isPlayerBarVisible());
         }
-        UIInfoLog.d("UIThread.onPlaybackStateChanged", "sheet state done");
     }
 
     @Override
@@ -425,11 +409,9 @@ public class UIThread implements IPlaybackCallback {
         List<Class<?>> items = new ArrayList<>();
         items.add(RootMediaPlayerPanel.class);
         items.add(RootNavigationBarPanel.class);
-        UIInfoLog.d("UIThread.onCreate", "MultiSlidingUpPanel order: [0]=MediaPlayer [1]=NavBar");
         panelLayout.setPanelStateListener(new PanelStateListener(panelLayout));
         panelLayout.setAdapter(new MultiSlidingPanelAdapter(activity, items));
         panelLayout.post(() -> {
-            UIInfoLog.layoutChildren("UIThread.onCreate.posted", panelLayout);
             RootNavigationBarPanel nav = panelLayout.getAdapter() != null
                     ? panelLayout.getAdapter().getItem(RootNavigationBarPanel.class) : null;
             if (nav != null) UIThreadBridge.setNav(nav);

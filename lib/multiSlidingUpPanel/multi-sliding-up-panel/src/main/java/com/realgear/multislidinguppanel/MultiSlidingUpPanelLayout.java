@@ -219,15 +219,8 @@ public class MultiSlidingUpPanelLayout extends ViewGroup {
 
     public boolean expandPanel() {
         if (mSlidingPanel == null) {
-            Log.d("UIInfo", "[MultiSliding.expandPanel] mSlidingPanel=null");
             return false;
         }
-        Log.d("UIInfo", "[MultiSliding.expandPanel] START panel="
-                + mSlidingPanel.getClass().getSimpleName()
-                + " state=" + mSlidingPanel.getPanelState()
-                + " isHidden=" + mSlidingPanel.isUserHidden()
-                + " isFirstLayout=" + isFirstLayout
-                + " slidingEnabled=" + isSlidingEnabled);
 
         if (mSlidingPanel instanceof BasePanelView) {
             ((BasePanelView) mSlidingPanel).isHidden = false;
@@ -273,15 +266,8 @@ public class MultiSlidingUpPanelLayout extends ViewGroup {
 
     public boolean collapsePanel() {
         if (mSlidingPanel == null) {
-            Log.d("UIInfo", "[MultiSliding.collapsePanel] mSlidingPanel=null");
             return false;
         }
-        Log.d("UIInfo", "[MultiSliding.collapsePanel] START panel="
-                + mSlidingPanel.getClass().getSimpleName()
-                + " state=" + mSlidingPanel.getPanelState()
-                + " isHidden=" + mSlidingPanel.isUserHidden()
-                + " isFirstLayout=" + isFirstLayout
-                + " slidingEnabled=" + isSlidingEnabled);
 
         // Collapsing means the panel is visible at peak height — clear user-hidden
         if (mSlidingPanel instanceof BasePanelView) {
@@ -323,14 +309,8 @@ public class MultiSlidingUpPanelLayout extends ViewGroup {
 
     public boolean hidePanel() {
         if (mSlidingPanel == null) {
-            Log.d("UIInfo", "[MultiSliding.hidePanel] mSlidingPanel=null");
             return false;
         }
-        Log.d("UIInfo", "[MultiSliding.hidePanel] START panel="
-                + mSlidingPanel.getClass().getSimpleName()
-                + " state=" + mSlidingPanel.getPanelState()
-                + " isHidden=" + mSlidingPanel.isUserHidden()
-                + " isFirstLayout=" + isFirstLayout);
 
         // Critical: isUserHidden() drives getPrevPanelsHeight() stacking.
         // Without this flag, higher panels (e.g. bottom nav) still reserve peak height.
@@ -548,7 +528,6 @@ public class MultiSlidingUpPanelLayout extends ViewGroup {
         super.onSizeChanged(w, h, oldw, oldh);
 
         if (h != oldh) {
-            Log.d("UIInfo", "[MultiSliding.onSizeChanged] " + oldw + "x" + oldh + " -> " + w + "x" + h);
             isFirstLayout = true;
             mSlidingPanel = null;
             // Recompute expanded heights from new host size (fixes gap under bottom nav)
@@ -767,9 +746,6 @@ public class MultiSlidingUpPanelLayout extends ViewGroup {
 
                 if (mSlidedOffset == 1) {
                     if (mSlidingPanel.getPanelState() != EXPANDED) {
-                        Log.d("UIInfo", "[MultiSliding.dragIdle] -> EXPANDED panel="
-                                + mSlidingPanel.getClass().getSimpleName()
-                                + " top=" + mSlidingPanel.getPanelView().getTop());
                         mSlidingPanel.setPanelState(EXPANDED);
                         if (mPanelStateListener != null) {
                             mPanelStateListener.onPanelExpanded(mSlidingPanel);
@@ -778,10 +754,6 @@ public class MultiSlidingUpPanelLayout extends ViewGroup {
                 }
                 else if (mSlidedOffset == 0) {
                     if (mSlidingPanel.getPanelState() != COLLAPSED) {
-                        Log.d("UIInfo", "[MultiSliding.dragIdle] -> COLLAPSED panel="
-                                + mSlidingPanel.getClass().getSimpleName()
-                                + " top=" + mSlidingPanel.getPanelView().getTop()
-                                + " isHidden=" + mSlidingPanel.isUserHidden());
                         mSlidingPanel.setPanelState(COLLAPSED);
                         if (mPanelStateListener != null) {
                             mPanelStateListener.onPanelCollapsed(mSlidingPanel);
@@ -789,10 +761,6 @@ public class MultiSlidingUpPanelLayout extends ViewGroup {
                     }
                 }
                 else if (mSlidedOffset < 0) {
-                    Log.d("UIInfo", "[MultiSliding.dragIdle] -> HIDDEN panel="
-                            + mSlidingPanel.getClass().getSimpleName()
-                            + " offset=" + mSlidedOffset
-                            + " isHidden=" + mSlidingPanel.isUserHidden());
                     mSlidingPanel.setPanelState(HIDDEN);
                     if (mPanelStateListener != null) {
                         mPanelStateListener.onPanelHidden(mSlidingPanel);

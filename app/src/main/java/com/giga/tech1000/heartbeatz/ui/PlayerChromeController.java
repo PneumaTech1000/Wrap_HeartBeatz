@@ -64,9 +64,6 @@ public final class PlayerChromeController {
 
         boolean fullPlayer = sheetState == BottomSheetBehavior.STATE_EXPANDED
                 || sheetState == BottomSheetBehavior.STATE_HALF_EXPANDED;
-
-        UIInfoLog.d("PlayerChrome", "sheetState=" + sheetState + " hideNav=" + fullPlayer);
-
         if (fullPlayer) {
             onSlide(1f);
             if (UIThreadBridge.getNav() != null) {

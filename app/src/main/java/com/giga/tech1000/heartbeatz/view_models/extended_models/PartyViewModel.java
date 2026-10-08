@@ -481,13 +481,29 @@ public class PartyViewModel extends AndroidViewModel {
     }
 
     private void startGuestBridge(@Nullable String partyId) {
-        if (partyId == null) return;
+        if (partyId == null || partyId.isEmpty()) return;
         try {
             PartyLiveBridge bridge = HeartBeatzApp.container(getApplication()).partyLiveBridge();
-            PlaybackStateRepository repo = null;
-            try { repo = requirePlayback(); } catch (Exception ignored) { }
+            PlaybackStateRepository repo;
+            try {
+                repo = requirePlayback();
+            } catch (Exception e) {
+                Log.e(TAG, "startGuestBridge: playback not ready", e);
+                // Retry once after UIThread/player may be up
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                    try {
+                        PlaybackStateRepository retry = requirePlayback();
+                        bridge.attachPlaybackForGuest(retry);
+                        bridge.startGuest(partyId);
+                    } catch (Exception e2) {
+                        Log.e(TAG, "startGuestBridge retry failed", e2);
+                    }
+                }, 600);
+                return;
+            }
             bridge.attachPlaybackForGuest(repo);
             bridge.startGuest(partyId);
+            Log.i(TAG, "startGuestBridge party=" + partyId);
         } catch (Exception e) {
             Log.e(TAG, "startGuestBridge failed", e);
         }

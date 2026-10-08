@@ -64,6 +64,8 @@ public final class PartyLiveBridge {
     @Nullable private Observer<Song> songObserver;
     @Nullable private Observer<Boolean> playingObserver;
     @Nullable private Observer<PartyTrackUploader.Status> uploadObserver;
+    /** Stable observer instance — method refs cannot be removed from LiveData. */
+    @Nullable private Observer<PartyPlaybackSync> guestSyncObserver;
 
     private final Runnable heartbeat = new Runnable() {
         @Override
@@ -139,33 +141,69 @@ public final class PartyLiveBridge {
         Log.d(TAG, "Host bridge started party=" + partyId);
     }
 
-    /** Call when guest JOINED. */
+    /**
+     * Call when guest JOINED. Idempotent for the same partyId so auth LiveData
+     * re-emits do not tear down an already-running session.
+     */
     public void startGuest(@NonNull String partyId) {
+        if (!hosting
+                && partyId.equals(activePartyId)
+                && guestSyncObserver != null) {
+            // Already wired for this party — only refresh playback binding
+            if (playback != null) {
+                playerBridge.attachPlayback(playback);
+            }
+            Log.d(TAG, "Guest bridge already active party=" + partyId
+                    + " phase=" + timeEngine.phase());
+            return;
+        }
+
         stopAll();
         this.activePartyId = partyId;
         this.hosting = false;
         guestLockedUi.postValue(true);
         PartyServerClock.get().start();
-        playerBridge.onSessionStart();
+
+        if (playback == null) {
+            Log.e(TAG, "startGuest: PlaybackStateRepository is null — "
+                    + "call attachPlaybackForGuest() first");
+        }
         playerBridge.attachPlayback(playback);
+        playerBridge.onSessionStart();
+
+        guestSyncObserver = this::onGuestSync;
         syncRepo.observeParty(partyId);
-        syncRepo.getSync().observeForever(this::onGuestSync);
-        Log.d(TAG, "Guest bridge started party=" + partyId);
+        syncRepo.getSync().observeForever(guestSyncObserver);
+
+        // If Firebase already has a cached sync value, LiveData may not re-fire
+        PartyPlaybackSync existing = syncRepo.getSync().getValue();
+        if (existing != null) {
+            main.post(() -> onGuestSync(existing));
+        }
+
+        Log.i(TAG, "Guest bridge started party=" + partyId
+                + " playback=" + (playback != null)
+                + " hasCachedSync=" + (existing != null));
     }
 
     public void stopAll() {
         main.removeCallbacks(heartbeat);
         unbindHostObservers();
         syncRepo.stopObserving();
-        try {
-            syncRepo.getSync().removeObserver(this::onGuestSync);
-        } catch (Exception ignored) { }
+        if (guestSyncObserver != null) {
+            try {
+                syncRepo.getSync().removeObserver(guestSyncObserver);
+            } catch (Exception ignored) { }
+            guestSyncObserver = null;
+        }
         playerBridge.reset();
         hosting = false;
         activePartyId = null;
         lastUploadedTrackId = null;
         lastMediaUrl = null;
         lastObjectKey = null;
+        forceScheduleId = 0;
+        lastPublishedPos = -1;
         guestLockedUi.postValue(false);
         latestSync.postValue(null);
         idealPositionLive.postValue(0L);
@@ -174,6 +212,7 @@ public final class PartyLiveBridge {
     public void attachPlaybackForGuest(@Nullable PlaybackStateRepository repo) {
         this.playback = repo;
         playerBridge.attachPlayback(repo);
+        Log.d(TAG, "attachPlaybackForGuest repo=" + (repo != null));
     }
 
     private void bindHostObservers() {
@@ -322,12 +361,34 @@ public final class PartyLiveBridge {
 
     private void onGuestSync(@Nullable PartyPlaybackSync sync) {
         if (hosting) return;
+        if (activePartyId == null) return;
         if (sync == null) {
             latestSync.postValue(null);
+            Log.d(TAG, "guest sync: null (waiting for host publish)");
             return;
         }
         if (sync.receivedAtDeviceMs <= 0) {
             sync.receivedAtDeviceMs = System.currentTimeMillis();
+        }
+
+        boolean hasUrl = sync.mediaUrl != null && !sync.mediaUrl.isEmpty();
+        Log.i(TAG, "guest sync in scheduleId=" + sync.scheduleId
+                + " hasUrl=" + hasUrl
+                + " playing=" + sync.isPlaying
+                + " pos=" + sync.positionMs
+                + " title=" + sync.title
+                + " playbackBound=" + (playback != null));
+
+        if (!hasUrl) {
+            // Metadata-only packet (host still uploading) — keep waiting
+            latestSync.postValue(sync);
+            return;
+        }
+
+        if (playback == null) {
+            Log.e(TAG, "guest sync: playback still null — cannot start stream");
+            latestSync.postValue(sync);
+            return;
         }
 
         TimeAnchor anchor = TimeAnchor.fromSync(sync, SystemClock.elapsedRealtime());
@@ -339,7 +400,7 @@ public final class PartyLiveBridge {
         }
         latestSync.postValue(sync);
 
-        Log.d(TAG, "guest feed scheduleId=" + anchor.scheduleId
+        Log.i(TAG, "guest feed scheduleId=" + anchor.scheduleId
                 + " phase=" + timeEngine.phase()
                 + " ideal=" + ideal
                 + " untilRelease=" + timeEngine.msUntilRelease());

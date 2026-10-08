@@ -130,7 +130,25 @@ public final class TimeEnginePlayerBridge {
     }
 
     public void onSessionStart() {
-        reset();
+        // reset() already stops session; start clean once
+        if (loopsActive) {
+            reset();
+        } else {
+            main.removeCallbacks(armLoop);
+            main.removeCallbacks(correctLoop);
+            main.removeCallbacksAndMessages(null);
+            lastMediaUrl = null;
+            lastScheduleId = -1L;
+            releasePosted = false;
+            metaReadyNotified = false;
+            lastArmSeekMonoMs = 0;
+            armedSinceMonoMs = 0;
+            lastStaleMonoMs = 0;
+            frozenReleaseMonoMs = -1L;
+            lastAppliedRate = 1.0f;
+            readyForUi.postValue(false);
+            engine.stopSession();
+        }
         loopsActive = true;
         engine.startSession();
     }

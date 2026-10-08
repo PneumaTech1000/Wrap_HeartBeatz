@@ -44,7 +44,6 @@ import androidx.viewpager2.widget.ViewPager2;
 
 import com.giga.tech1000.heartbeatz.R;
 import com.giga.tech1000.heartbeatz.interfaces.DrawerController;
-import com.giga.tech1000.heartbeatz.ui.UIInfoLog;
 import com.giga.tech1000.heartbeatz.layouts.adapters.LibraryLayoutAdapter;
 import com.giga.tech1000.heartbeatz.layouts.models.BaseLayoutItem;
 import com.giga.tech1000.heartbeatz.layouts.models.LibraryLayoutItem;
@@ -163,9 +162,6 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
     ) {
         long t0 = android.os.SystemClock.elapsedRealtime();
         View view = inflater.inflate(R.layout.fragment_home, container, false);
-        UIInfoLog.d("FragmentHome.onCreateView", "inflate ms="
-                + (android.os.SystemClock.elapsedRealtime() - t0));
-
         // Initialize all views here
         motionLayout = view.findViewById(R.id.library_root);
         pagerWrapper = view.findViewById(R.id.fragment_local_view_pager_wrapper);
@@ -186,8 +182,6 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
         mediaDetailsWithoutImgPanelView = view.findViewById(R.id.media_details_without_img_container);
 
         // Drawer is owned by MainActivity (DrawerController)
-        UIInfoLog.d("FragmentHome.onCreateView", "findViews total ms="
-                + (android.os.SystemClock.elapsedRealtime() - t0));
         return view;
     }
 
@@ -198,8 +192,6 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
     ) {
         super.onViewCreated(view, savedInstanceState);
         long t0 = android.os.SystemClock.elapsedRealtime();
-        UIInfoLog.d("FragmentHome.onViewCreated", "START savedState=" + (savedInstanceState != null));
-
         libraryObservers = HeartBeatzApp.container(requireContext()).requireUiThread().getLibraryObservers();
         search = HeartBeatzApp.container(requireContext()).requireUiThread().getSearchController();
         librarySetViewModel = HeartBeatzApp.container(requireContext()).requireUiThread().getLibrarySetViewModel();
@@ -238,23 +230,16 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
 
         long t1 = android.os.SystemClock.elapsedRealtime();
         setupViewPager();
-        UIInfoLog.d("FragmentHome.onViewCreated", "setupViewPager ms="
-                + (android.os.SystemClock.elapsedRealtime() - t1));
         setupMenu();
         setupDrawerAuth();
         setupEdgeToEdgeInsets(view);
         setupMotionLayoutTransitions();
-        UIInfoLog.d("FragmentHome.onViewCreated", "setup* total ms="
-                + (android.os.SystemClock.elapsedRealtime() - t0));
-
         view.getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
             @Override
             public boolean onPreDraw() {
                 view.getViewTreeObserver().removeOnPreDrawListener(this);
                 long t = android.os.SystemClock.elapsedRealtime();
                 observeData();
-                UIInfoLog.d("FragmentHome.onPreDraw", "observeData ms="
-                        + (android.os.SystemClock.elapsedRealtime() - t));
                 return true;
             }
         });
@@ -316,8 +301,6 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
 
     @Override
     public void onResume() {
-        UIInfoLog.d("FragmentHome.onResume", "enter");
-
         super.onResume();
         observeData();
     }
@@ -333,14 +316,8 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
         paddingHeight = (isDisplaying)
                 ? getResources().getDimensionPixelSize(R.dimen.bar_and_navigation_height)
                 : getResources().getDimensionPixelSize(R.dimen.navigation_bar_height);
-        UIInfoLog.d("FragmentHome.onDisplayBarPlayerChanged",
-                "isDisplaying=" + isDisplaying + " paddingHeightPx=" + paddingHeight
-                + " barAndNavDimen=" + getResources().getDimensionPixelSize(R.dimen.bar_and_navigation_height)
-                + " navDimen=" + getResources().getDimensionPixelSize(R.dimen.navigation_bar_height));
-
         // Can run from RootNav before onViewCreated finishes (show/hide tab attach).
         if (mediaNavigationManager == null || pagerWrapper == null || getView() == null) {
-            UIInfoLog.d("FragmentHome.onDisplayBarPlayerChanged", "skip — view not ready yet");
             return;
         }
 
@@ -363,7 +340,6 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
 
     private void setupDrawerAuth() {
         if (!(requireActivity() instanceof DrawerController)) {
-            UIInfoLog.d("FragmentHome.setupDrawerAuth", "Activity is not DrawerController");
             return;
         }
         drawerController = (DrawerController) requireActivity();
@@ -391,7 +367,6 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
                 );
             }
         });
-        UIInfoLog.d("FragmentHome.setupDrawerAuth", "registered with MainActivity drawer");
     }
 
     @Override
@@ -648,11 +623,6 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
         int songCount = state.getSongs() != null ? state.getSongs().size() : 0;
         int albumCount = state.getAlbums() != null ? state.getAlbums().size() : 0;
         int artistCount = state.getArtists() != null ? state.getArtists().size() : 0;
-        UIInfoLog.d("FragmentHome.rebuildPages", "SCHEDULE gen=" + generation
-                + " songs=" + songCount + " albums=" + albumCount
-                + " artists=" + artistCount
-                + " queryEmpty=" + querySnapshot.isEmpty());
-
         final long t0 = android.os.SystemClock.elapsedRealtime();
         pageBuildExecutor.execute(() -> {
             try {
@@ -665,11 +635,7 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
                         LibraryLayoutItem.filtered(BaseLayoutItem.LayoutType.FOLDERS, stateSnapshot.getFolders(), querySnapshot, searchRef)
                 );
                 long filterMs = android.os.SystemClock.elapsedRealtime() - t0;
-                UIInfoLog.d("FragmentHome.rebuildPages", "BG filter done gen=" + generation
-                        + " filterMs=" + filterMs);
-
                 if (generation != pageBuildGeneration.get()) {
-                    UIInfoLog.d("FragmentHome.rebuildPages", "STALE drop gen=" + generation);
                     return;
                 }
 
@@ -678,7 +644,6 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
                 if (getView() == null) return;
                 getView().post(() -> {
                     if (generation != pageBuildGeneration.get()) {
-                        UIInfoLog.d("FragmentHome.rebuildPages", "STALE drop on UI gen=" + generation);
                         return;
                     }
                     if (!isAdded() || pagerAdapter == null || viewPager2 == null) return;
@@ -687,13 +652,9 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
                     pagerAdapter.submitList(pages, () -> {
                         if (!isAdded() || viewPager2 == null) return;
                         setupTabs();
-                        UIInfoLog.d("FragmentHome.rebuildPages", "UI submit+tabs gen=" + generation
-                                + " uiMs=" + (android.os.SystemClock.elapsedRealtime() - tUi)
-                                + " totalMs=" + (android.os.SystemClock.elapsedRealtime() - t0));
                     });
                 });
             } catch (Exception e) {
-                UIInfoLog.d("FragmentHome.rebuildPages", "ERROR gen=" + generation + " " + e.getMessage());
             }
         });
     }
@@ -701,7 +662,6 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
 
     private void setupViewPager() {
         if (viewPager2 == null || !isAdded()) {
-            UIInfoLog.d("FragmentHome.setupViewPager", "skip — viewPager2 null or not added");
             return;
         }
         pagerAdapter = new LibraryLayoutAdapter(
@@ -720,7 +680,6 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
     private void setupTabs() {
         if (pages.isEmpty()) return;
         if (viewPager2 == null || tabLayout == null || !isAdded()) {
-            UIInfoLog.d("FragmentHome.setupTabs", "skip — pager/tabs not ready");
             return;
         }
 
@@ -750,11 +709,6 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
                     statusTop = getResources().getDimensionPixelSize(resId);
                 }
             }
-            UIInfoLog.d("FragmentHome.insets", "statusTop=" + statusTop
-                    + " rawStatus=" + statusBars.top
-                    + " systemBars=" + insets.getInsets(WindowInsetsCompat.Type.systemBars())
-                    + " rootH=" + v.getHeight());
-
             View toolbarWrapper = v.findViewById(R.id.tool_bar_wrapper);
             if (toolbarWrapper != null) {
                 toolbarWrapper.setPadding(
@@ -911,7 +865,6 @@ public class FragmentHome extends Fragment implements DisplayMarginCallback, OnB
 
     @Override
     public void onDestroyView() {
-        UIInfoLog.d("FragmentHome.onDestroyView", "DESTROY (fragment may be recreated on next home nav)");
         pageBuildGeneration.incrementAndGet(); // cancel pending builds
 
 
