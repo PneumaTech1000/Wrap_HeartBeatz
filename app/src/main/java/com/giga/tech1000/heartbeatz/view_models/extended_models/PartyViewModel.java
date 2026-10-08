@@ -213,9 +213,14 @@ public class PartyViewModel extends AndroidViewModel {
                 partyError.postValue(error);
                 PartyLog.e("PartyViewModel", "Party error: " + error);
                 PartyState cur = partyState.getValue();
-                if (cur == PartyState.CONNECTING) {
-                    partyState.postValue(PartyState.SEARCHING);
-                } else if (cur == PartyState.CREATING) {
+                // Failed join must not leave the UI stuck on the searching page
+                if (cur == PartyState.CONNECTING
+                        || cur == PartyState.SEARCHING
+                        || cur == PartyState.FOUND
+                        || cur == PartyState.CREATING) {
+                    try {
+                        partyHost.stopDiscovery();
+                    } catch (Exception ignored) { }
                     partyState.postValue(PartyState.IDLE);
                 }
             }
@@ -418,7 +423,10 @@ public class PartyViewModel extends AndroidViewModel {
      */
     public void stopDiscovery() {
         PartyLog.d("PartyViewModel", "Stopping party discovery");
-        if (partyState.getValue() == PartyState.SEARCHING) {
+        PartyState cur = partyState.getValue();
+        if (cur == PartyState.SEARCHING
+                || cur == PartyState.FOUND
+                || cur == PartyState.CONNECTING) {
             partyState.postValue(PartyState.IDLE);
         }
         partyHost.stopDiscovery();
@@ -458,6 +466,10 @@ public class PartyViewModel extends AndroidViewModel {
                 + " guest=" + partyHost.isGuest() + ")");
         partyError.postValue(null);
         stopPartyBridge();
+
+        try {
+            partyHost.stopDiscovery();
+        } catch (Exception ignored) { }
 
         if (partyHost.isHosting()) {
             partyHost.stopHosting();

@@ -746,16 +746,23 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
 
     private void renderState(PartyState newState) {
         if (newState == null) return;
-        if (newState == currentState) {
-            updateUiContent(newState);
-            return;
-        }
 
         View out = getViewForState(currentState);
         View in = getViewForState(newState);
 
+        // Always enforce exclusive page visibility. Same-state updates used to
+        // skip this and left searching_page visible after a failed transition
+        // or Activity-scoped ViewModel still in SEARCHING.
+        if (newState == currentState) {
+            applyExclusiveStateVisibility(in);
+            updateUiContent(newState);
+            return;
+        }
+
         if (out != in) {
             animateStateTransition(out, in);
+        } else {
+            applyExclusiveStateVisibility(in);
         }
 
         if (newState == PartyState.JOINED || newState == PartyState.HOSTING) {
@@ -766,6 +773,25 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
 
         currentState = newState;
         updateUiContent(newState);
+    }
+
+    /**
+     * Show only the page for the active state; force all others GONE.
+     * Prevents overlapping welcome + searching pages.
+     */
+    private void applyExclusiveStateVisibility(@Nullable View active) {
+        View[] pages = {idleView, searchingView, setupRequiredView, connectedView};
+        for (View page : pages) {
+            if (page == null) continue;
+            if (page == active) {
+                page.setVisibility(View.VISIBLE);
+                page.setAlpha(1f);
+            } else {
+                page.animate().cancel();
+                page.setVisibility(View.GONE);
+                page.setAlpha(1f);
+            }
+        }
     }
 
     private void updateUiContent(PartyState state) {
@@ -832,29 +858,47 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
         }
     }
 
+    /**
+     * Maps party session state → root page. Mapping is intentional:
+     * <ul>
+     *   <li>SEARCHING / CREATING / FOUND / CONNECTING share the pulse (searching) page</li>
+     *   <li>JOINED / HOSTING share the connected party chrome</li>
+     *   <li>IDLE / ERROR / null → welcome</li>
+     * </ul>
+     */
     private View getViewForState(PartyState state) {
+        if (state == null) return idleView;
         return switch (state) {
             case SEARCHING, CREATING, FOUND, CONNECTING -> searchingView;
             case SETUP_REQUIRED -> setupRequiredView;
             case JOINED, HOSTING -> connectedView;
-            default -> idleView;
+            case IDLE, ERROR -> idleView;
         };
     }
 
     private void animateStateTransition(View out, View in) {
-        if (out != null) {
+        // Cancel in-flight animations so pages cannot stick mid-fade
+        if (out != null) out.animate().cancel();
+        if (in != null) in.animate().cancel();
+
+        if (out != null && out != in) {
             out.animate().alpha(0f).setDuration(220).withEndAction(() -> {
                 out.setVisibility(View.GONE);
+                out.setAlpha(1f);
+                applyExclusiveStateVisibility(in);
                 if (in != null) {
                     in.setAlpha(0f);
                     in.setVisibility(View.VISIBLE);
                     in.animate().alpha(1f).setDuration(220).start();
                 }
             }).start();
-        } else if (in != null) {
-            in.setAlpha(0f);
-            in.setVisibility(View.VISIBLE);
-            in.animate().alpha(1f).setDuration(220).start();
+        } else {
+            applyExclusiveStateVisibility(in);
+            if (in != null && in.getVisibility() != View.VISIBLE) {
+                in.setAlpha(0f);
+                in.setVisibility(View.VISIBLE);
+                in.animate().alpha(1f).setDuration(220).start();
+            }
         }
     }
 
