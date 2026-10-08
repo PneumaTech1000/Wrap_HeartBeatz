@@ -316,15 +316,10 @@ public final class TimeEngine {
             return Correction.none();
         }
 
-        // ── Aligned: do nothing (this is the common case on every heartbeat) ──
-        if (abs <= SOFT_DRIFT_MS) {
+        // Free-run by default. Rate changes cause pitch distortion on many
+        // devices — we only seek on large drift, never pitch-bend.
+        if (abs < HARD_DRIFT_MS) {
             return Correction.none();
-        }
-
-        // ── Mild drift: rate only, no seek ──
-        if (abs <= RATE_CORRECT_MS) {
-            float rate = drift > 0 ? RATE_SLOW : RATE_FAST;
-            return Correction.rate(rate, ideal, drift);
         }
 
         // ── Major jump (host seek / long stall): full re-arm ──
@@ -334,16 +329,14 @@ public final class TimeEngine {
             return Correction.stale(ideal);
         }
 
-        // ── Hard but recoverable: in-place seek, stay LOCKED ──
-        if (abs >= HARD_DRIFT_MS
-                && (nowMono - lastSeekMonoMs) >= MIN_SEEK_INTERVAL_MS) {
+        // ── Hard but recoverable: one in-place seek, stay LOCKED ──
+        if ((nowMono - lastSeekMonoMs) >= MIN_SEEK_INTERVAL_MS) {
             lastSeekMonoMs = nowMono;
             return Correction.hardSeek(ideal, drift);
         }
 
-        // Seek throttled — keep gentle rate until next window
-        float rate = drift > 0 ? RATE_SLOW : RATE_FAST;
-        return Correction.rate(rate, ideal, drift);
+        // Seek throttled — free-run until next window
+        return Correction.none();
     }
 
     public void markSeekApplied() {

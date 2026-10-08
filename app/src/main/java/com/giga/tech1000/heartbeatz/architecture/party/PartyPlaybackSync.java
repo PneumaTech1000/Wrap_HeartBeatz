@@ -72,7 +72,7 @@ public class PartyPlaybackSync {
             long durationMs,
             boolean isPlaying,
             long scheduleId) {
-        long look = DEFAULT_LOOKAHEAD_MS;
+        long look = isPlaying ? DEFAULT_LOOKAHEAD_MS : 0L;
         long mono = SystemClock.elapsedRealtime();
         long pos = Math.max(0L, positionMs);
         long target = isPlaying ? pos + look : pos;
@@ -94,7 +94,8 @@ public class PartyPlaybackSync {
         s.isPlaying = isPlaying;
         s.durationMs = Math.max(0L, durationMs);
         s.hostMonoMs = mono;
-        s.targetHostMonoMs = mono + look;
+        // Paused: target is "now". Playing: target is mono + lookahead.
+        s.targetHostMonoMs = isPlaying ? (mono + look) : mono;
         return s;
     }
 

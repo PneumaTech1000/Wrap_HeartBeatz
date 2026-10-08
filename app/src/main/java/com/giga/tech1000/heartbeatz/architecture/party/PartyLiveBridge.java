@@ -134,9 +134,7 @@ public final class PartyLiveBridge {
     public void startHost(@NonNull String partyId, @NonNull PlaybackStateRepository playbackRepo) {
         if (hosting && partyId.equals(activePartyId)) {
             this.playback = playbackRepo;
-            PartyLog.d("PartyLiveBridge", "Host bridge already active party=" + partyId
-                    + " url=" + (lastMediaUrl != null));
-            return;
+            return; // silent — avoid LiveData re-emit log spam
         }
 
         stopAll();

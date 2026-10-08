@@ -74,9 +74,10 @@ public final class TimeEnginePlayerBridge {
                 return;
             }
             TimeAnchor latest = engine.latestAnchor();
+            // Host paused: stay buffered & silent — never force-release into play
             if (latest != null && !latest.isPlaying) {
                 forceSilent();
-                main.postDelayed(this, 250);
+                main.postDelayed(this, 500L);
                 return;
             }
             long now = SystemClock.elapsedRealtime();
@@ -84,7 +85,7 @@ public final class TimeEnginePlayerBridge {
                     ? frozenReleaseMonoMs - now
                     : engine.msUntilRelease();
             if (untilFrozen > 50) {
-                long delay = Math.min(Math.max(untilFrozen / 2, ARM_POLL_MS), 200L);
+                long delay = Math.min(Math.max(untilFrozen / 2, ARM_POLL_MS), 250L);
                 main.postDelayed(this, delay);
                 return;
             }
@@ -412,7 +413,8 @@ public final class TimeEnginePlayerBridge {
                     PartyLog.w("TimeEnginePlayerBridge", "arm seek failed: " + e.getMessage());
                 }
             }
-            if (armedFor > ARM_TIMEOUT_MS) {
+            // Only force-release if host is playing and we have waited long enough
+            if (a.isPlaying && armedFor > ARM_TIMEOUT_MS) {
                 PartyLog.w("TimeEnginePlayerBridge", "arm timeout — force release local="
                         + local + " ideal=" + ideal);
                 doRelease(ideal);
@@ -518,12 +520,12 @@ public final class TimeEnginePlayerBridge {
                 break;
 
             case RATE:
-                if (Math.abs(lastAppliedRate - c.rate) > 0.0005f) {
+                // Pitch-bend disabled — causes audible distortion on many devices.
+                // Free-run at 1.0 until a HARD_SEEK window opens.
+                if (lastAppliedRate != 1.0f) {
                     try {
-                        playback.setPlaybackSpeed(c.rate);
-                        lastAppliedRate = c.rate;
-                        PartyLog.d("TimeEnginePlayerBridge", "rate=" + c.rate + " drift=" + c.driftMs
-                                + " local=" + local + " ideal=" + c.idealPositionMs);
+                        playback.setPlaybackSpeed(1.0f);
+                        lastAppliedRate = 1.0f;
                     } catch (Exception ignored) { }
                 }
                 if (!playing) {

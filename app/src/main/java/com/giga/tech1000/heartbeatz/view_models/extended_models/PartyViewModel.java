@@ -171,9 +171,12 @@ public class PartyViewModel extends AndroidViewModel {
                 if (cur != PartyState.HOSTING) {
                     partyState.postValue(PartyState.HOSTING);
                     PartyLog.d("PartyViewModel", "State → HOSTING (" + host.getPartyName() + ")");
+                    pendingPartyName = host.getPartyName();
+                    // Only on first HOSTING — getHostedParty re-emits on member noise
+                    startHostBridge(host.getPartyId());
+                } else {
+                    pendingPartyName = host.getPartyName();
                 }
-                pendingPartyName = host.getPartyName();
-                startHostBridge(host.getPartyId());
             }
         });
 
