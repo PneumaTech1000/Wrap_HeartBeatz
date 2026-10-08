@@ -1,8 +1,7 @@
 package com.giga.tech1000.heartbeatz.architecture.party;
 
-import android.util.Log;
-
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
@@ -63,15 +62,21 @@ public class PartyPlaybackSyncRepository {
         syncRef = null;
     }
 
-    /** Publish full TimeEngine-aligned anchor. */
+    /**
+     * Publish TimeEngine-aligned anchor.
+     * <p>
+     * Null mediaUrl / objectKey are <b>omitted</b> (not written as null). Firebase
+     * {@code updateChildren} treats null as delete — that wiped the guest's stream URL
+     * on every heartbeat before upload or after host-bridge restart.
+     */
     public void publishHostSync(@NonNull String partyId, @NonNull PartyPlaybackSync sync) {
         Map<String, Object> map = new HashMap<>();
-        map.put("objectKey", sync.objectKey);
-        map.put("mediaUrl", sync.mediaUrl);
-        map.put("trackId", sync.trackId);
-        map.put("title", sync.title);
-        map.put("artist", sync.artist);
-        map.put("album", sync.album);
+        putIfPresent(map, "objectKey", sync.objectKey);
+        putIfPresent(map, "mediaUrl", sync.mediaUrl);
+        putIfPresent(map, "trackId", sync.trackId);
+        putIfPresent(map, "title", sync.title);
+        putIfPresent(map, "artist", sync.artist);
+        putIfPresent(map, "album", sync.album);
         map.put("scheduleId", sync.scheduleId);
         map.put("positionMs", sync.positionMs);
         map.put("targetPositionMs", sync.targetPositionMs);
@@ -88,7 +93,17 @@ public class PartyPlaybackSyncRepository {
                 .child(partyId)
                 .child(PartyFirebasePaths.SYNC)
                 .updateChildren(map)
-                .addOnFailureListener(e -> PartyLog.e("PartyPlaybackSyncRepository", "publish sync failed", e));
+                .addOnFailureListener(e ->
+                        PartyLog.e("PartyPlaybackSyncRepository", "publish sync failed", e));
+    }
+
+    private static void putIfPresent(
+            @NonNull Map<String, Object> map,
+            @NonNull String key,
+            @Nullable String value) {
+        if (value != null && !value.isEmpty()) {
+            map.put(key, value);
+        }
     }
 
     public void clearSync(@NonNull String partyId) {

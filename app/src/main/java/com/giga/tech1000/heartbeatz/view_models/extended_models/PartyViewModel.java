@@ -164,12 +164,15 @@ public class PartyViewModel extends AndroidViewModel {
             initializePlaybackObservers();
         }
 
-        // Host created a party successfully
+        // Host created a party successfully (idempotent bridge start)
         partyHost.getHostedParty().observeForever(host -> {
             if (host != null && partyHost.isHosting()) {
-                partyState.postValue(PartyState.HOSTING);
+                PartyState cur = partyState.getValue();
+                if (cur != PartyState.HOSTING) {
+                    partyState.postValue(PartyState.HOSTING);
+                    PartyLog.d("PartyViewModel", "State → HOSTING (" + host.getPartyName() + ")");
+                }
                 pendingPartyName = host.getPartyName();
-                PartyLog.d("PartyViewModel", "State → HOSTING (" + host.getPartyName() + ")");
                 startHostBridge(host.getPartyId());
             }
         });
@@ -480,9 +483,10 @@ public class PartyViewModel extends AndroidViewModel {
     }
 
     private void startHostBridge(@Nullable String partyId) {
-        if (partyId == null) return;
+        if (partyId == null || partyId.isEmpty()) return;
         try {
             PartyLiveBridge bridge = HeartBeatzApp.container(getApplication()).partyLiveBridge();
+            // startHost is idempotent for same partyId — safe on LiveData re-emits
             PlaybackStateRepository repo = requirePlayback();
             bridge.startHost(partyId, repo);
         } catch (Exception e) {

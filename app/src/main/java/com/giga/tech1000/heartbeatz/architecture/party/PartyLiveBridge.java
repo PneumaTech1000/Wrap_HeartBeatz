@@ -30,8 +30,10 @@ import com.giga.tech1000.heartbeatz.architecture.party.PartyLog;
  * (LOADING → BUFFERING → ARMED muted → LOCKED; lag → STALE silent → re-arm).
  */
 public final class PartyLiveBridge {
-    /** Host heartbeat; balance heat vs schedule freshness. */
+    /** Host position heartbeat — light load, not a tight loop. */
     private static final long HEARTBEAT_MS = 2_000L;
+    /** Floor between non-forced Firebase writes (CPU / radio / heat). */
+    private static final long MIN_PUBLISH_GAP_MS = 1_800L;
 
     private final PartyTrackUploader uploader;
     private final PartyPlaybackSyncRepository syncRepo;
@@ -53,8 +55,12 @@ public final class PartyLiveBridge {
 
     private long lastPublishedPos = -1;
     private boolean lastPublishedPlaying;
-    /** Bump scheduleId on transport changes so guests re-arm cleanly. */
+    private long lastPublishMonoMs;
+    /** Bump scheduleId only on track change / pause / play / seek — not every heartbeat. */
     private long forceScheduleId;
+    /** Guest: last known good stream URL (host packets may omit URL; never wipe this). */
+    @Nullable private String guestStickyMediaUrl;
+    @Nullable private String guestStickyObjectKey;
 
     private final MutableLiveData<PartyPlaybackSync> latestSync = new MutableLiveData<>(null);
     private final MutableLiveData<Boolean> guestLockedUi = new MutableLiveData<>(false);
@@ -121,8 +127,18 @@ public final class PartyLiveBridge {
         return playerBridge.getReadyForUi();
     }
 
-    /** Call when host party is live. */
+    /**
+     * Call when host party is live. Idempotent for the same partyId — LiveData
+     * re-emits of HOSTING must not tear down session / clear mediaUrl.
+     */
     public void startHost(@NonNull String partyId, @NonNull PlaybackStateRepository playbackRepo) {
+        if (hosting && partyId.equals(activePartyId)) {
+            this.playback = playbackRepo;
+            PartyLog.d("PartyLiveBridge", "Host bridge already active party=" + partyId
+                    + " url=" + (lastMediaUrl != null));
+            return;
+        }
+
         stopAll();
         this.activePartyId = partyId;
         this.hosting = true;
@@ -130,14 +146,16 @@ public final class PartyLiveBridge {
         guestLockedUi.postValue(false);
         PartyServerClock.get().start();
         timeEngine.startSession();
+        // Host does not drive local player through TimeEngine
         playerBridge.attachPlayback(null);
         bindHostObservers();
         Song song = playback.getCurrentSongSync();
         if (song != null) {
             onHostSong(song);
         }
+        main.removeCallbacks(heartbeat);
         main.postDelayed(heartbeat, HEARTBEAT_MS);
-        PartyLog.d("PartyLiveBridge", "Host bridge started party=" + partyId);
+        PartyLog.i("PartyLiveBridge", "Host bridge started party=" + partyId);
     }
 
     /**
@@ -201,8 +219,14 @@ public final class PartyLiveBridge {
         lastUploadedTrackId = null;
         lastMediaUrl = null;
         lastObjectKey = null;
+        lastTitle = null;
+        lastArtist = null;
+        lastAlbum = null;
         forceScheduleId = 0;
         lastPublishedPos = -1;
+        lastPublishMonoMs = 0;
+        guestStickyMediaUrl = null;
+        guestStickyObjectKey = null;
         guestLockedUi.postValue(false);
         latestSync.postValue(null);
         idealPositionLive.postValue(0L);
@@ -218,12 +242,16 @@ public final class PartyLiveBridge {
         if (playback == null) return;
         songObserver = this::onHostSong;
         playingObserver = playing -> {
-            if (Boolean.TRUE.equals(playing)) {
-                main.removeCallbacks(heartbeat);
-                main.post(heartbeat);
+            // Pause / play only — new schedule id; guests must pause immediately
+            boolean now = Boolean.TRUE.equals(playing);
+            if (now == lastPublishedPlaying && lastPublishMonoMs > 0) {
+                return; // ignore duplicate LiveData emissions
             }
-            // Transport change → new schedule id so guests re-lock
             publishPositionOnly(true);
+            if (now) {
+                main.removeCallbacks(heartbeat);
+                main.postDelayed(heartbeat, HEARTBEAT_MS);
+            }
         };
         playback.getCurrentSong().observeForever(songObserver);
         playback.isPlaying().observeForever(playingObserver);
@@ -232,12 +260,18 @@ public final class PartyLiveBridge {
             if (status == null) return;
             if (status.state == PartyTrackUploader.State.SUCCESS && status.result != null) {
                 PartyMediaObject obj = status.result;
-                lastMediaUrl = obj.mediaUrl;
-                lastObjectKey = obj.objectKey;
-                if (activePartyId != null && obj.objectKey != null) {
-                    mediaLifecycle.registerUploaded(activePartyId, obj.objectKey, lastUploadedTrackId);
+                if (obj.mediaUrl != null && !obj.mediaUrl.isEmpty()) {
+                    lastMediaUrl = obj.mediaUrl;
                 }
-                publishFullSync(true, true);
+                if (obj.objectKey != null && !obj.objectKey.isEmpty()) {
+                    lastObjectKey = obj.objectKey;
+                }
+                if (activePartyId != null && lastObjectKey != null) {
+                    mediaLifecycle.registerUploaded(activePartyId, lastObjectKey, lastUploadedTrackId);
+                }
+                boolean playing = playback != null && playback.isPlayingSync();
+                publishFullSync(playing, true);
+                PartyLog.i("PartyLiveBridge", "Upload ready url sticky=" + (lastMediaUrl != null));
             } else if (status.state == PartyTrackUploader.State.ERROR) {
                 PartyLog.e("PartyLiveBridge", "Upload error: " + status.errorMessage);
             }
@@ -271,6 +305,7 @@ public final class PartyLiveBridge {
     private void onHostSong(@Nullable Song song) {
         if (!hosting || activePartyId == null || song == null) return;
         String trackId = String.valueOf(song.getId());
+        boolean trackChanged = lastUploadedTrackId == null || !lastUploadedTrackId.equals(trackId);
         lastUploadedTrackId = trackId;
         lastTitle = song.getTitle();
         lastArtist = song.getArtist();
@@ -278,6 +313,13 @@ public final class PartyLiveBridge {
             lastAlbum = song.getAlbum();
         } catch (Exception e) {
             lastAlbum = null;
+        }
+
+        // New track → clear previous URL until upload finishes (do not publish null URL)
+        if (trackChanged) {
+            lastMediaUrl = null;
+            lastObjectKey = null;
+            forceScheduleId = 0;
         }
 
         File file = null;
@@ -290,13 +332,6 @@ public final class PartyLiveBridge {
             PartyLog.w("PartyLiveBridge", "No local path for song", e);
         }
         if (file == null || !file.exists()) {
-            long pos = playback != null ? playback.getCurrentPositionSync() : 0;
-            long dur = playback != null ? playback.getCurrentDurationSync() : 0;
-            boolean playing = playback != null && playback.isPlayingSync();
-            PartyPlaybackSync meta = PartyPlaybackSync.schedule(
-                    null, null, trackId, lastTitle, lastArtist, lastAlbum, pos, dur, playing);
-            latestSync.postValue(meta);
-            syncRepo.publishHostSync(activePartyId, meta);
             PartyLog.w("PartyLiveBridge", "No file to upload for track " + trackId);
             return;
         }
@@ -306,35 +341,48 @@ public final class PartyLiveBridge {
 
     private void publishPositionOnly(boolean forceNewSchedule) {
         if (!hosting || activePartyId == null || playback == null) return;
-        if (lastMediaUrl == null && lastUploadedTrackId == null) return;
-        boolean playing = playback.isPlayingSync();
-        long pos = playback.getCurrentPositionSync();
-        if (!forceNewSchedule
-                && playing == lastPublishedPlaying
-                && Math.abs(pos - lastPublishedPos) < 350) {
+        // Wait until at least one successful upload for this party session
+        if (lastMediaUrl == null || lastMediaUrl.isEmpty()) {
             return;
         }
+        boolean playing = playback.isPlayingSync();
+        long pos = playback.getCurrentPositionSync();
+        long now = SystemClock.elapsedRealtime();
+
+        if (!forceNewSchedule) {
+            if (now - lastPublishMonoMs < MIN_PUBLISH_GAP_MS) {
+                return;
+            }
+            if (playing == lastPublishedPlaying && Math.abs(pos - lastPublishedPos) < 400) {
+                return;
+            }
+        }
+
         lastPublishedPos = pos;
         lastPublishedPlaying = playing;
+        lastPublishMonoMs = now;
         publishFullSync(playing, forceNewSchedule);
     }
 
     private void publishFullSync(boolean isPlaying, boolean forceNewSchedule) {
         if (!hosting || activePartyId == null || playback == null) return;
+        if (lastMediaUrl == null || lastMediaUrl.isEmpty()) {
+            PartyLog.d("PartyLiveBridge", "skip publish — no mediaUrl yet");
+            return;
+        }
+
         long pos = playback.getCurrentPositionSync();
         long dur = 0;
         try {
             dur = playback.getCurrentDurationSync();
         } catch (Exception ignored) { }
 
-        long scheduleId = forceNewSchedule
-                ? PartyPlaybackSync.nextScheduleId()
-                : (forceScheduleId > 0 ? forceScheduleId : PartyPlaybackSync.nextScheduleId());
-        if (forceNewSchedule) {
-            forceScheduleId = scheduleId;
-        } else if (forceScheduleId == 0) {
+        long scheduleId;
+        if (forceNewSchedule || forceScheduleId == 0) {
+            scheduleId = PartyPlaybackSync.nextScheduleId();
             forceScheduleId = scheduleId;
         } else {
+            // Heartbeats keep the same scheduleId so guests do not re-arm
             scheduleId = forceScheduleId;
         }
 
@@ -349,13 +397,16 @@ public final class PartyLiveBridge {
                 dur,
                 isPlaying,
                 scheduleId);
+        lastPublishMonoMs = SystemClock.elapsedRealtime();
+        lastPublishedPos = pos;
+        lastPublishedPlaying = isPlaying;
         latestSync.postValue(sync);
         syncRepo.publishHostSync(activePartyId, sync);
         PartyLog.d("PartyLiveBridge", "sync scheduleId=" + scheduleId
                 + " pos=" + pos
-                + " target=" + sync.targetPositionMs
-                + " mono=" + sync.hostMonoMs
-                + " playing=" + isPlaying);
+                + " playing=" + isPlaying
+                + " hasUrl=true"
+                + " force=" + forceNewSchedule);
     }
 
     private void onGuestSync(@Nullable PartyPlaybackSync sync) {
@@ -363,29 +414,41 @@ public final class PartyLiveBridge {
         if (activePartyId == null) return;
         if (sync == null) {
             latestSync.postValue(null);
-            PartyLog.d("PartyLiveBridge", "guest sync: null (waiting for host publish)");
             return;
         }
         if (sync.receivedAtDeviceMs <= 0) {
             sync.receivedAtDeviceMs = System.currentTimeMillis();
         }
 
+        // Sticky URL: host may omit mediaUrl on some packets; never lose a good URL mid-track
+        if (sync.mediaUrl != null && !sync.mediaUrl.isEmpty()) {
+            guestStickyMediaUrl = sync.mediaUrl;
+        }
+        if (sync.objectKey != null && !sync.objectKey.isEmpty()) {
+            guestStickyObjectKey = sync.objectKey;
+        }
+        if ((sync.mediaUrl == null || sync.mediaUrl.isEmpty()) && guestStickyMediaUrl != null) {
+            sync.mediaUrl = guestStickyMediaUrl;
+            if (sync.objectKey == null || sync.objectKey.isEmpty()) {
+                sync.objectKey = guestStickyObjectKey;
+            }
+        }
+
         boolean hasUrl = sync.mediaUrl != null && !sync.mediaUrl.isEmpty();
-        PartyLog.i("PartyLiveBridge", "guest sync in scheduleId=" + sync.scheduleId
+        PartyLog.d("PartyLiveBridge", "guest sync scheduleId=" + sync.scheduleId
                 + " hasUrl=" + hasUrl
                 + " playing=" + sync.isPlaying
                 + " pos=" + sync.positionMs
-                + " title=" + sync.title
-                + " playbackBound=" + (playback != null));
+                + " sticky=" + (guestStickyMediaUrl != null));
 
         if (!hasUrl) {
-            // Metadata-only packet (host still uploading) — keep waiting
+            // Still uploading on host — wait; do not thrash player
             latestSync.postValue(sync);
             return;
         }
 
         if (playback == null) {
-            PartyLog.e("PartyLiveBridge", "guest sync: playback still null — cannot start stream");
+            PartyLog.e("PartyLiveBridge", "guest sync: playback still null");
             latestSync.postValue(sync);
             return;
         }
@@ -398,11 +461,6 @@ public final class PartyLiveBridge {
             idealPositionLive.postValue(ideal);
         }
         latestSync.postValue(sync);
-
-        PartyLog.i("PartyLiveBridge", "guest feed scheduleId=" + anchor.scheduleId
-                + " phase=" + timeEngine.phase()
-                + " ideal=" + ideal
-                + " untilRelease=" + timeEngine.msUntilRelease());
     }
 
     public void onHostRemovedTrack(@Nullable String objectKey) {

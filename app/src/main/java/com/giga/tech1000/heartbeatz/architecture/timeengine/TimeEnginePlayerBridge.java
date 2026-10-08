@@ -213,12 +213,21 @@ public final class TimeEnginePlayerBridge {
 
         if (phase == TimeEnginePhase.LOCKED) {
             if (!anchor.isPlaying) {
+                // Host paused — hard stop, no seeks
                 forceSilent();
                 return;
             }
-            // Heartbeat only refreshes ideal math (already applied above).
-            // Correction runs on correctLoop — if aligned, it is a pure no-op.
-            // Full re-arm only on huge host jump (e.g. scrub / track skip residue).
+            // Host resumed while we were paused
+            if (!safePlaying()) {
+                try {
+                    playback.play();
+                    PartyLog.i("TimeEnginePlayerBridge", "LOCKED resume play");
+                } catch (Exception e) {
+                    PartyLog.w("TimeEnginePlayerBridge", "resume play failed: " + e.getMessage());
+                }
+            }
+            // Heartbeat only refreshes ideal math. correctLoop no-ops when aligned.
+            // Full re-arm only on huge host jump (scrub / track change residue).
             if (scheduleAdvanced) {
                 long local = safePos();
                 long drift = Math.abs(engine.driftMs(local));
