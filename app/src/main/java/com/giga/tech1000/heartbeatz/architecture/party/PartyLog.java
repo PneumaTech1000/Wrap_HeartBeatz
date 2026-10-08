@@ -49,6 +49,10 @@ public final class PartyLog {
         Log.w(TAG, msg, t);
     }
 
+    public static void w(@NonNull String component, @NonNull String msg, @Nullable Throwable t) {
+        Log.w(TAG, "[" + component + "] " + msg, t);
+    }
+
     public static void e(@NonNull String msg) {
         Log.e(TAG, msg);
     }

@@ -1097,7 +1097,7 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
                 }
             });
         } catch (Exception e) {
-            android.util.PartyLog.w("FragmentParty", "guest sync UI observe failed", e);
+            PartyLog.w("FragmentParty", "guest sync UI observe failed", e);
             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
                     this::dismissGuestLoadingDialog, 5000);
         }
@@ -1163,7 +1163,7 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
                 panel.expandPlayer();
             }
         } catch (Exception e) {
-            android.util.PartyLog.w("FragmentParty", "expand player skipped", e);
+            PartyLog.w("FragmentParty", "expand player skipped", e);
         }
     }
 
