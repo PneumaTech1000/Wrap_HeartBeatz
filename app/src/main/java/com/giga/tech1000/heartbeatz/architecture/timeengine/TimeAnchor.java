@@ -49,6 +49,16 @@ public final class TimeAnchor {
      */
     public final long serverWriteMs;
 
+    /**
+     * SET: media position at {@link #epochServerMs}. -1 if absent (legacy packet).
+     */
+    public final long epochMediaMs;
+
+    /**
+     * SET: Firebase server time of epoch. Ideal = epochMedia + (serverNow - epochServer).
+     */
+    public final long epochServerMs;
+
     /** Guest device elapsedRealtime when packet was received (local only). */
     public final long receivedAtMonoMs;
 
@@ -71,8 +81,14 @@ public final class TimeAnchor {
         this.hostMonoMs = b.hostMonoMs;
         this.targetHostMonoMs = b.targetHostMonoMs;
         this.serverWriteMs = b.serverWriteMs;
+        this.epochMediaMs = b.epochMediaMs;
+        this.epochServerMs = b.epochServerMs;
         this.receivedAtMonoMs = b.receivedAtMonoMs;
         this.receivedAtWallMs = b.receivedAtWallMs;
+    }
+
+    public boolean hasEpoch() {
+        return epochMediaMs >= 0 && epochServerMs >= 0;
     }
 
     public long targetServerTimeMs() {
@@ -100,6 +116,16 @@ public final class TimeAnchor {
                 (serverWrite > 0 ? serverWrite : System.currentTimeMillis())
                         ^ (s.trackId != null ? s.trackId.hashCode() : 0)
         );
+        long epochMedia = s.epochMediaMs;
+        long epochServer = s.epochServerMs;
+        // Legacy packets: synthesize epoch from position + server write
+        if (epochMedia < 0 || epochServer < 0) {
+            if (serverWrite >= 0) {
+                epochMedia = Math.max(0L, s.positionMs);
+                epochServer = serverWrite;
+            }
+        }
+
         return new Builder()
                 .scheduleId(scheduleId)
                 .mediaUrl(s.mediaUrl)
@@ -116,6 +142,8 @@ public final class TimeAnchor {
                 .hostMonoMs(hostMono)
                 .targetHostMonoMs(targetHostMono)
                 .serverWriteMs(serverWrite)
+                .epochMediaMs(epochMedia)
+                .epochServerMs(epochServer)
                 .receivedAtMonoMs(receivedAtMonoMs)
                 .receivedAtWallMs(s.receivedAtDeviceMs > 0
                         ? s.receivedAtDeviceMs
@@ -139,6 +167,8 @@ public final class TimeAnchor {
         long hostMonoMs = -1L;
         long targetHostMonoMs = -1L;
         long serverWriteMs = -1L;
+        long epochMediaMs = -1L;
+        long epochServerMs = -1L;
         long receivedAtMonoMs;
         long receivedAtWallMs;
 
@@ -157,6 +187,8 @@ public final class TimeAnchor {
         public Builder hostMonoMs(long v) { hostMonoMs = v; return this; }
         public Builder targetHostMonoMs(long v) { targetHostMonoMs = v; return this; }
         public Builder serverWriteMs(long v) { serverWriteMs = v; return this; }
+        public Builder epochMediaMs(long v) { epochMediaMs = v; return this; }
+        public Builder epochServerMs(long v) { epochServerMs = v; return this; }
         public Builder receivedAtMonoMs(long v) { receivedAtMonoMs = v; return this; }
         public Builder receivedAtWallMs(long v) { receivedAtWallMs = v; return this; }
 

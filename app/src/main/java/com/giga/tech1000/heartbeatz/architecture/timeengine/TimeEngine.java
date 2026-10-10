@@ -210,16 +210,32 @@ public final class TimeEngine {
     /**
      * Ideal media position at this instant (ms into track).
      * <p>
-     * While playing we extrapolate from the host's last <b>positionMs</b> plus
-     * elapsed mono since the packet was received. We intentionally do <b>not</b>
-     * chase the 4s lookahead target for continuous ideal — that raced ahead of
-     * the decoder and forced constant seeks (distortion). Lookahead is only for
-     * {@link #msUntilRelease()} arm timing.
+     * <b>Server Epoch Timeline:</b>
+     * {@code ideal = epochMediaMs + (serverNow - epochServerMs)} while playing;
+     * frozen at {@code epochMediaMs} while paused. Lookahead is only for
+     * {@link #msUntilRelease()} arm timing — never for continuous ideal chase.
+     * <p>
+     * Fallback (legacy packets without epoch): positionMs + elapsed since receive.
      */
     public long idealTrackPositionMs() {
         TimeAnchor a = latest;
         if (a == null) return -1L;
 
+        // ── SET primary path ──────────────────────────────────────────────
+        if (a.hasEpoch()) {
+            if (!a.isPlaying) {
+                return clamp(a.epochMediaMs, a.durationMs);
+            }
+            long serverNow = estimatedServerNowMs();
+            long elapsed = Math.max(0L, serverNow - a.epochServerMs);
+            // Cap runaway if host packets stop for a long time
+            if (elapsed > STALE_TIMEOUT_MS) {
+                elapsed = STALE_TIMEOUT_MS;
+            }
+            return clamp(a.epochMediaMs + elapsed, a.durationMs);
+        }
+
+        // ── Legacy fallback ───────────────────────────────────────────────
         if (!a.isPlaying) {
             return clamp(a.positionMs, a.durationMs);
         }
@@ -230,7 +246,6 @@ public final class TimeEngine {
         } else if (a.serverWriteMs >= 0) {
             sinceRecv = Math.max(0L, scheduleNowMs() - a.serverWriteMs);
         }
-        // Cap runaway if packets stop (stale path will mute)
         if (sinceRecv > STALE_TIMEOUT_MS) {
             sinceRecv = STALE_TIMEOUT_MS;
         }

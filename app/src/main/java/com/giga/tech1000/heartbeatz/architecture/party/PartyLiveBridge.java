@@ -58,6 +58,9 @@ public final class PartyLiveBridge {
     private long lastPublishMonoMs;
     /** Bump scheduleId only on track change / pause / play / seek — not every heartbeat. */
     private long forceScheduleId;
+    /** Last epoch written (heartbeats reuse; force events replace). */
+    private long lastEpochMediaMs = -1L;
+    private long lastEpochServerMs = -1L;
     /** Guest: last known good stream URL (host packets may omit URL; never wipe this). */
     @Nullable private String guestStickyMediaUrl;
     @Nullable private String guestStickyObjectKey;
@@ -221,6 +224,8 @@ public final class PartyLiveBridge {
         lastArtist = null;
         lastAlbum = null;
         forceScheduleId = 0;
+        lastEpochMediaMs = -1L;
+        lastEpochServerMs = -1L;
         lastPublishedPos = -1;
         lastPublishMonoMs = 0;
         guestStickyMediaUrl = null;
@@ -318,6 +323,8 @@ public final class PartyLiveBridge {
             lastMediaUrl = null;
             lastObjectKey = null;
             forceScheduleId = 0;
+            lastEpochMediaMs = -1L;
+            lastEpochServerMs = -1L;
         }
 
         File file = null;
@@ -375,8 +382,9 @@ public final class PartyLiveBridge {
             dur = playback.getCurrentDurationSync();
         } catch (Exception ignored) { }
 
+        boolean forceEpoch = forceNewSchedule || forceScheduleId == 0;
         long scheduleId;
-        if (forceNewSchedule || forceScheduleId == 0) {
+        if (forceEpoch) {
             scheduleId = PartyPlaybackSync.nextScheduleId();
             forceScheduleId = scheduleId;
         } else {
@@ -394,7 +402,15 @@ public final class PartyLiveBridge {
                 pos,
                 dur,
                 isPlaying,
-                scheduleId);
+                scheduleId,
+                forceEpoch,
+                lastEpochMediaMs,
+                lastEpochServerMs);
+        if (forceEpoch) {
+            lastEpochMediaMs = sync.epochMediaMs;
+            // epochServerMs resolved by Firebase; keep estimate for local continuity
+            lastEpochServerMs = sync.epochServerMs;
+        }
         lastPublishMonoMs = SystemClock.elapsedRealtime();
         lastPublishedPos = pos;
         lastPublishedPlaying = isPlaying;
@@ -404,7 +420,8 @@ public final class PartyLiveBridge {
                 + " pos=" + pos
                 + " playing=" + isPlaying
                 + " hasUrl=true"
-                + " force=" + forceNewSchedule);
+                + " forceEpoch=" + forceEpoch
+                + " epochMedia=" + sync.epochMediaMs);
     }
 
     private void onGuestSync(@Nullable PartyPlaybackSync sync) {

@@ -4,16 +4,12 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 /**
- * Guest: map host packet → ideal track position using Firebase server time.
+ * Guest: map host packet → ideal track position using Server Epoch Timeline.
  * <p>
- * Packet model:
- * <ul>
- *   <li>{@code updatedAt} = server time when host measured {@code positionMs}</li>
- *   <li>{@code targetPositionMs} = position at {@code updatedAt + lookaheadMs} (4s ahead if playing)</li>
- * </ul>
- * Ideal at server now:
- * {@code positionMs + (serverNow - updatedAt)} while playing (clamped),
- * which equals being at {@code targetPositionMs} exactly when {@code serverNow == updatedAt + lookahead}.
+ * Primary:
+ * {@code ideal = epochMediaMs + (serverNow - epochServerMs)} while playing.
+ * <p>
+ * Fallback (legacy): {@code positionMs + (serverNow - updatedAt)}.
  */
 public final class PartySyncTimeline {
 
@@ -31,12 +27,16 @@ public final class PartySyncTimeline {
 
     public void onPacketReceived(@NonNull PartyPlaybackSync sync) {
         long serverWrite = sync.serverWriteTimeMs();
-        if (serverWrite < 0) return;
+        if (serverWrite < 0) {
+            if (sync.epochServerMs >= 0) {
+                serverWrite = sync.epochServerMs;
+            } else {
+                return;
+            }
+        }
         long deviceRecv = sync.receivedAtDeviceMs > 0
                 ? sync.receivedAtDeviceMs
                 : System.currentTimeMillis();
-        // Approximate: at receive, server is already slightly past write time.
-        // Prefer Firebase offset; packet offset is backup only.
         long sample = serverWrite - deviceRecv;
         if (!hasPacketOffset) {
             packetOffsetMs = sample;
@@ -59,36 +59,35 @@ public final class PartySyncTimeline {
 
     /**
      * Position the guest should be at <em>right now</em> (server timeline).
-     * At {@code targetServerTime}, this equals {@code targetPositionMs}.
      */
     public long idealPositionMs(@Nullable PartyPlaybackSync sync) {
         if (sync == null) return -1L;
 
-        long write = sync.serverWriteTimeMs();
-        if (write < 0) {
-            return sync.isPlaying ? sync.positionMs : sync.positionMs;
+        long serverNow = estimatedServerNowMs();
+
+        // SET primary
+        if (sync.hasEpoch()) {
+            if (!sync.isPlaying) {
+                return Math.max(0, sync.epochMediaMs);
+            }
+            long pos = sync.epochMediaMs + Math.max(0, serverNow - sync.epochServerMs);
+            if (pos < 0) pos = 0;
+            if (sync.durationMs > 0) pos = Math.min(pos, sync.durationMs);
+            return pos;
         }
 
-        long serverNow = estimatedServerNowMs();
-        long elapsed = serverNow - write;
+        // Legacy
+        long write = sync.serverWriteTimeMs();
+        if (write < 0) {
+            return Math.max(0, sync.positionMs);
+        }
 
+        long elapsed = serverNow - write;
         if (!sync.isPlaying) {
             return Math.max(0, sync.positionMs);
         }
 
-        // Primary: linear from position at write
         long pos = sync.positionMs + Math.max(0, elapsed);
-
-        // Cross-check against 5s target schedule when present
-        long targetServer = sync.targetServerTimeMs();
-        if (targetServer > 0 && sync.lookaheadMs > 0) {
-            // At targetServer → targetPositionMs; interpolate/extrapolate
-            long untilTarget = targetServer - serverNow;
-            long fromTarget = sync.targetPositionMs - untilTarget;
-            // Blend: prefer target-based once we have a full lookahead window
-            pos = fromTarget;
-        }
-
         if (pos < 0) pos = 0;
         if (sync.durationMs > 0) pos = Math.min(pos, sync.durationMs);
         return pos;

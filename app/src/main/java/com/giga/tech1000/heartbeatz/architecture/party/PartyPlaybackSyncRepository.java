@@ -15,9 +15,11 @@ import com.google.firebase.database.ValueEventListener;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.giga.tech1000.heartbeatz.architecture.party.PartyLog;
 /**
- * Firebase delivery for TimeEngine anchors under {@code parties/{id}/sync}.
+ * Firebase delivery for SET anchors under {@code parties/{id}/sync}.
+ * <p>
+ * Epoch keys are written only when {@link PartyPlaybackSync#writeEpoch} is true.
+ * Heartbeats omit them so {@code epochMediaMs}/{@code epochServerMs} stay sticky.
  */
 public class PartyPlaybackSyncRepository {
     private final FirebaseDatabase db = FirebaseDatabase.getInstance();
@@ -42,6 +44,12 @@ public class PartyPlaybackSyncRepository {
                 PartyPlaybackSync s = snapshot.getValue(PartyPlaybackSync.class);
                 if (s != null) {
                     s.receivedAtDeviceMs = System.currentTimeMillis();
+                    // Firebase may omit unset longs as 0 — treat 0 epoch server as missing
+                    if (s.epochServerMs == 0 && s.epochMediaMs == 0
+                            && !snapshot.hasChild("epochServerMs")) {
+                        s.epochServerMs = -1L;
+                        s.epochMediaMs = -1L;
+                    }
                 }
                 syncLive.postValue(s);
             }
@@ -63,11 +71,10 @@ public class PartyPlaybackSyncRepository {
     }
 
     /**
-     * Publish TimeEngine-aligned anchor.
+     * Publish SET packet.
      * <p>
-     * Null mediaUrl / objectKey are <b>omitted</b> (not written as null). Firebase
-     * {@code updateChildren} treats null as delete — that wiped the guest's stream URL
-     * on every heartbeat before upload or after host-bridge restart.
+     * Null mediaUrl / objectKey are <b>omitted</b> (not written as null) so sticky URL survives.
+     * Epoch fields written only when {@code sync.writeEpoch}.
      */
     public void publishHostSync(@NonNull String partyId, @NonNull PartyPlaybackSync sync) {
         Map<String, Object> map = new HashMap<>();
@@ -88,6 +95,14 @@ public class PartyPlaybackSyncRepository {
         map.put("hostMonoMs", sync.hostMonoMs);
         map.put("targetHostMonoMs", sync.targetHostMonoMs);
         map.put("updatedAt", ServerValue.TIMESTAMP);
+
+        if (sync.writeEpoch) {
+            map.put("epochMediaMs", Math.max(0L, sync.epochMediaMs >= 0
+                    ? sync.epochMediaMs
+                    : sync.positionMs));
+            // Server assigns absolute epoch time — single source of truth
+            map.put("epochServerMs", ServerValue.TIMESTAMP);
+        }
 
         db.getReference(PartyFirebasePaths.PARTIES)
                 .child(partyId)
