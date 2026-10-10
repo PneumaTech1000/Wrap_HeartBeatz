@@ -38,6 +38,8 @@ public final class TimeEnginePlayerBridge {
     private static final long MAX_FROZEN_WAIT_MS = 5_000L;
     /** After RELEASE, no seek/rate (decoder settle, clean audio). */
     private static final long LOCKED_GRACE_MS = 3_000L;
+    /** Epoch validation: ideal vs local every 5s while LOCKED (PartyFlow filter). */
+    private static final long DRIFT_LOG_INTERVAL_MS = 5_000L;
 
     private final TimeEngine engine;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -105,6 +107,19 @@ public final class TimeEnginePlayerBridge {
         }
     };
 
+    /** Validates SET epoch tracking: log ideal vs local without touching the player. */
+    private final Runnable driftLogLoop = new Runnable() {
+        @Override
+        public void run() {
+            if (!loopsActive || playback == null) return;
+            if (engine.phase() != TimeEnginePhase.LOCKED) {
+                return;
+            }
+            logDriftSample();
+            main.postDelayed(this, DRIFT_LOG_INTERVAL_MS);
+        }
+    };
+
     public TimeEnginePlayerBridge(@NonNull TimeEngine engine) {
         this.engine = engine;
     }
@@ -117,6 +132,7 @@ public final class TimeEnginePlayerBridge {
         loopsActive = false;
         main.removeCallbacks(armLoop);
         main.removeCallbacks(correctLoop);
+        main.removeCallbacks(driftLogLoop);
         main.removeCallbacksAndMessages(null);
         forceSilent();
         lastMediaUrl = null;
@@ -470,11 +486,48 @@ public final class TimeEnginePlayerBridge {
         readyForUi.postValue(true);
         metaReadyNotified = true;
         main.removeCallbacks(correctLoop);
+        main.removeCallbacks(driftLogLoop);
         // Start correction after grace so first seconds are clean audio
         main.postDelayed(correctLoop, LOCKED_GRACE_MS);
+        // Epoch validation logger (does not seek / pause)
+        main.postDelayed(driftLogLoop, DRIFT_LOG_INTERVAL_MS);
         PartyLog.i("TimeEnginePlayerBridge", "RELEASE ok ideal=" + ideal
                 + " local=" + safePos()
                 + " mono=" + SystemClock.elapsedRealtime());
+        logDriftSample();
+    }
+
+    /**
+     * One-line drift sample for SET validation. Filter logcat: {@code PartyFlow}.
+     * <pre>
+     * drift local=… ideal=… delta=… epoch=… playing=… phase=LOCKED
+     * </pre>
+     * delta = local − ideal (positive = guest ahead of host timeline).
+     */
+    private void logDriftSample() {
+        try {
+            TimeAnchor a = engine.latestAnchor();
+            long local = safePos();
+            long ideal = engine.idealTrackPositionMs();
+            long delta = (ideal >= 0 && local >= 0) ? (local - ideal) : 0L;
+            boolean epoch = a != null && a.hasEpoch();
+            long epochMedia = a != null ? a.epochMediaMs : -1L;
+            long epochServer = a != null ? a.epochServerMs : -1L;
+            boolean hostPlaying = a != null && a.isPlaying;
+            boolean localPlaying = safePlaying();
+            PartyLog.i("TimeEnginePlayerBridge",
+                    "drift local=" + local
+                            + " ideal=" + ideal
+                            + " delta=" + delta
+                            + " epoch=" + epoch
+                            + " epochMedia=" + epochMedia
+                            + " epochServer=" + epochServer
+                            + " hostPlay=" + hostPlaying
+                            + " localPlay=" + localPlaying
+                            + " scheduleId=" + (a != null ? a.scheduleId : -1));
+        } catch (Exception e) {
+            PartyLog.w("TimeEnginePlayerBridge", "drift log failed: " + e.getMessage());
+        }
     }
 
     /**

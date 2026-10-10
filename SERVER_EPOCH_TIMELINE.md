@@ -163,6 +163,20 @@ Packet-level EMA offset remains a backup if `.info` is not ready.
 - Pause/play and track change follow host within one packet + buffer.  
 - Median `|local − ideal|` after lock stays in a comfortable band without continuous correction.
 
+### Drift logger (validation)
+
+While LOCKED, guest logs every **5s** (tag `PartyFlow`):
+
+```text
+[TimeEnginePlayerBridge] drift local=… ideal=… delta=… epoch=true epochMedia=… epochServer=… hostPlay=… localPlay=… scheduleId=…
+```
+
+- `delta = local − ideal` (positive = guest ahead of host timeline)
+- `epoch=true` confirms SET path is active
+- Logger does **not** seek/pause; observation only
+
+Filter: `adb logcat -s PartyFlow:I`
+
 ---
 
 ## 10. Later (optional)
