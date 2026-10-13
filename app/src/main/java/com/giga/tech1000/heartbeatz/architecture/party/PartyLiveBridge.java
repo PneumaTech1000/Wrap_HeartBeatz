@@ -340,8 +340,46 @@ public final class PartyLiveBridge {
             PartyLog.w("PartyLiveBridge", "No file to upload for track " + trackId);
             return;
         }
-        PartyLog.d("PartyLiveBridge", "Uploading party track " + trackId + " " + file.getName());
-        uploader.uploadAsync(activePartyId, trackId, file, "audio/*", null);
+        String mime = resolveAudioMime(file);
+        PartyLog.d("PartyLiveBridge", "Uploading party track " + trackId
+                + " " + file.getName() + " mime=" + mime);
+        uploader.uploadAsync(activePartyId, trackId, file, mime, null);
+    }
+
+    /**
+     * Supabase rejects wildcard {@code audio/*}. Map extension → concrete type.
+     */
+    @NonNull
+    private static String resolveAudioMime(@NonNull File file) {
+        String name = file.getName();
+        int dot = name.lastIndexOf('.');
+        String ext = dot >= 0 ? name.substring(dot + 1).toLowerCase() : "";
+        switch (ext) {
+            case "mp3":
+            case "mpga":
+            case "mp2":
+                return "audio/mpeg";
+            case "m4a":
+            case "m4b":
+                return "audio/mp4";
+            case "aac":
+                return "audio/aac";
+            case "ogg":
+            case "oga":
+            case "opus":
+                return "audio/ogg";
+            case "wav":
+                return "audio/wav";
+            case "flac":
+                return "audio/flac";
+            case "wma":
+                return "audio/x-ms-wma";
+            case "webm":
+                return "audio/webm";
+            default:
+                // Unknown extension — still send a concrete type Supabase accepts
+                return "audio/mpeg";
+        }
     }
 
     private void publishPositionOnly(boolean forceNewSchedule) {

@@ -69,15 +69,17 @@ public final class SupabasePartyMediaStore implements PartyMediaStore {
             throw new IOException("Supabase not configured — edit PartyMediaConfig.supabaseUrl / supabaseApiKey");
         }
 
-        String objectKey = PartyMediaKeys.trackKey(partyId, trackId, contentHash, "track" + guessExt(mimeType));
+        // Supabase Storage rejects wildcards like "audio/*" (HTTP 415 InvalidMimeType)
+        String concreteMime = normalizeMime(mimeType);
+        String objectKey = PartyMediaKeys.trackKey(partyId, trackId, contentHash, "track" + guessExt(concreteMime));
         String url = trimSlash(config.supabaseUrl)
                 + "/storage/v1/object/"
                 + config.supabaseBucket
                 + "/"
                 + objectKey;
 
-        MediaType mediaType = MediaType.parse(mimeType);
-        if (mediaType == null) mediaType = MediaType.parse("application/octet-stream");
+        MediaType mediaType = MediaType.parse(concreteMime);
+        if (mediaType == null) mediaType = MediaType.parse("audio/mpeg");
 
         RequestBody body = countingBody(mediaType, data, contentLength, progress);
 
@@ -207,12 +209,30 @@ public final class SupabasePartyMediaStore implements PartyMediaStore {
         return s;
     }
 
+    /**
+     * Expand wildcards / empty types to a concrete MIME Supabase allows.
+     */
+    @NonNull
+    static String normalizeMime(@Nullable String mime) {
+        if (mime == null || mime.isEmpty()) return "audio/mpeg";
+        String m = mime.trim().toLowerCase();
+        if (m.equals("audio/*") || m.equals("*/*") || m.endsWith("/*")) {
+            return "audio/mpeg";
+        }
+        // Strip parameters e.g. audio/mpeg; charset=binary
+        int semi = m.indexOf(';');
+        if (semi > 0) m = m.substring(0, semi).trim();
+        return m;
+    }
+
     @NonNull
     private static String guessExt(@NonNull String mime) {
-        if (mime.contains("mp4") || mime.contains("aac") || mime.contains("m4a")) return ".m4a";
-        if (mime.contains("ogg")) return ".ogg";
-        if (mime.contains("wav")) return ".wav";
-        if (mime.contains("flac")) return ".flac";
+        String m = mime.toLowerCase();
+        if (m.contains("mp4") || m.contains("m4a") || m.contains("aac")) return ".m4a";
+        if (m.contains("ogg") || m.contains("opus")) return ".ogg";
+        if (m.contains("wav")) return ".wav";
+        if (m.contains("flac")) return ".flac";
+        if (m.contains("webm")) return ".webm";
         return ".mp3";
     }
 
