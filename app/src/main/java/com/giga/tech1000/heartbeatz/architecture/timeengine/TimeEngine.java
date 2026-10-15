@@ -222,16 +222,15 @@ public final class TimeEngine {
         if (a == null) return -1L;
 
         // ── SET primary path ──────────────────────────────────────────────
+        // ideal MUST keep advancing with server time. Never cap elapsed at
+        // STALE_TIMEOUT — that froze ideal at epochMedia+25s and caused a
+        // soft-recover seek loop (guest local ran ahead, then snapped back).
         if (a.hasEpoch()) {
             if (!a.isPlaying) {
                 return clamp(a.epochMediaMs, a.durationMs);
             }
             long serverNow = estimatedServerNowMs();
             long elapsed = Math.max(0L, serverNow - a.epochServerMs);
-            // Cap runaway if host packets stop for a long time
-            if (elapsed > STALE_TIMEOUT_MS) {
-                elapsed = STALE_TIMEOUT_MS;
-            }
             return clamp(a.epochMediaMs + elapsed, a.durationMs);
         }
 
@@ -245,9 +244,6 @@ public final class TimeEngine {
             sinceRecv = Math.max(0L, SystemClock.elapsedRealtime() - a.receivedAtMonoMs);
         } else if (a.serverWriteMs >= 0) {
             sinceRecv = Math.max(0L, scheduleNowMs() - a.serverWriteMs);
-        }
-        if (sinceRecv > STALE_TIMEOUT_MS) {
-            sinceRecv = STALE_TIMEOUT_MS;
         }
         return clamp(a.positionMs + sinceRecv, a.durationMs);
     }
@@ -337,15 +333,10 @@ public final class TimeEngine {
             return Correction.none();
         }
 
-        // ── Major jump (host seek / long stall): full re-arm ──
-        if (abs >= REARM_DRIFT_MS
+        // Large drift: one hard seek while staying LOCKED (no STALE mute loop).
+        // Prefer free-run; only seek when clearly off the live timeline.
+        if (abs >= HARD_DRIFT_MS
                 && (nowMono - lastSeekMonoMs) >= MIN_SEEK_INTERVAL_MS) {
-            lastSeekMonoMs = nowMono;
-            return Correction.stale(ideal);
-        }
-
-        // ── Hard but recoverable: one in-place seek, stay LOCKED ──
-        if ((nowMono - lastSeekMonoMs) >= MIN_SEEK_INTERVAL_MS) {
             lastSeekMonoMs = nowMono;
             return Correction.hardSeek(ideal, drift);
         }

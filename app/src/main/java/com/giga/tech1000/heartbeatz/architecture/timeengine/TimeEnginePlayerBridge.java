@@ -620,13 +620,22 @@ public final class TimeEnginePlayerBridge {
                 break;
 
             case STALE:
-                // Do not mute. Soft in-place seek if far off; stay LOCKED.
-                if (c.idealPositionMs >= 0 && Math.abs(local - c.idealPositionMs) > HARD_DRIFT_HINT_MS) {
+                // Free-run. Recompute live ideal (never seek to a stale snapshot).
+                // Only correct if still far from *current* ideal after cooldown.
+                long liveIdeal = engine.idealTrackPositionMs();
+                if (liveIdeal >= 0
+                        && Math.abs(local - liveIdeal) > HARD_DRIFT_HINT_MS
+                        && (now - lastPlayRequestMonoMs) >= 5_000L) {
                     try {
-                        playback.seekTo(c.idealPositionMs);
+                        playback.seekTo(liveIdeal);
                         engine.markSeekApplied();
-                        PartyLog.i("TimeEnginePlayerBridge", "soft recover seek → " + c.idealPositionMs);
+                        lastPlayRequestMonoMs = now;
+                        PartyLog.i("SET", "soft recover seek liveIdeal=" + liveIdeal
+                                + " localWas=" + local);
                     } catch (Exception ignored) { }
+                } else {
+                    PartyLog.d("SET", "stale-path free-run local=" + local
+                            + " liveIdeal=" + liveIdeal);
                 }
                 ensurePlayingOnce(now);
                 break;
