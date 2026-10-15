@@ -454,12 +454,24 @@ public final class PartyLiveBridge {
         lastPublishedPlaying = isPlaying;
         latestSync.postValue(sync);
         syncRepo.publishHostSync(activePartyId, sync);
-        PartyLog.d("PartyLiveBridge", "sync scheduleId=" + scheduleId
-                + " pos=" + pos
-                + " playing=" + isPlaying
-                + " hasUrl=true"
+
+        // SET host publish — correlate with guest SET lines via scheduleId / epochMedia
+        PartyServerClock clock = PartyServerClock.get();
+        PartyLog.i("SET", "hostPub"
+                + " scheduleId=" + scheduleId
                 + " forceEpoch=" + forceEpoch
-                + " epochMedia=" + sync.epochMediaMs);
+                + " playing=" + isPlaying
+                + " pos=" + pos
+                + " dur=" + dur
+                + " epochMedia=" + sync.epochMediaMs
+                + " epochServerEst=" + sync.epochServerMs
+                + " look=" + sync.lookaheadMs
+                + " targetPos=" + sync.targetPositionMs
+                + " clockReady=" + clock.isReady()
+                + " offsetMs=" + clock.getOffsetMs()
+                + " serverNowEst=" + (clock.isReady() ? clock.serverNowMs() : -1)
+                + " mono=" + SystemClock.elapsedRealtime()
+                + " trackId=" + (lastUploadedTrackId != null ? lastUploadedTrackId : "-"));
     }
 
     private void onGuestSync(@Nullable PartyPlaybackSync sync) {
@@ -488,14 +500,11 @@ public final class PartyLiveBridge {
         }
 
         boolean hasUrl = sync.mediaUrl != null && !sync.mediaUrl.isEmpty();
-        PartyLog.d("PartyLiveBridge", "guest sync scheduleId=" + sync.scheduleId
-                + " hasUrl=" + hasUrl
-                + " playing=" + sync.isPlaying
-                + " pos=" + sync.positionMs
-                + " sticky=" + (guestStickyMediaUrl != null));
 
         if (!hasUrl) {
-            // Still uploading on host — wait; do not thrash player
+            PartyLog.d("SET", "guestRx scheduleId=" + sync.scheduleId
+                    + " hasUrl=false playing=" + sync.isPlaying
+                    + " pos=" + sync.positionMs);
             latestSync.postValue(sync);
             return;
         }
@@ -506,10 +515,41 @@ public final class PartyLiveBridge {
             return;
         }
 
-        TimeAnchor anchor = TimeAnchor.fromSync(sync, SystemClock.elapsedRealtime());
+        long monoRecv = SystemClock.elapsedRealtime();
+        TimeAnchor anchor = TimeAnchor.fromSync(sync, monoRecv);
         playerBridge.onAnchor(anchor);
 
         long ideal = timeEngine.idealTrackPositionMs();
+        long local = -1L;
+        try {
+            local = playback.getCurrentPositionSync();
+        } catch (Exception ignored) { }
+        PartyServerClock clock = PartyServerClock.get();
+        long serverNow = clock.isReady() ? clock.serverNowMs() : -1L;
+        long epochAge = (sync.hasEpoch() && serverNow > 0)
+                ? (serverNow - sync.epochServerMs) : -1L;
+        long delta = (ideal >= 0 && local >= 0) ? (local - ideal) : 0L;
+
+        // SET guest receive — same scheduleId as hostPub for cross-device compare
+        PartyLog.i("SET", "guestRx"
+                + " scheduleId=" + sync.scheduleId
+                + " playing=" + sync.isPlaying
+                + " pos=" + sync.positionMs
+                + " epochMedia=" + sync.epochMediaMs
+                + " epochServer=" + sync.epochServerMs
+                + " epochAgeMs=" + epochAge
+                + " hasEpoch=" + sync.hasEpoch()
+                + " updatedAt=" + sync.serverWriteTimeMs()
+                + " ideal=" + ideal
+                + " local=" + local
+                + " delta=" + delta
+                + " phase=" + timeEngine.phase()
+                + " clockReady=" + clock.isReady()
+                + " offsetMs=" + clock.getOffsetMs()
+                + " serverNow=" + serverNow
+                + " mono=" + monoRecv
+                + " sticky=" + (guestStickyMediaUrl != null));
+
         if (ideal >= 0) {
             idealPositionLive.postValue(ideal);
         }

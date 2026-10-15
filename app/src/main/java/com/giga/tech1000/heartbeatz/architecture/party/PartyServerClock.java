@@ -36,8 +36,17 @@ public final class PartyServerClock {
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 Long v = snapshot.getValue(Long.class);
                 if (v != null) {
+                    long prev = offsetMs;
                     offsetMs = v;
+                    boolean first = !ready;
                     ready = true;
+                    // SET diagnostics: clock offset is critical for multi-device ideal
+                    if (first || Math.abs(prev - offsetMs) > 5) {
+                        PartyLog.i("SET", "clock role=any offsetMs=" + offsetMs
+                                + " serverNow=" + (System.currentTimeMillis() + offsetMs)
+                                + " deviceWall=" + System.currentTimeMillis()
+                                + " ready=true");
+                    }
                 }
             }
 

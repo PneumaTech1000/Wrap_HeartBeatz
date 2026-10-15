@@ -38,8 +38,8 @@ public final class TimeEnginePlayerBridge {
     private static final long MAX_FROZEN_WAIT_MS = 5_000L;
     /** After RELEASE, no seek/rate (decoder settle, clean audio). */
     private static final long LOCKED_GRACE_MS = 3_000L;
-    /** Epoch validation: ideal vs local every 5s while LOCKED (PartyFlow filter). */
-    private static final long DRIFT_LOG_INTERVAL_MS = 5_000L;
+    /** SET validation: ideal vs local every 2s while LOCKED (filter PartyFlow / SET). */
+    private static final long DRIFT_LOG_INTERVAL_MS = 2_000L;
 
     private final TimeEngine engine;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -498,9 +498,9 @@ public final class TimeEnginePlayerBridge {
     }
 
     /**
-     * One-line drift sample for SET validation. Filter logcat: {@code PartyFlow}.
+     * SET free-run sample while LOCKED. Filter: {@code PartyFlow} or text {@code SET}.
      * <pre>
-     * drift local=… ideal=… delta=… epoch=… playing=… phase=LOCKED
+     * SET drift local=… ideal=… delta=… epochAgeMs=… offsetMs=… scheduleId=…
      * </pre>
      * delta = local − ideal (positive = guest ahead of host timeline).
      */
@@ -515,16 +515,31 @@ public final class TimeEnginePlayerBridge {
             long epochServer = a != null ? a.epochServerMs : -1L;
             boolean hostPlaying = a != null && a.isPlaying;
             boolean localPlaying = safePlaying();
-            PartyLog.i("TimeEnginePlayerBridge",
-                    "drift local=" + local
-                            + " ideal=" + ideal
-                            + " delta=" + delta
-                            + " epoch=" + epoch
-                            + " epochMedia=" + epochMedia
-                            + " epochServer=" + epochServer
-                            + " hostPlay=" + hostPlaying
-                            + " localPlay=" + localPlaying
-                            + " scheduleId=" + (a != null ? a.scheduleId : -1));
+            long serverNow = engine.estimatedServerNowMs();
+            long epochAge = (epoch && epochServer >= 0)
+                    ? (serverNow - epochServer) : -1L;
+            long offsetMs = com.giga.tech1000.heartbeatz.architecture.party.PartyServerClock
+                    .get().getOffsetMs();
+            boolean clockReady = com.giga.tech1000.heartbeatz.architecture.party.PartyServerClock
+                    .get().isReady();
+
+            PartyLog.i("SET", "drift"
+                    + " local=" + local
+                    + " ideal=" + ideal
+                    + " delta=" + delta
+                    + " absDelta=" + Math.abs(delta)
+                    + " hasEpoch=" + epoch
+                    + " epochMedia=" + epochMedia
+                    + " epochServer=" + epochServer
+                    + " epochAgeMs=" + epochAge
+                    + " hostPlay=" + hostPlaying
+                    + " localPlay=" + localPlaying
+                    + " phase=" + engine.phase()
+                    + " scheduleId=" + (a != null ? a.scheduleId : -1)
+                    + " clockReady=" + clockReady
+                    + " offsetMs=" + offsetMs
+                    + " serverNow=" + serverNow
+                    + " mono=" + SystemClock.elapsedRealtime());
         } catch (Exception e) {
             PartyLog.w("TimeEnginePlayerBridge", "drift log failed: " + e.getMessage());
         }
