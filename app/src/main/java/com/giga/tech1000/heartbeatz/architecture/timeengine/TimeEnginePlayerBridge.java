@@ -40,6 +40,13 @@ public final class TimeEnginePlayerBridge {
     private static final long LOCKED_GRACE_MS = 3_000L;
     /** SET validation: ideal vs local every 2s while LOCKED (filter PartyFlow / SET). */
     private static final long DRIFT_LOG_INTERVAL_MS = 2_000L;
+    /** Samples of (local−ideal) before applying bias. */
+    private static final int BIAS_SAMPLE_TARGET = 6;
+    /** Only learn bias if |mean delta| is in this band (ms). */
+    private static final long BIAS_MIN_ABS_MS = 200L;
+    private static final long BIAS_MAX_ABS_MS = 1_800L;
+    /** Max change per learning step. */
+    private static final long BIAS_STEP_CAP_MS = 400L;
 
     private final TimeEngine engine;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -55,6 +62,11 @@ public final class TimeEnginePlayerBridge {
     private long armedSinceMonoMs;
     private long lastStaleMonoMs;
     private long lockedSinceMonoMs;
+
+    /** Running sum for auto bias (LOCKED free-run). */
+    private long biasSumDelta;
+    private int biasSampleCount;
+    private long lastBiasApplyMonoMs;
     /**
      * One-shot release deadline in {@link SystemClock#elapsedRealtime()}.
      * Host heartbeats refresh targetServerTime (~lookahead into the future every
@@ -204,12 +216,14 @@ public final class TimeEnginePlayerBridge {
             releasePosted = false;
             metaReadyNotified = false;
             readyForUi.postValue(false);
+            resetBiasLearning();
             beginBuffer(anchor);
             return;
         }
 
         if (scheduleAdvanced) {
             lastScheduleId = anchor.scheduleId;
+            resetBiasLearning();
         }
 
         TimeEnginePhase phase = engine.phase();
@@ -538,11 +552,73 @@ public final class TimeEnginePlayerBridge {
                     + " scheduleId=" + (a != null ? a.scheduleId : -1)
                     + " clockReady=" + clockReady
                     + " offsetMs=" + offsetMs
+                    + " lagBias=" + engine.getLagCompensationMs()
                     + " serverNow=" + serverNow
                     + " mono=" + SystemClock.elapsedRealtime());
+
+            // Learn steady lag while free-running (no seeks). Negative delta =
+            // guest behind ideal → bias pulls ideal earlier.
+            if (hostPlaying && localPlaying && epoch
+                    && engine.phase() == TimeEnginePhase.LOCKED
+                    && lockedSinceMonoMs > 0
+                    && SystemClock.elapsedRealtime() - lockedSinceMonoMs > LOCKED_GRACE_MS) {
+                maybeLearnBias(delta);
+            }
         } catch (Exception e) {
             PartyLog.w("TimeEnginePlayerBridge", "drift log failed: " + e.getMessage());
         }
+    }
+
+    private void resetBiasLearning() {
+        biasSumDelta = 0;
+        biasSampleCount = 0;
+        lastBiasApplyMonoMs = 0;
+        engine.setLagCompensationMs(0);
+        PartyLog.d("SET", "bias reset");
+    }
+
+    /**
+     * After several stable LOCKED samples, fold mean(delta) into lag bias so
+     * ideal aligns with local without seeking (no click/glitch).
+     */
+    private void maybeLearnBias(long delta) {
+        long now = SystemClock.elapsedRealtime();
+        // Don't learn too often
+        if (now - lastBiasApplyMonoMs < 12_000L && biasSampleCount == 0) {
+            // allow collecting after previous apply
+        }
+        if (Math.abs(delta) > BIAS_MAX_ABS_MS) {
+            // huge jump (seek/track change) — reset window
+            biasSumDelta = 0;
+            biasSampleCount = 0;
+            return;
+        }
+        biasSumDelta += delta;
+        biasSampleCount++;
+        if (biasSampleCount < BIAS_SAMPLE_TARGET) return;
+        if (now - lastBiasApplyMonoMs < 12_000L) {
+            biasSumDelta = 0;
+            biasSampleCount = 0;
+            return;
+        }
+
+        long mean = biasSumDelta / biasSampleCount;
+        biasSumDelta = 0;
+        biasSampleCount = 0;
+        long abs = Math.abs(mean);
+        if (abs < BIAS_MIN_ABS_MS || abs > BIAS_MAX_ABS_MS) return;
+
+        // Step toward cancelling bias: ideal_new ≈ ideal + mean when lagComp += mean
+        long step = mean;
+        if (step > BIAS_STEP_CAP_MS) step = BIAS_STEP_CAP_MS;
+        if (step < -BIAS_STEP_CAP_MS) step = -BIAS_STEP_CAP_MS;
+
+        long next = engine.getLagCompensationMs() + step;
+        engine.setLagCompensationMs(next);
+        lastBiasApplyMonoMs = now;
+        PartyLog.i("SET", "biasLearn meanDelta=" + mean
+                + " step=" + step
+                + " lagBias=" + engine.getLagCompensationMs());
     }
 
     /**

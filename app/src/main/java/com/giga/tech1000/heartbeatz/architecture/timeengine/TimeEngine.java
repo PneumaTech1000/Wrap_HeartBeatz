@@ -161,8 +161,17 @@ public final class TimeEngine {
         outputLive.postValue(shouldOutputAudio());
     }
 
-    public void setLagCompensationMs(long oneWayMs) {
-        this.lagCompensationMs = Math.max(0L, Math.min(oneWayMs, 1_500L));
+    /**
+     * Signed bias added to estimated server time when computing ideal.
+     * Negative pulls ideal earlier (guest was behind); positive pushes ideal later.
+     * Clamped to ±2s.
+     */
+    public void setLagCompensationMs(long biasMs) {
+        this.lagCompensationMs = Math.max(-2_000L, Math.min(biasMs, 2_000L));
+    }
+
+    public long getLagCompensationMs() {
+        return lagCompensationMs;
     }
 
     public void setPhase(@NonNull TimeEnginePhase p) {

@@ -100,8 +100,14 @@ public class PartyPlaybackSyncRepository {
             map.put("epochMediaMs", Math.max(0L, sync.epochMediaMs >= 0
                     ? sync.epochMediaMs
                     : sync.positionMs));
-            // Server assigns absolute epoch time — single source of truth
-            map.put("epochServerMs", ServerValue.TIMESTAMP);
+            // CRITICAL: use host-sampled serverNow at the same instant as epochMedia.
+            // ServerValue.TIMESTAMP resolves later (often +300–800ms) and freezes
+            // guests systematically behind the host. updatedAt still uses TIMESTAMP.
+            if (sync.epochServerMs >= 0) {
+                map.put("epochServerMs", sync.epochServerMs);
+            } else {
+                map.put("epochServerMs", ServerValue.TIMESTAMP);
+            }
         }
 
         db.getReference(PartyFirebasePaths.PARTIES)
