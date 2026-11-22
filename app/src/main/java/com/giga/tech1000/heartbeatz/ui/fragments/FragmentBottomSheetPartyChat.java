@@ -334,13 +334,60 @@ public class FragmentBottomSheetPartyChat extends Fragment {
     private void onSongPicked(@NonNull Song song) {
         if (!inParty) return;
         collapseSongPicker();
-        if (hostMode) {
-            partyTracks.add(song);
-            if (parentSheetView != null) {
-                parentSheetView.submitPartyQueue(new ArrayList<>(partyTracks), partyTracks.size() - 1);
+        try {
+            var container = com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp.container(requireContext());
+            var queueRepo = container.partyQueue();
+            var partyVm = new androidx.lifecycle.ViewModelProvider(requireActivity())
+                    .get(com.giga.tech1000.heartbeatz.view_models.extended_models.PartyViewModel.class);
+            String partyId = partyVm.getPartyId();
+            if (partyId == null || partyId.isEmpty()) {
+                android.widget.Toast.makeText(requireContext(),
+                        R.string.party_queue_no_party, android.widget.Toast.LENGTH_SHORT).show();
+                return;
             }
+
+            if (hostMode) {
+                // Host adds directly as approved/ready metadata; upload happens when host plays
+                var item = com.giga.tech1000.heartbeatz.architecture.party.PartyQueueItem.fromSong(
+                        song,
+                        com.giga.tech1000.heartbeatz.architecture.party.PartyQueueItem.STATUS_APPROVED,
+                        null,
+                        "Host",
+                        System.currentTimeMillis());
+                queueRepo.hostAddTrack(partyId, item,
+                        () -> android.widget.Toast.makeText(requireContext(),
+                                R.string.party_queue_host_added, android.widget.Toast.LENGTH_SHORT).show(),
+                        err -> android.widget.Toast.makeText(requireContext(),
+                                err != null ? err : "Add failed", android.widget.Toast.LENGTH_SHORT).show());
+                partyTracks.add(song);
+                if (parentSheetView != null) {
+                    parentSheetView.submitPartyQueue(new ArrayList<>(partyTracks), partyTracks.size() - 1);
+                }
+                // Trigger play so P0 upload + READY URL attach
+                try {
+                    // index 0 in a one-item queue of this track id → triggers host upload via P0
+                    java.util.List<Integer> one = java.util.Collections.singletonList((int) song.getId());
+                    container.requireUiThread().getPlaybackStateRepository()
+                            .play(0, one,
+                                    com.giga.tech1000.media_player.utils.enums.ItemSource.ALL_SONGS);
+                } catch (Exception ignored) { }
+            } else {
+                // Guest suggests — host must approve (Firebase pending write)
+                var draft = com.giga.tech1000.heartbeatz.architecture.party.PartyQueueItem.fromSong(
+                        song,
+                        com.giga.tech1000.heartbeatz.architecture.party.PartyQueueItem.STATUS_PENDING,
+                        null,
+                        null,
+                        System.currentTimeMillis());
+                queueRepo.suggestTrack(partyId, draft,
+                        () -> android.widget.Toast.makeText(requireContext(),
+                                R.string.party_queue_suggested, android.widget.Toast.LENGTH_SHORT).show(),
+                        err -> android.widget.Toast.makeText(requireContext(),
+                                err != null ? err : "Suggest failed", android.widget.Toast.LENGTH_SHORT).show());
+            }
+        } catch (Exception e) {
+            android.util.Log.w("PartyChat", "onSongPicked failed", e);
         }
-        // Guest request → chat backend later
     }
 
     public void setHostMode(boolean host) {

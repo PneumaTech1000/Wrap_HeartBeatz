@@ -57,6 +57,17 @@
                 android:text="Artist name"
                 android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant" />
+
+            <TextView
+                android:id="@+id/bottom_sheet_queue_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textAppearance="?attr/textAppearanceLabelSmall"
+                android:textColor="?attr/colorPrimary"
+                android:visibility="gone"
+                android:text="Pending approval" />
         </LinearLayout>
 
         <com.giga.tech1000.visualizer_android.visualizer.DummyBarVisualizer
@@ -66,8 +77,34 @@
             android:layout_marginHorizontal="8dp"
             android:visibility="gone"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toStartOf="@+id/bottom_sheet_queue_remove"
+            app:layout_constraintEnd_toStartOf="@+id/bottom_sheet_queue_approve"
             app:layout_constraintTop_toTopOf="parent" />
+
+        <ImageButton
+            android:id="@+id/bottom_sheet_queue_approve"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Approve"
+            android:src="@android:drawable/ic_input_add"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/bottom_sheet_queue_reject"
+            app:layout_constraintTop_toTopOf="parent"
+            app:tint="?attr/colorPrimary" />
+
+        <ImageButton
+            android:id="@+id/bottom_sheet_queue_reject"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Reject"
+            android:src="@drawable/close_24px"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/bottom_sheet_queue_remove"
+            app:layout_constraintTop_toTopOf="parent"
+            app:tint="?attr/colorError" />
 
         <ImageButton
             android:id="@+id/bottom_sheet_queue_remove"

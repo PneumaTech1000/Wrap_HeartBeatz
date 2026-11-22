@@ -50,6 +50,7 @@ public final class PartyLiveBridge {
     private final PartyTrackUploader uploader;
     private final PartyPlaybackSyncRepository syncRepo;
     private final PartyMediaLifecycle mediaLifecycle;
+    @Nullable private final PartyQueueRepository queueRepo;
     private final TimeEngine timeEngine = new TimeEngine();
     private final TimeEnginePlayerBridge playerBridge = new TimeEnginePlayerBridge(timeEngine);
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -112,10 +113,12 @@ public final class PartyLiveBridge {
     public PartyLiveBridge(
             @NonNull PartyTrackUploader uploader,
             @NonNull PartyPlaybackSyncRepository syncRepo,
-            @NonNull PartyMediaLifecycle mediaLifecycle) {
+            @NonNull PartyMediaLifecycle mediaLifecycle,
+            @Nullable PartyQueueRepository queueRepo) {
         this.uploader = uploader;
         this.syncRepo = syncRepo;
         this.mediaLifecycle = mediaLifecycle;
+        this.queueRepo = queueRepo;
     }
 
     @NonNull
@@ -186,6 +189,9 @@ public final class PartyLiveBridge {
         }
         main.removeCallbacks(heartbeat);
         main.postDelayed(heartbeat, HEARTBEAT_MS);
+        if (queueRepo != null) {
+            queueRepo.observeParty(partyId);
+        }
         PartyLog.i("PartyLiveBridge", "Host bridge started party=" + partyId);
     }
 
@@ -229,6 +235,9 @@ public final class PartyLiveBridge {
             main.post(() -> onGuestSync(existing));
         }
 
+        if (queueRepo != null) {
+            queueRepo.observeParty(partyId);
+        }
         PartyLog.i("PartyLiveBridge", "Guest bridge started party=" + partyId
                 + " playback=" + (playback != null)
                 + " hasCachedSync=" + (existing != null));
@@ -243,6 +252,9 @@ public final class PartyLiveBridge {
                 syncRepo.getSync().removeObserver(guestSyncObserver);
             } catch (Exception ignored) { }
             guestSyncObserver = null;
+        }
+        if (queueRepo != null) {
+            queueRepo.stopObserving();
         }
         playerBridge.reset();
         hosting = false;
@@ -317,6 +329,26 @@ public final class PartyLiveBridge {
         }
         if (activePartyId != null && lastObjectKey != null) {
             mediaLifecycle.registerUploaded(activePartyId, lastObjectKey, lastUploadedTrackId);
+        }
+        // P2: keep shared DJ queue in sync with host cloud media
+        if (queueRepo != null && activePartyId != null && lastMediaUrl != null) {
+            try {
+                long dur = 0L;
+                if (playback != null) {
+                    try { dur = playback.getCurrentDurationSync(); } catch (Exception ignored) {}
+                }
+                queueRepo.hostMarkTrackReady(
+                        activePartyId,
+                        lastUploadedTrackId,
+                        lastMediaUrl,
+                        lastObjectKey,
+                        lastTitle,
+                        lastArtist,
+                        lastAlbum,
+                        dur);
+            } catch (Exception e) {
+                PartyLog.w("PartyLiveBridge", "queue mark ready skipped: " + e.getMessage());
+            }
         }
         PartyLog.i("PartyLiveBridge", "Upload ready url sticky=" + (lastMediaUrl != null)
                 + " key=" + lastObjectKey);

@@ -137,8 +137,112 @@ public class FragmentBottomSheetQueue extends Fragment implements BottomSheetQue
             Log.w(TAG, "playing cache observe skipped", e);
         }
 
+        bindPartyQueueObservers();
+
         // Safe with empty prevQueue — no NPE
         sortItem();
+    }
+
+    /**
+     * P2 Host-as-DJ: shared Firebase queue drives this list while a party is live.
+     */
+    private void bindPartyQueueObservers() {
+        try {
+            var container = HeartBeatzApp.container(requireContext());
+            var queueRepo = container.partyQueue();
+            var partyVm = new ViewModelProvider(requireActivity())
+                    .get(com.giga.tech1000.heartbeatz.view_models.extended_models.PartyViewModel.class);
+
+            if (adapter != null) {
+                adapter.setPartyActions(new BottomSheetQueueViewAdapter.PartyQueueActions() {
+                    @Override
+                    public void onApprove(@NonNull com.giga.tech1000.heartbeatz.architecture.party.PartyQueueItem item) {
+                        String partyId = partyVm.getPartyId();
+                        if (partyId == null || item.itemId == null) return;
+                        queueRepo.approve(partyId, item.itemId);
+                        // Host may already have this track local — try upload via current picker path later
+                        android.widget.Toast.makeText(requireContext(),
+                                R.string.party_queue_approved, android.widget.Toast.LENGTH_SHORT).show();
+                    }
+
+                    @Override
+                    public void onReject(@NonNull com.giga.tech1000.heartbeatz.architecture.party.PartyQueueItem item) {
+                        String partyId = partyVm.getPartyId();
+                        if (partyId == null || item.itemId == null) return;
+                        queueRepo.reject(partyId, item.itemId);
+                    }
+
+                    @Override
+                    public void onRemove(@NonNull com.giga.tech1000.heartbeatz.architecture.party.PartyQueueItem item) {
+                        String partyId = partyVm.getPartyId();
+                        if (partyId == null || item.itemId == null) return;
+                        queueRepo.remove(partyId, item.itemId);
+                    }
+
+                    @Override
+                    public void onPlayReady(@NonNull com.giga.tech1000.heartbeatz.architecture.party.PartyQueueItem item) {
+                        // Host: play this ready URL through party stream path
+                        if (item.mediaUrl == null || item.mediaUrl.isEmpty()) {
+                            android.widget.Toast.makeText(requireContext(),
+                                    R.string.party_queue_not_ready, android.widget.Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        try {
+                            var playback = container.requireUiThread().getPlaybackStateRepository();
+                            playback.playPartyStream(
+                                    item.mediaUrl,
+                                    item.trackId,
+                                    item.title,
+                                    item.artist,
+                                    item.album,
+                                    0L,
+                                    true);
+                            if (item.itemId != null && partyVm.getPartyId() != null) {
+                                queueRepo.markPlaying(partyVm.getPartyId(), item.itemId);
+                            }
+                        } catch (Exception e) {
+                            Log.w(TAG, "playReady failed", e);
+                        }
+                    }
+                });
+            }
+
+            queueRepo.getQueue().observe(getViewLifecycleOwner(), items -> {
+                if (items == null) return;
+                boolean hosting = false;
+                try {
+                    hosting = partyVm.isHosting();
+                } catch (Exception ignored) { }
+                boolean inParty = queueRepo.getActivePartyId() != null;
+                if (!inParty && items.isEmpty()) {
+                    if (partyMode) {
+                        clearPartyMode();
+                    }
+                    return;
+                }
+                if (!inParty) return;
+
+                partyMode = true;
+                if (adapter != null) {
+                    adapter.setPartyMode(true, hosting);
+                }
+                List<BaseRecyclerViewItem> rows = new ArrayList<>();
+                for (var qi : items) {
+                    if (qi == null || !qi.isVisibleInQueue()) continue;
+                    rows.add(new BottomSheetQueueViewItem(qi.toDisplaySong(), qi));
+                }
+                if (adapter == null) {
+                    adapter = new BottomSheetQueueViewAdapter(rows, playbackViewModel);
+                    adapter.setViewType(BaseRecyclerViewAdapter.ViewType.LIST);
+                    adapter.setPartyMode(true, hosting);
+                    if (recyclerView != null) recyclerView.setAdapter(adapter);
+                } else {
+                    adapter.setItems(rows);
+                }
+            });
+        } catch (Exception e) {
+            Log.w(TAG, "party queue observe skipped", e);
+        }
     }
 
     public BottomSheetQueueAndIndexUpdate getCallback() {

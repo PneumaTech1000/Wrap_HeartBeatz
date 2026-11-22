@@ -42,3 +42,7 @@ firebase deploy --only database
 - Rate limits (App Check)
 - Hash PIN; never store plain PIN in RTDB
 - Restrict `parties` list reads to non-sensitive fields via a public index node
+
+
+## Queue (P2)
+Guests may create `status=pending` items with their uid; host owns all other writes. Deploy `firebase.rules`.

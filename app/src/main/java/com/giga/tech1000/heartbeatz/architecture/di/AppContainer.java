@@ -12,6 +12,7 @@ import com.giga.tech1000.heartbeatz.architecture.media.PartyMediaStoreProvider;
 import com.giga.tech1000.heartbeatz.architecture.media.PartyTrackUploader;
 import com.giga.tech1000.heartbeatz.architecture.media.PartyMediaLifecycle;
 import com.giga.tech1000.heartbeatz.architecture.party.PartyPlaybackSyncRepository;
+import com.giga.tech1000.heartbeatz.architecture.party.PartyQueueRepository;
 import com.giga.tech1000.heartbeatz.architecture.party.PartyLiveBridge;
 import com.giga.tech1000.heartbeatz.architecture.session.FirebasePartySession;
 import com.giga.tech1000.heartbeatz.architecture.session.PartySession;
@@ -36,6 +37,7 @@ public final class AppContainer {
     private final PartyTrackUploader partyTrackUploader;
     private final PartyMediaLifecycle partyMediaLifecycle;
     private final PartyPlaybackSyncRepository partyPlaybackSyncRepository;
+    private final PartyQueueRepository partyQueueRepository;
     private final PartyLiveBridge partyLiveBridge;
 
     @Nullable private UIThread uiThread;
@@ -54,7 +56,12 @@ public final class AppContainer {
         this.partyTrackUploader = new PartyTrackUploader(partyMediaStore);
         this.partyMediaLifecycle = new PartyMediaLifecycle(partyMediaStore);
         this.partyPlaybackSyncRepository = new PartyPlaybackSyncRepository();
-        this.partyLiveBridge = new PartyLiveBridge(partyTrackUploader, partyPlaybackSyncRepository, partyMediaLifecycle);
+        this.partyQueueRepository = new PartyQueueRepository();
+        this.partyLiveBridge = new PartyLiveBridge(
+                partyTrackUploader,
+                partyPlaybackSyncRepository,
+                partyMediaLifecycle,
+                partyQueueRepository);
     }
 
     @NonNull
@@ -97,6 +104,12 @@ public final class AppContainer {
     @NonNull
     public PartyLiveBridge partyLiveBridge() {
         return partyLiveBridge;
+    }
+
+    /** Host-as-DJ shared queue (suggest / approve / ready). */
+    @NonNull
+    public PartyQueueRepository partyQueue() {
+        return partyQueueRepository;
     }
 
     /**

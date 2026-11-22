@@ -68,7 +68,16 @@
           ".read": "auth != null",
           "$itemId": {
             ".read": "auth != null",
-            ".write": "auth != null && root.child('parties').child($partyId).child('ownerId').val() == auth.uid"
+            // Host: full control. Guest: create pending suggestions only (own uid).
+            ".write": "auth != null && (
+              root.child('parties').child($partyId).child('ownerId').val() == auth.uid
+              || (
+                !data.exists()
+                && newData.child('suggestedByUid').val() == auth.uid
+                && newData.child('status').val() == 'pending'
+                && root.child('parties').child($partyId).child('members').child(auth.uid).exists()
+              )
+            )"
           }
         },
 

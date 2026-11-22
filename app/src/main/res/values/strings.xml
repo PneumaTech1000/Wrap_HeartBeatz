@@ -197,4 +197,10 @@
     <string name="party_sync_quality_drifting">Sync · adjusting</string>
     <string name="party_guest_listening">Listening · host controls</string>
     <string name="party_guest_transport_blocked">Host controls playback during the party</string>
+
+    <string name="party_queue_approved">Suggestion approved</string>
+    <string name="party_queue_not_ready">Track not ready yet — play it as host to upload</string>
+    <string name="party_queue_no_party">No active party</string>
+    <string name="party_queue_host_added">Added to party queue</string>
+    <string name="party_queue_suggested">Sent to host for approval</string>
 </resources>

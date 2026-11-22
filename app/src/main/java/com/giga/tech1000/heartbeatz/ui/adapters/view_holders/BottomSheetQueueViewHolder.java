@@ -34,14 +34,34 @@ public class BottomSheetQueueViewHolder extends BaseRecyclerViewHolder {
 
         TextView title = findViewById(R.id.bottom_sheet_queue_title);
         TextView artist = findViewById(R.id.bottom_sheet_queue_artist);
+        TextView status = findViewById(R.id.bottom_sheet_queue_status);
         ImageView art = findViewById(R.id.bottom_sheet_queue_image);
-
+        View approve = findViewById(R.id.bottom_sheet_queue_approve);
+        View reject = findViewById(R.id.bottom_sheet_queue_reject);
+        View remove = findViewById(R.id.bottom_sheet_queue_remove);
 
         title.setText(item.getSong().getTitle());
         artist.setText(item.getSong().getArtist());
-
         ImageLoader.load(art, item.getSong().getAlbumArt());
 
+        var party = item.getPartyItem();
+        if (party == null) {
+            if (status != null) status.setVisibility(View.GONE);
+            if (approve != null) approve.setVisibility(View.GONE);
+            if (reject != null) reject.setVisibility(View.GONE);
+            if (remove != null) remove.setVisibility(View.GONE);
+            return;
+        }
+
+        if (status != null) {
+            String label = party.status != null ? party.status : "";
+            if (party.suggestedByName != null && !party.suggestedByName.isEmpty()) {
+                label = label + " · " + party.suggestedByName;
+            }
+            status.setText(label);
+            status.setVisibility(View.VISIBLE);
+        }
+        // Visibility of host actions set by adapter after bind
     }
 
     @Override
