@@ -25,15 +25,27 @@ import java.io.File;
 
 import com.giga.tech1000.heartbeatz.architecture.party.PartyLog;
 /**
- * Host: upload track + publish schedule anchors (4s lookahead, scheduleId, host mono).
+ * Host: upload track → hand off to same cloud URL → publish SET anchors.
  * Guest: {@link TimeEngine} + {@link TimeEnginePlayerBridge}
- * (LOADING → BUFFERING → ARMED muted → LOCKED; lag → STALE silent → re-arm).
+ * (LOADING → BUFFERING → ARMED → LOCKED free-run; bias learn; rare hard seek).
+ * <p>
+ * P0 harden: host plays uploaded URL, periodic epoch re-anchor, seek detect,
+ * sticky media, concrete epochServerMs, sync-quality LiveData.
  */
 public final class PartyLiveBridge {
     /** Host position heartbeat — light load, not a tight loop. */
     private static final long HEARTBEAT_MS = 2_000L;
     /** Floor between non-forced Firebase writes (CPU / radio / heat). */
     private static final long MIN_PUBLISH_GAP_MS = 1_800L;
+    /**
+     * While playing, force a fresh epoch (same scheduleId) so long tracks stay
+     * anchored without full guest re-arm. ~25s balances radio vs accuracy.
+     */
+    private static final long REANCHOR_INTERVAL_MS = 25_000L;
+    /** Media vs wall skew larger than this ⇒ treat as host seek/scrub. */
+    private static final long SEEK_DETECT_JUMP_MS = 2_500L;
+    /** After cloud handoff, wait for Media3 settle before force-epoch publish. */
+    private static final long CLOUD_HANDOFF_SETTLE_MS = 400L;
 
     private final PartyTrackUploader uploader;
     private final PartyPlaybackSyncRepository syncRepo;
@@ -56,11 +68,21 @@ public final class PartyLiveBridge {
     private long lastPublishedPos = -1;
     private boolean lastPublishedPlaying;
     private long lastPublishMonoMs;
-    /** Bump scheduleId only on track change / pause / play / seek — not every heartbeat. */
+    /** Bump scheduleId on track / pause / play / seek — not on quiet re-anchor. */
     private long forceScheduleId;
     /** Last epoch written (heartbeats reuse; force events replace). */
     private long lastEpochMediaMs = -1L;
     private long lastEpochServerMs = -1L;
+    /** Mono time of last force-epoch write (re-anchor clock). */
+    private long lastForceEpochMonoMs;
+    /**
+     * While true, ignore song LiveData (cloud handoff posts a synthetic Song
+     * and must not trigger another upload).
+     */
+    private boolean suppressHostSongUpload;
+    /** Track id for which cloud handoff already ran this party session. */
+    @Nullable private String cloudHandoffTrackId;
+
     /** Guest: last known good stream URL (host packets may omit URL; never wipe this). */
     @Nullable private String guestStickyMediaUrl;
     @Nullable private String guestStickyObjectKey;
@@ -68,6 +90,8 @@ public final class PartyLiveBridge {
     private final MutableLiveData<PartyPlaybackSync> latestSync = new MutableLiveData<>(null);
     private final MutableLiveData<Boolean> guestLockedUi = new MutableLiveData<>(false);
     private final MutableLiveData<Long> idealPositionLive = new MutableLiveData<>(0L);
+    private final MutableLiveData<PartySyncQuality> syncQualityLive =
+            new MutableLiveData<>(PartySyncQuality.UNKNOWN);
 
     @Nullable private Observer<Song> songObserver;
     @Nullable private Observer<Boolean> playingObserver;
@@ -79,7 +103,7 @@ public final class PartyLiveBridge {
         @Override
         public void run() {
             if (hosting && activePartyId != null && playback != null) {
-                publishPositionOnly(false);
+                hostHeartbeatTick();
                 main.postDelayed(this, HEARTBEAT_MS);
             }
         }
@@ -128,6 +152,12 @@ public final class PartyLiveBridge {
     @NonNull
     public LiveData<Boolean> getGuestReadyForUi() {
         return playerBridge.getReadyForUi();
+    }
+
+    /** Guest sync quality for UI chip (tight / soft / drifting). */
+    @NonNull
+    public LiveData<PartySyncQuality> getSyncQuality() {
+        return syncQualityLive;
     }
 
     /**
@@ -226,6 +256,9 @@ public final class PartyLiveBridge {
         forceScheduleId = 0;
         lastEpochMediaMs = -1L;
         lastEpochServerMs = -1L;
+        lastForceEpochMonoMs = 0;
+        suppressHostSongUpload = false;
+        cloudHandoffTrackId = null;
         lastPublishedPos = -1;
         lastPublishMonoMs = 0;
         guestStickyMediaUrl = null;
@@ -233,6 +266,7 @@ public final class PartyLiveBridge {
         guestLockedUi.postValue(false);
         latestSync.postValue(null);
         idealPositionLive.postValue(0L);
+        syncQualityLive.postValue(PartySyncQuality.UNKNOWN);
     }
 
     public void attachPlaybackForGuest(@Nullable PlaybackStateRepository repo) {
@@ -262,24 +296,71 @@ public final class PartyLiveBridge {
         uploadObserver = status -> {
             if (status == null) return;
             if (status.state == PartyTrackUploader.State.SUCCESS && status.result != null) {
-                PartyMediaObject obj = status.result;
-                if (obj.mediaUrl != null && !obj.mediaUrl.isEmpty()) {
-                    lastMediaUrl = obj.mediaUrl;
-                }
-                if (obj.objectKey != null && !obj.objectKey.isEmpty()) {
-                    lastObjectKey = obj.objectKey;
-                }
-                if (activePartyId != null && lastObjectKey != null) {
-                    mediaLifecycle.registerUploaded(activePartyId, lastObjectKey, lastUploadedTrackId);
-                }
-                boolean playing = playback != null && playback.isPlayingSync();
-                publishFullSync(playing, true);
-                PartyLog.i("PartyLiveBridge", "Upload ready url sticky=" + (lastMediaUrl != null));
+                onHostUploadSuccess(status.result);
             } else if (status.state == PartyTrackUploader.State.ERROR) {
                 PartyLog.e("PartyLiveBridge", "Upload error: " + status.errorMessage);
             }
         };
         uploader.getStatus().observeForever(uploadObserver);
+    }
+
+    /**
+     * Register object, hand host playback to the same public URL guests will use,
+     * then force a new epoch so the timeline matches the cloud decoder path.
+     */
+    private void onHostUploadSuccess(@NonNull PartyMediaObject obj) {
+        if (obj.mediaUrl != null && !obj.mediaUrl.isEmpty()) {
+            lastMediaUrl = obj.mediaUrl;
+        }
+        if (obj.objectKey != null && !obj.objectKey.isEmpty()) {
+            lastObjectKey = obj.objectKey;
+        }
+        if (activePartyId != null && lastObjectKey != null) {
+            mediaLifecycle.registerUploaded(activePartyId, lastObjectKey, lastUploadedTrackId);
+        }
+        PartyLog.i("PartyLiveBridge", "Upload ready url sticky=" + (lastMediaUrl != null)
+                + " key=" + lastObjectKey);
+
+        if (lastMediaUrl == null || lastMediaUrl.isEmpty() || playback == null) {
+            publishFullSync(playback != null && playback.isPlayingSync(), true, true);
+            return;
+        }
+
+        final String url = lastMediaUrl;
+        final String trackId = lastUploadedTrackId;
+        final long pos = Math.max(0L, playback.getCurrentPositionSync());
+        final boolean playing = playback.isPlayingSync();
+
+        // Avoid re-entrant upload when synthetic Song is posted
+        suppressHostSongUpload = true;
+        cloudHandoffTrackId = trackId;
+        try {
+            playback.playPartyStream(
+                    url,
+                    trackId,
+                    lastTitle,
+                    lastArtist,
+                    lastAlbum,
+                    pos,
+                    playing);
+            PartyLog.i("SET", "hostCloudHandoff url=… trackId=" + trackId
+                    + " pos=" + pos + " play=" + playing);
+        } catch (Exception e) {
+            PartyLog.e("PartyLiveBridge", "host cloud handoff failed", e);
+            suppressHostSongUpload = false;
+            publishFullSync(playing, true, true);
+            return;
+        }
+
+        // Settle Media3 prepare/seek, then publish authoritative epoch from stream position
+        main.postDelayed(() -> {
+            suppressHostSongUpload = false;
+            if (!hosting || activePartyId == null || playback == null) return;
+            if (lastMediaUrl == null || !lastMediaUrl.equals(url)) return;
+            boolean stillPlaying = playback.isPlayingSync();
+            publishFullSync(stillPlaying, true, true);
+            lastForceEpochMonoMs = SystemClock.elapsedRealtime();
+        }, CLOUD_HANDOFF_SETTLE_MS);
     }
 
     private void unbindHostObservers() {
@@ -307,7 +388,29 @@ public final class PartyLiveBridge {
 
     private void onHostSong(@Nullable Song song) {
         if (!hosting || activePartyId == null || song == null) return;
+        if (suppressHostSongUpload) {
+            PartyLog.d("PartyLiveBridge", "onHostSong suppressed (cloud handoff)");
+            return;
+        }
+
         String trackId = String.valueOf(song.getId());
+        String dataPath = null;
+        try {
+            dataPath = song.getData();
+        } catch (Exception ignored) { }
+
+        // Already playing the party cloud URL for this track — do not re-upload
+        if (lastMediaUrl != null
+                && dataPath != null
+                && dataPath.equals(lastMediaUrl)) {
+            return;
+        }
+        if (trackId.equals(cloudHandoffTrackId)
+                && lastMediaUrl != null
+                && !lastMediaUrl.isEmpty()) {
+            return;
+        }
+
         boolean trackChanged = lastUploadedTrackId == null || !lastUploadedTrackId.equals(trackId);
         lastUploadedTrackId = trackId;
         lastTitle = song.getTitle();
@@ -325,19 +428,24 @@ public final class PartyLiveBridge {
             forceScheduleId = 0;
             lastEpochMediaMs = -1L;
             lastEpochServerMs = -1L;
+            lastForceEpochMonoMs = 0;
+            cloudHandoffTrackId = null;
+        } else if (lastMediaUrl != null && !lastMediaUrl.isEmpty()) {
+            // Same track already uploaded this session
+            return;
         }
 
         File file = null;
         try {
-            String data = song.getData();
-            if (data != null && !data.isEmpty()) {
-                file = new File(data);
+            if (dataPath != null && !dataPath.isEmpty() && !dataPath.startsWith("http")) {
+                file = new File(dataPath);
             }
         } catch (Exception e) {
             PartyLog.w("PartyLiveBridge", "No local path for song", e);
         }
         if (file == null || !file.exists()) {
-            PartyLog.w("PartyLiveBridge", "No file to upload for track " + trackId);
+            PartyLog.w("PartyLiveBridge", "No file to upload for track " + trackId
+                    + " data=" + dataPath);
             return;
         }
         String mime = resolveAudioMime(file);
@@ -382,9 +490,48 @@ public final class PartyLiveBridge {
         }
     }
 
-    private void publishPositionOnly(boolean forceNewSchedule) {
+    /**
+     * Heartbeat: quiet position publish, seek detection, or periodic epoch re-anchor.
+     */
+    private void hostHeartbeatTick() {
         if (!hosting || activePartyId == null || playback == null) return;
-        // Wait until at least one successful upload for this party session
+        if (lastMediaUrl == null || lastMediaUrl.isEmpty()) return;
+
+        boolean playing = playback.isPlayingSync();
+        long pos = playback.getCurrentPositionSync();
+        long now = SystemClock.elapsedRealtime();
+
+        // Host scrub/seek while playing → new schedule + epoch (guests may re-arm)
+        if (playing && lastPublishedPos >= 0 && lastPublishMonoMs > 0) {
+            long wall = now - lastPublishMonoMs;
+            if (wall > 200L && wall < 8_000L) {
+                long expected = lastPublishedPos + wall;
+                long skew = Math.abs(pos - expected);
+                if (skew >= SEEK_DETECT_JUMP_MS) {
+                    PartyLog.i("SET", "hostSeekDetect skew=" + skew
+                            + " pos=" + pos + " expected≈" + expected);
+                    publishFullSync(playing, true, true);
+                    lastForceEpochMonoMs = now;
+                    return;
+                }
+            }
+        }
+
+        // Periodic quiet re-anchor: new epochMedia/epochServer, same scheduleId
+        if (playing
+                && lastForceEpochMonoMs > 0
+                && (now - lastForceEpochMonoMs) >= REANCHOR_INTERVAL_MS) {
+            PartyLog.i("SET", "hostReanchor intervalMs=" + (now - lastForceEpochMonoMs));
+            publishFullSync(playing, true, false);
+            lastForceEpochMonoMs = now;
+            return;
+        }
+
+        publishPositionOnly(false);
+    }
+
+    private void publishPositionOnly(boolean forceTransport) {
+        if (!hosting || activePartyId == null || playback == null) return;
         if (lastMediaUrl == null || lastMediaUrl.isEmpty()) {
             return;
         }
@@ -392,7 +539,7 @@ public final class PartyLiveBridge {
         long pos = playback.getCurrentPositionSync();
         long now = SystemClock.elapsedRealtime();
 
-        if (!forceNewSchedule) {
+        if (!forceTransport) {
             if (now - lastPublishMonoMs < MIN_PUBLISH_GAP_MS) {
                 return;
             }
@@ -401,32 +548,45 @@ public final class PartyLiveBridge {
             }
         }
 
-        lastPublishedPos = pos;
-        lastPublishedPlaying = playing;
-        lastPublishMonoMs = now;
-        publishFullSync(playing, forceNewSchedule);
+        // Play/pause/seek-class transport → force epoch + new scheduleId
+        if (forceTransport) {
+            publishFullSync(playing, true, true);
+            lastForceEpochMonoMs = now;
+            return;
+        }
+
+        // Quiet heartbeat — position only, sticky epoch
+        publishFullSync(playing, false, false);
     }
 
-    private void publishFullSync(boolean isPlaying, boolean forceNewSchedule) {
+    /**
+     * @param forceEpoch   write new epochMedia/epochServer (and sample server clock now)
+     * @param bumpSchedule new scheduleId so guests may re-arm (track / seek / play-pause)
+     */
+    private void publishFullSync(boolean isPlaying, boolean forceEpoch, boolean bumpSchedule) {
         if (!hosting || activePartyId == null || playback == null) return;
         if (lastMediaUrl == null || lastMediaUrl.isEmpty()) {
             PartyLog.d("PartyLiveBridge", "skip publish — no mediaUrl yet");
             return;
         }
 
+        // Sample position and server clock as close together as possible
         long pos = playback.getCurrentPositionSync();
         long dur = 0;
         try {
             dur = playback.getCurrentDurationSync();
         } catch (Exception ignored) { }
 
-        boolean forceEpoch = forceNewSchedule || forceScheduleId == 0;
+        boolean needEpoch = forceEpoch || forceScheduleId == 0;
         long scheduleId;
-        if (forceEpoch) {
+        if (needEpoch && bumpSchedule) {
             scheduleId = PartyPlaybackSync.nextScheduleId();
             forceScheduleId = scheduleId;
+        } else if (forceScheduleId == 0) {
+            scheduleId = PartyPlaybackSync.nextScheduleId();
+            forceScheduleId = scheduleId;
+            needEpoch = true;
         } else {
-            // Heartbeats keep the same scheduleId so guests do not re-arm
             scheduleId = forceScheduleId;
         }
 
@@ -441,13 +601,13 @@ public final class PartyLiveBridge {
                 dur,
                 isPlaying,
                 scheduleId,
-                forceEpoch,
+                needEpoch,
                 lastEpochMediaMs,
                 lastEpochServerMs);
-        if (forceEpoch) {
+        if (needEpoch) {
             lastEpochMediaMs = sync.epochMediaMs;
-            // epochServerMs resolved by Firebase; keep estimate for local continuity
             lastEpochServerMs = sync.epochServerMs;
+            lastForceEpochMonoMs = SystemClock.elapsedRealtime();
         }
         lastPublishMonoMs = SystemClock.elapsedRealtime();
         lastPublishedPos = pos;
@@ -455,11 +615,11 @@ public final class PartyLiveBridge {
         latestSync.postValue(sync);
         syncRepo.publishHostSync(activePartyId, sync);
 
-        // SET host publish — correlate with guest SET lines via scheduleId / epochMedia
         PartyServerClock clock = PartyServerClock.get();
         PartyLog.i("SET", "hostPub"
                 + " scheduleId=" + scheduleId
-                + " forceEpoch=" + forceEpoch
+                + " forceEpoch=" + needEpoch
+                + " bumpSched=" + bumpSchedule
                 + " playing=" + isPlaying
                 + " pos=" + pos
                 + " dur=" + dur
@@ -530,6 +690,14 @@ public final class PartyLiveBridge {
                 ? (serverNow - sync.epochServerMs) : -1L;
         long delta = (ideal >= 0 && local >= 0) ? (local - ideal) : 0L;
 
+        TimeEnginePhase phase = timeEngine.phase();
+        boolean buffering = phase == TimeEnginePhase.LOADING
+                || phase == TimeEnginePhase.BUFFERING
+                || phase == TimeEnginePhase.ARMED
+                || phase == TimeEnginePhase.IDLE;
+        PartySyncQuality q = PartySyncQuality.fromDeltaMs(delta, sync.isPlaying, buffering);
+        syncQualityLive.postValue(q);
+
         // SET guest receive — same scheduleId as hostPub for cross-device compare
         PartyLog.i("SET", "guestRx"
                 + " scheduleId=" + sync.scheduleId
@@ -543,7 +711,8 @@ public final class PartyLiveBridge {
                 + " ideal=" + ideal
                 + " local=" + local
                 + " delta=" + delta
-                + " phase=" + timeEngine.phase()
+                + " quality=" + q
+                + " phase=" + phase
                 + " clockReady=" + clock.isReady()
                 + " offsetMs=" + clock.getOffsetMs()
                 + " serverNow=" + serverNow
