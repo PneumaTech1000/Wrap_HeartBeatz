@@ -38,6 +38,8 @@ public final class AppContainer {
     private final PartyMediaLifecycle partyMediaLifecycle;
     private final PartyPlaybackSyncRepository partyPlaybackSyncRepository;
     private final PartyQueueRepository partyQueueRepository;
+    private final VenueCoordinator venueCoordinator;
+    private final VenueMediaUrlResolver venueMediaUrlResolver;
     private final PartyLiveBridge partyLiveBridge;
 
     @Nullable private UIThread uiThread;
@@ -57,11 +59,15 @@ public final class AppContainer {
         this.partyMediaLifecycle = new PartyMediaLifecycle(partyMediaStore);
         this.partyPlaybackSyncRepository = new PartyPlaybackSyncRepository();
         this.partyQueueRepository = new PartyQueueRepository();
+        this.venueCoordinator = new VenueCoordinator(appContext);
+        this.venueMediaUrlResolver = new VenueMediaUrlResolver();
         this.partyLiveBridge = new PartyLiveBridge(
                 partyTrackUploader,
                 partyPlaybackSyncRepository,
                 partyMediaLifecycle,
-                partyQueueRepository);
+                partyQueueRepository,
+                venueCoordinator,
+                venueMediaUrlResolver);
     }
 
     @NonNull
@@ -110,6 +116,17 @@ public final class AppContainer {
     @NonNull
     public PartyQueueRepository partyQueue() {
         return partyQueueRepository;
+    }
+
+    /** P4 Venue / same-Wi‑Fi LAN media. */
+    @NonNull
+    public VenueCoordinator venueCoordinator() {
+        return venueCoordinator;
+    }
+
+    @NonNull
+    public VenueMediaUrlResolver venueMediaUrlResolver() {
+        return venueMediaUrlResolver;
     }
 
     /**

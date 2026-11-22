@@ -81,6 +81,11 @@
           }
         },
 
+        "venue": {
+          ".read": "auth != null",
+          ".write": "auth != null && root.child('parties').child($partyId).child('ownerId').val() == auth.uid"
+        },
+
         "webrtc_signaling": {
           ".read": "auth != null",
           ".write": "auth != null",

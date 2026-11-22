@@ -17,6 +17,11 @@ public class PartyPlaybackSync {
 
     @Nullable public String objectKey;
     @Nullable public String mediaUrl;
+    /**
+     * Optional host LAN URL (Venue mode), e.g. {@code http://192.168.x.x:18765/party/track/123}.
+     * Guests probe then prefer this over {@link #mediaUrl} when reachable.
+     */
+    @Nullable public String lanMediaUrl;
     @Nullable public String trackId;
     @Nullable public String title;
     @Nullable public String artist;

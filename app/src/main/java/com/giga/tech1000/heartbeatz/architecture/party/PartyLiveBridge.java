@@ -24,6 +24,8 @@ import com.giga.tech1000.media_player.models.Song;
 import java.io.File;
 
 import com.giga.tech1000.heartbeatz.architecture.party.PartyLog;
+import com.giga.tech1000.heartbeatz.architecture.party.venue.VenueCoordinator;
+import com.giga.tech1000.heartbeatz.architecture.party.venue.VenueMediaUrlResolver;
 /**
  * Host: upload track → hand off to same cloud URL → publish SET anchors.
  * Guest: {@link TimeEngine} + {@link TimeEnginePlayerBridge}
@@ -51,6 +53,10 @@ public final class PartyLiveBridge {
     private final PartyPlaybackSyncRepository syncRepo;
     private final PartyMediaLifecycle mediaLifecycle;
     @Nullable private final PartyQueueRepository queueRepo;
+    @Nullable private final VenueCoordinator venueCoordinator;
+    @Nullable private final VenueMediaUrlResolver venueResolver;
+    @Nullable private String lastLanMediaUrl;
+    @Nullable private java.io.File lastLocalFile;
     private final TimeEngine timeEngine = new TimeEngine();
     private final TimeEnginePlayerBridge playerBridge = new TimeEnginePlayerBridge(timeEngine);
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -114,11 +120,15 @@ public final class PartyLiveBridge {
             @NonNull PartyTrackUploader uploader,
             @NonNull PartyPlaybackSyncRepository syncRepo,
             @NonNull PartyMediaLifecycle mediaLifecycle,
-            @Nullable PartyQueueRepository queueRepo) {
+            @Nullable PartyQueueRepository queueRepo,
+            @Nullable VenueCoordinator venueCoordinator,
+            @Nullable VenueMediaUrlResolver venueResolver) {
         this.uploader = uploader;
         this.syncRepo = syncRepo;
         this.mediaLifecycle = mediaLifecycle;
         this.queueRepo = queueRepo;
+        this.venueCoordinator = venueCoordinator;
+        this.venueResolver = venueResolver;
     }
 
     @NonNull
@@ -192,6 +202,9 @@ public final class PartyLiveBridge {
         if (queueRepo != null) {
             queueRepo.observeParty(partyId);
         }
+        if (venueCoordinator != null) {
+            venueCoordinator.startHost(partyId);
+        }
         PartyLog.i("PartyLiveBridge", "Host bridge started party=" + partyId);
     }
 
@@ -238,6 +251,9 @@ public final class PartyLiveBridge {
         if (queueRepo != null) {
             queueRepo.observeParty(partyId);
         }
+        if (venueCoordinator != null) {
+            venueCoordinator.observeGuest(partyId);
+        }
         PartyLog.i("PartyLiveBridge", "Guest bridge started party=" + partyId
                 + " playback=" + (playback != null)
                 + " hasCachedSync=" + (existing != null));
@@ -256,6 +272,11 @@ public final class PartyLiveBridge {
         if (queueRepo != null) {
             queueRepo.stopObserving();
         }
+        if (venueCoordinator != null) {
+            venueCoordinator.shutdown();
+        }
+        lastLanMediaUrl = null;
+        lastLocalFile = null;
         playerBridge.reset();
         hosting = false;
         activePartyId = null;
@@ -462,6 +483,8 @@ public final class PartyLiveBridge {
             lastEpochServerMs = -1L;
             lastForceEpochMonoMs = 0;
             cloudHandoffTrackId = null;
+            lastLocalFile = null;
+            lastLanMediaUrl = null;
         } else if (lastMediaUrl != null && !lastMediaUrl.isEmpty()) {
             // Same track already uploaded this session
             return;
@@ -481,8 +504,14 @@ public final class PartyLiveBridge {
             return;
         }
         String mime = resolveAudioMime(file);
+        lastLocalFile = file;
+        if (venueCoordinator != null) {
+            venueCoordinator.registerLocalTrack(trackId, file);
+            lastLanMediaUrl = venueCoordinator.lanTrackUrl(trackId);
+        }
         PartyLog.d("PartyLiveBridge", "Uploading party track " + trackId
-                + " " + file.getName() + " mime=" + mime);
+                + " " + file.getName() + " mime=" + mime
+                + " lan=" + lastLanMediaUrl);
         uploader.uploadAsync(activePartyId, trackId, file, mime, null);
     }
 
@@ -636,6 +665,16 @@ public final class PartyLiveBridge {
                 needEpoch,
                 lastEpochMediaMs,
                 lastEpochServerMs);
+        if (lastLanMediaUrl != null && !lastLanMediaUrl.isEmpty()) {
+            sync.lanMediaUrl = lastLanMediaUrl;
+        } else if (venueCoordinator != null && lastUploadedTrackId != null) {
+            String lan = venueCoordinator.lanTrackUrl(lastUploadedTrackId);
+            if (lan != null) {
+                lastLanMediaUrl = lan;
+                sync.lanMediaUrl = lan;
+            }
+        }
+
         if (needEpoch) {
             lastEpochMediaMs = sync.epochMediaMs;
             lastEpochServerMs = sync.epochServerMs;
@@ -691,7 +730,8 @@ public final class PartyLiveBridge {
             }
         }
 
-        boolean hasUrl = sync.mediaUrl != null && !sync.mediaUrl.isEmpty();
+        boolean hasUrl = sync.mediaUrl != null && !sync.mediaUrl.isEmpty()
+                || (sync.lanMediaUrl != null && !sync.lanMediaUrl.isEmpty());
 
         if (!hasUrl) {
             PartyLog.d("SET", "guestRx scheduleId=" + sync.scheduleId
@@ -707,14 +747,52 @@ public final class PartyLiveBridge {
             return;
         }
 
-        long monoRecv = SystemClock.elapsedRealtime();
-        TimeAnchor anchor = TimeAnchor.fromSync(sync, monoRecv);
-        playerBridge.onAnchor(anchor);
+        // P4 Venue: probe LAN off main thread, then apply anchor with preferred URL
+        final PartyPlaybackSync packet = sync;
+        Runnable apply = () -> {
+            long monoRecv = SystemClock.elapsedRealtime();
+            TimeAnchor anchor = TimeAnchor.fromSync(packet, monoRecv);
+            playerBridge.onAnchor(anchor);
+            latestSync.postValue(packet);
+            // ideal/quality logging continues below only when applied inline
+        };
 
+        if (venueResolver != null && venueCoordinator != null) {
+            var meta = venueCoordinator.getVenueMeta().getValue();
+            boolean venueOn = meta != null && meta.enabled;
+            String lan = packet.lanMediaUrl;
+            if ((lan == null || lan.isEmpty()) && venueOn && packet.trackId != null) {
+                lan = venueCoordinator.lanTrackUrl(packet.trackId);
+            }
+            final String lanUrl = lan;
+            if (venueOn && lanUrl != null && !lanUrl.isEmpty()) {
+                final String cloud = packet.mediaUrl;
+                venueResolver.resolveAsync(cloud, lanUrl, true, preferred -> main.post(() -> {
+                    if (preferred != null && !preferred.isEmpty()) {
+                        packet.mediaUrl = preferred;
+                    }
+                    long monoRecv = SystemClock.elapsedRealtime();
+                    TimeAnchor anchor = TimeAnchor.fromSync(packet, monoRecv);
+                    playerBridge.onAnchor(anchor);
+                    finishGuestSyncMetrics(packet, monoRecv);
+                }));
+                return;
+            }
+        }
+
+        long monoRecv = SystemClock.elapsedRealtime();
+        TimeAnchor anchor = TimeAnchor.fromSync(packet, monoRecv);
+        playerBridge.onAnchor(anchor);
+        finishGuestSyncMetrics(packet, monoRecv);
+    }
+
+    private void finishGuestSyncMetrics(@NonNull PartyPlaybackSync sync, long monoRecv) {
         long ideal = timeEngine.idealTrackPositionMs();
         long local = -1L;
         try {
-            local = playback.getCurrentPositionSync();
+            if (playback != null) {
+                local = playback.getCurrentPositionSync();
+            }
         } catch (Exception ignored) { }
         PartyServerClock clock = PartyServerClock.get();
         long serverNow = clock.isReady() ? clock.serverNowMs() : -1L;
@@ -728,7 +806,6 @@ public final class PartyLiveBridge {
                 || phase == TimeEnginePhase.ARMED
                 || phase == TimeEnginePhase.IDLE;
         PartySyncQuality q = PartySyncQuality.fromDeltaMs(delta, sync.isPlaying, buffering);
-        // Hysteresis: avoid chip flicker on borderline deltas
         PartySyncQuality prevQ = syncQualityLive.getValue();
         if (prevQ == PartySyncQuality.TIGHT && q == PartySyncQuality.SOFT
                 && Math.abs(delta) < 220L) {
@@ -741,11 +818,13 @@ public final class PartyLiveBridge {
             syncQualityLive.postValue(q);
         }
 
-        // SET guest receive — same scheduleId as hostPub for cross-device compare
         PartyLog.i("SET", "guestRx"
                 + " scheduleId=" + sync.scheduleId
                 + " playing=" + sync.isPlaying
                 + " pos=" + sync.positionMs
+                + " media=" + (sync.mediaUrl != null && sync.mediaUrl.startsWith("http://192.")
+                    ? "LAN" : (sync.mediaUrl != null && sync.mediaUrl.startsWith("http") ? "cloud" : "local"))
+                + " lan=" + (sync.lanMediaUrl != null)
                 + " epochMedia=" + sync.epochMediaMs
                 + " epochServer=" + sync.epochServerMs
                 + " epochAgeMs=" + epochAge

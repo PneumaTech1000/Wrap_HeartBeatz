@@ -80,6 +80,7 @@ public class PartyPlaybackSyncRepository {
         Map<String, Object> map = new HashMap<>();
         putIfPresent(map, "objectKey", sync.objectKey);
         putIfPresent(map, "mediaUrl", sync.mediaUrl);
+        putIfPresent(map, "lanMediaUrl", sync.lanMediaUrl);
         putIfPresent(map, "trackId", sync.trackId);
         putIfPresent(map, "title", sync.title);
         putIfPresent(map, "artist", sync.artist);

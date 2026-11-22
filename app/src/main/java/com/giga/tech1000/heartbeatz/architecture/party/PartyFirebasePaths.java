@@ -12,6 +12,7 @@ public final class PartyFirebasePaths {
     public static final String WEBRTC_SIGNALING = "webrtc_signaling";
     public static final String SYNC = "sync";
     public static final String QUEUE = "queue";
+    public static final String VENUE = "venue";
 
     private PartyFirebasePaths() {}
 }
