@@ -41,12 +41,13 @@ This document captures the recommended upgrades discussed for **multi-device par
 
 **Hardening checklist**
 
-- [ ] Host **also** plays from the same public object URL after upload (same decoder path as guests).
-- [ ] Force new epoch on: track change, seek, play/pause, and **periodic re-anchor** (e.g. every 20–30s while playing).
-- [ ] Heartbeats omit null `mediaUrl` (sticky URL); omit epoch keys so epoch stays sticky.
-- [ ] Idempotent host/guest bridge start; no double `session started` spam.
-- [ ] Concrete MIME on upload (`audio/mpeg`, `audio/mp4`, …) — never `audio/*`.
-- [ ] Soft seek only when `|delta|` exceeds threshold for several samples; never seek-to-frozen ideal.
+- [x] Host **also** plays from the same public object URL after upload (same decoder path as guests).
+- [x] Force new epoch on: track change, seek, play/pause, and **periodic re-anchor** (~25s while playing).
+- [x] Heartbeats omit null `mediaUrl` (sticky URL); omit epoch keys so epoch stays sticky.
+- [x] Idempotent host/guest bridge start; no double `session started` spam.
+- [x] Concrete MIME on upload (`audio/mpeg`, `audio/mp4`, …) — never `audio/*`.
+- [x] Soft seek only when `|delta|` exceeds threshold; never seek-to-frozen ideal; bias learn.
+- [x] Guest `PartySyncQuality` LiveData (TIGHT / SOFT / DRIFTING) for UI chip.
 
 ---
 
