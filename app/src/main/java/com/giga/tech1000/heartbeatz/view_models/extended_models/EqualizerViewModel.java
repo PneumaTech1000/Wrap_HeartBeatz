@@ -16,6 +16,10 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.media3.common.util.UnstableApi;
 
+import com.giga.tech1000.heartbeatz.architecture.audio.EqOutputProfileStore;
+import com.giga.tech1000.heartbeatz.architecture.audio.EqOutputRoute;
+import com.giga.tech1000.heartbeatz.architecture.audio.EqOutputRouteMonitor;
+import com.giga.tech1000.heartbeatz.architecture.audio.EqSignatureProfile;
 import com.giga.tech1000.heartbeatz.architecture.repositories.PlaybackStateRepository;
 import com.giga.tech1000.heartbeatz.ui.UIThread;
 import com.giga.tech1000.media_player.engine.AudioEngine;
@@ -50,6 +54,17 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
     private final PlaybackStateRepository playbackState;
     private AudioEngine audioEngine;
     private final PresetManager presetManager;
+    private final EqOutputProfileStore outputProfileStore;
+    private final EqOutputRouteMonitor outputRouteMonitor;
+    private final MutableLiveData<EqOutputRoute> activeOutputRoute =
+            new MutableLiveData<>(EqOutputRoute.SPEAKER);
+    private final MutableLiveData<String> activeOutputLabel =
+            new MutableLiveData<>("Phone speaker");
+    private final MutableLiveData<String> activeSignatureName =
+            new MutableLiveData<>("Flat");
+    /** Suppress save-while-loading when route switches. */
+    private boolean suppressOutputSave;
+    private boolean routeMonitorStarted;
 
     // Equalizer state - Enhanced for parametric EQ
     private final MutableLiveData<Boolean> equalizerEnabled = new MutableLiveData<>(false);
@@ -102,12 +117,15 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
         }
         this.playbackState = repo;
         this.presetManager = new PresetManager(application);
+        this.outputProfileStore = new EqOutputProfileStore(application);
+        this.outputRouteMonitor = new EqOutputRouteMonitor(application);
         // Initialize with default parametric bands
         initializeParametricBands();
         // Load the default preset (flat) as current
         loadDefaultPreset();
         // Try to load last state from SharedPreferences
         loadStateFromSharedPreferences();
+        startOutputRouteMonitoring();
     }
 
     /**
@@ -120,12 +138,143 @@ private static final String KEY_LAST_STATE_JSON = "last_state_json";
         this.playbackState = playbackStateRepo;
         this.audioEngine = audioEngineInstance;
         this.presetManager = new PresetManager(application);
+        this.outputProfileStore = new EqOutputProfileStore(application);
+        this.outputRouteMonitor = new EqOutputRouteMonitor(application);
         // Initialize with default parametric bands
         initializeParametricBands();
         // Load the default preset (flat) as current
         loadDefaultPreset();
         // Try to load last state from SharedPreferences
         loadStateFromSharedPreferences();
+        startOutputRouteMonitoring();
+    }
+
+    @NonNull
+    public LiveData<EqOutputRoute> getActiveOutputRoute() {
+        return activeOutputRoute;
+    }
+
+    @NonNull
+    public LiveData<String> getActiveOutputLabel() {
+        return activeOutputLabel;
+    }
+
+    @NonNull
+    public LiveData<String> getActiveSignatureName() {
+        return activeSignatureName;
+    }
+
+    /**
+     * One-tap signature profile (Flat / Bass / Night / Voice) with optional limiter.
+     */
+    public void applySignatureProfile(@NonNull EqSignatureProfile profile) {
+        ensureEngine();
+        float[] gains = profile.gainsDb;
+        float[] freqs = {
+                31.5f, 63f, 125f, 250f, 500f, 1000f, 2000f, 4000f, 8000f, 16000f
+        };
+        List<ParametricEQBand> bands = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            bands.add(new ParametricEQBand(i, freqs[i], gains[i], 1.4f));
+        }
+        Preset preset = new Preset();
+        preset.setName(profile.displayName);
+        preset.setCategory("Signature");
+        preset.setEqBands(bands);
+        preset.setLimiterEnabled(profile.preferLimiter);
+        if (profile.preferLimiter) {
+            preset.setLimiterThreshold(-1.5f);
+        }
+        setPreset(preset);
+        activeSignatureName.setValue(profile.displayName);
+        persistCurrentOutputProfile();
+        Log.i(TAG, "signature profile=" + profile.displayName
+                + " limiter=" + profile.preferLimiter);
+    }
+
+    /** Call when user finishes adjusting bands so the curve sticks to this output. */
+    public void persistCurrentOutputProfile() {
+        if (suppressOutputSave) return;
+        EqOutputRoute route = activeOutputRoute.getValue();
+        if (route == null) route = EqOutputRoute.SPEAKER;
+        String suffix = outputRouteMonitor.getCurrentDeviceSuffix();
+        float[] gains = currentGainsDb();
+        String name = activeSignatureName.getValue();
+        if (name == null) name = "Custom";
+        boolean eqOn = Boolean.TRUE.equals(equalizerEnabled.getValue());
+        boolean lim = Boolean.TRUE.equals(limiterEnabled.getValue());
+        outputProfileStore.save(route, suffix, name, gains, eqOn, lim);
+    }
+
+    private void startOutputRouteMonitoring() {
+        if (routeMonitorStarted) return;
+        routeMonitorStarted = true;
+        outputRouteMonitor.addListener((route, suffix, displayName) -> {
+            // Save previous route curve before switching
+            if (!suppressOutputSave) {
+                persistCurrentOutputProfile();
+            }
+            activeOutputRoute.postValue(route);
+            activeOutputLabel.postValue(displayName != null ? displayName : route.label);
+            loadProfileForRoute(route, suffix);
+        });
+        outputRouteMonitor.start();
+    }
+
+    private void loadProfileForRoute(@NonNull EqOutputRoute route, @Nullable String suffix) {
+        EqOutputProfileStore.Snapshot snap = outputProfileStore.load(route, suffix);
+        suppressOutputSave = true;
+        try {
+            if (snap == null) {
+                // First time on this output — Flat + EQ on
+                applySignatureProfile(EqSignatureProfile.FLAT);
+                return;
+            }
+            float[] freqs = {
+                    31.5f, 63f, 125f, 250f, 500f, 1000f, 2000f, 4000f, 8000f, 16000f
+            };
+            List<ParametricEQBand> bands = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                float g = i < snap.gainsDb.length ? snap.gainsDb[i] : 0f;
+                bands.add(new ParametricEQBand(i, freqs[i], g, 1.4f));
+            }
+            Preset preset = new Preset();
+            preset.setName(snap.profileName);
+            preset.setCategory("Per-output");
+            preset.setEqBands(bands);
+            preset.setLimiterEnabled(snap.limiterEnabled);
+            setPreset(preset);
+            equalizerEnabled.setValue(snap.eqEnabled);
+            if (audioEngine != null) {
+                audioEngine.enableEqualizer(snap.eqEnabled);
+            }
+            activeSignatureName.setValue(snap.profileName);
+            Log.i(TAG, "loaded output profile route=" + route.key
+                    + " name=" + snap.profileName);
+        } finally {
+            suppressOutputSave = false;
+        }
+    }
+
+    @NonNull
+    private float[] currentGainsDb() {
+        float[] gains = new float[10];
+        List<ParametricEQBand> bands = eqBands.getValue();
+        if (bands != null) {
+            for (int i = 0; i < Math.min(10, bands.size()); i++) {
+                gains[i] = bands.get(i).getGainDb();
+            }
+        }
+        return gains;
+    }
+
+    @Override
+    protected void onCleared() {
+        super.onCleared();
+        try {
+            persistCurrentOutputProfile();
+            outputRouteMonitor.stop();
+        } catch (Exception ignored) { }
     }
 
     public void setAudioEngine(AudioEngine audioEngine) {

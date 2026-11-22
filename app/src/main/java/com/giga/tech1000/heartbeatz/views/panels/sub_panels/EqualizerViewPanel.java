@@ -167,12 +167,16 @@ public final class EqualizerViewPanel {
         }
     };
 
+    @Nullable
+    private androidx.lifecycle.LifecycleOwner lifecycleOwner;
+
     public EqualizerViewPanel(
             @NonNull FragmentHome fragment,
             @NonNull ViewGroup parent,
             @NonNull EqualizerViewModel equalizerViewModel) {
         this.context = fragment.requireContext();
         this.vm = equalizerViewModel;
+        this.lifecycleOwner = fragment.getViewLifecycleOwner();
         this.rootView = LayoutInflater.from(context)
                 .inflate(R.layout.media_equalizer_view, parent, false);
 
@@ -186,7 +190,7 @@ public final class EqualizerViewPanel {
         wireFxRacks();
         wireFooter();
         wireRackToggles();
-        observeVm(fragment.getViewLifecycleOwner());
+        observeVm(lifecycleOwner);
         refreshAllFromVm();
         // Master switch is checked in XML — ensure DSP is armed
         if (masterSwitch != null && masterSwitch.isChecked()) {
@@ -363,6 +367,32 @@ public final class EqualizerViewPanel {
     // ── Presets ───────────────────────────────────────────────────────────
 
     private void wirePresets() {
+        // Output route label (per-device EQ memory)
+        TextView routeLabel = rootView.findViewById(R.id.eq_output_route_label);
+        if (routeLabel != null && lifecycleOwner != null) {
+            try {
+                vm.getActiveOutputLabel().observe(lifecycleOwner, label -> {
+                    if (label != null) {
+                        routeLabel.setText("Output · " + label);
+                    }
+                });
+                vm.getActiveSignatureName().observe(lifecycleOwner, name -> {
+                    if (name == null || presetGroup == null) return;
+                    for (int i = 0; i < presetGroup.getChildCount(); i++) {
+                        View c = presetGroup.getChildAt(i);
+                        if (c instanceof Chip) {
+                            Chip chip = (Chip) c;
+                            CharSequence t = chip.getText();
+                            if (t != null && name.equalsIgnoreCase(t.toString())) {
+                                highlightChip(chip);
+                                break;
+                            }
+                        }
+                    }
+                });
+            } catch (Exception ignored) { }
+        }
+
         if (presetGroup != null) {
             for (int i = 0; i < presetGroup.getChildCount(); i++) {
                 View child = presetGroup.getChildAt(i);
@@ -371,7 +401,16 @@ public final class EqualizerViewPanel {
                 chip.setOnClickListener(v -> {
                     pushHistory();
                     String name = chip.getText() != null ? chip.getText().toString() : "";
-                    applyNamedPreset(name);
+                    // Signature one-taps go through ViewModel (limiter + per-output persist)
+                    com.giga.tech1000.heartbeatz.architecture.audio.EqSignatureProfile sig =
+                            com.giga.tech1000.heartbeatz.architecture.audio.EqSignatureProfile.matchExact(name);
+                    if (sig != null) {
+                        vm.applySignatureProfile(sig);
+                        refreshAllFromVm();
+                    } else {
+                        applyNamedPreset(name);
+                        vm.persistCurrentOutputProfile();
+                    }
                     highlightChip(chip);
                 });
             }
@@ -440,6 +479,12 @@ public final class EqualizerViewPanel {
         }
         if (n.contains("vocal")) {
             return new float[]{-1f, -0.5f, 0f, 1.5f, 3.5f, 4f, 3f, 2f, 0.5f, 0f};
+        }
+        if (n.equals("night") || n.contains("late night")) {
+            return new float[]{2f, 2.5f, 1.5f, 0.5f, 0f, 0f, -0.5f, -1.5f, -3f, -4f};
+        }
+        if (n.equals("voice")) {
+            return new float[]{-2f, -1f, 0f, 1.5f, 3.5f, 4.5f, 3.5f, 1.5f, 0f, -1f};
         }
         if (n.contains("bass") || n.contains("deep")) {
             return new float[]{7f, 6f, 4.5f, 2f, 0.5f, -0.5f, 0f, 0f, 0f, 0f};
@@ -852,6 +897,12 @@ public final class EqualizerViewPanel {
 
     // ── Engine apply ──────────────────────────────────────────────────────
 
+    private final Runnable persistOutputDebounced = () -> {
+        try {
+            vm.persistCurrentOutputProfile();
+        } catch (Exception ignored) { }
+    };
+
     private void applyAllBandsToEngine() {
         List<ParametricEQBand> bands = vm.getEqBands().getValue();
         boolean on = Boolean.TRUE.equals(vm.isEqualizerEnabled().getValue());
@@ -863,6 +914,8 @@ public final class EqualizerViewPanel {
                 float q = bands != null && i < bands.size() ? bands.get(i).getQFactor() : 1.4f;
                 vm.setEqBand(i, ISO_FREQ_HZ[i], gain, q);
             }
+            main.removeCallbacks(persistOutputDebounced);
+            main.postDelayed(persistOutputDebounced, 600L);
             return;
         }
         engine.enableEqualizer(on);
@@ -871,6 +924,9 @@ public final class EqualizerViewPanel {
             float q = bands != null && i < bands.size() ? bands.get(i).getQFactor() : 1.4f;
             engine.setParametricEqualizerBand(i, ISO_FREQ_HZ[i], gain, q, on);
         }
+        // Remember curve for this speaker / BT / headset
+        main.removeCallbacks(persistOutputDebounced);
+        main.postDelayed(persistOutputDebounced, 600L);
     }
 
     private void flattenAll() {
