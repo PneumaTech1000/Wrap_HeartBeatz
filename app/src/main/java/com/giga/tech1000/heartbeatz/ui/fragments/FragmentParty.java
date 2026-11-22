@@ -124,6 +124,7 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
     private TextView tvPartySongTitle;
     private TextView tvPartyArtist;
     private ImageView ivPartyAlbumArt;
+    private TextView chipPartySyncQualityCard;
 
     private DiscoveryIndicatorManager discoveryIndicatorManager;
 
@@ -183,6 +184,7 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
         connectedView = view.findViewById(R.id.connected_party);
 
         progressSync = view.findViewById(R.id.progressSync);
+        chipPartySyncQualityCard = view.findViewById(R.id.chip_party_sync_quality_card);
 
         // Connected View Components
         partyTabs = connectedView.findViewById(R.id.partyTabs);
@@ -1132,6 +1134,21 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
                 if (cardNowPlaying != null) cardNowPlaying.setVisibility(android.view.View.GONE);
                 if (progressSync != null) progressSync.setVisibility(android.view.View.GONE);
                 expandFullPlayerForParty();
+            });
+
+            bridge.getSyncQuality().observe(getViewLifecycleOwner(), quality -> {
+                if (chipPartySyncQualityCard == null || quality == null) return;
+                int labelRes;
+                switch (quality) {
+                    case BUFFERING -> labelRes = R.string.party_sync_quality_buffering;
+                    case PAUSED -> labelRes = R.string.party_sync_quality_paused;
+                    case TIGHT -> labelRes = R.string.party_sync_quality_tight;
+                    case SOFT -> labelRes = R.string.party_sync_quality_soft;
+                    case DRIFTING -> labelRes = R.string.party_sync_quality_drifting;
+                    default -> labelRes = R.string.party_sync_quality_unknown;
+                }
+                chipPartySyncQualityCard.setText(labelRes);
+                chipPartySyncQualityCard.setVisibility(android.view.View.VISIBLE);
             });
 
             viewModel.getCurrentSong().observe(getViewLifecycleOwner(), song -> {

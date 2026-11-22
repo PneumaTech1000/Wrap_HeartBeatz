@@ -156,6 +156,21 @@
                 app:layout_constraintTop_toBottomOf="@id/progressSync"
                 app:layout_constraintStart_toStartOf="parent" />
 
+            <TextView
+                android:id="@+id/chip_party_sync_quality_card"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/bg_party_sync_chip"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="6dp"
+                android:text="@string/party_sync_quality_buffering"
+                android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
+                android:textColor="?attr/colorOnSecondaryContainer"
+                android:visibility="gone"
+                app:layout_constraintTop_toBottomOf="@id/progressSync"
+                app:layout_constraintEnd_toEndOf="parent" />
+
         </androidx.constraintlayout.widget.ConstraintLayout>
     </com.google.android.material.card.MaterialCardView>
 

@@ -344,21 +344,35 @@ public class RootMediaPlayerPanel extends BasePanelView implements OnBackPressed
 
 
 
-    /** Dim full/mini player when current user is a party guest. */
+    /**
+     * Party guest chrome: lock transport on full/mini player and show SET quality chip.
+     * Host remains fully interactive; TimeEngine still drives playback via repository.
+     */
     public void bindPartyGuestChrome(@NonNull androidx.lifecycle.LifecycleOwner owner) {
         try {
-            com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp.container(getContext())
-                    .partyLiveBridge()
-                    .isGuestPlayerLocked()
-                    .observe(owner, locked -> {
-                        boolean on = Boolean.TRUE.equals(locked);
-                        if (mediaPlayerView != null) {
-                            mediaPlayerView.setPartyGuestLocked(on);
-                        }
-                        if (mediaPlayerBarView != null) {
-                            mediaPlayerBarView.setPartyGuestLocked(on);
-                        }
-                    });
+            var bridge = com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp.container(getContext())
+                    .partyLiveBridge();
+
+            final boolean[] guestSession = {false};
+
+            bridge.isGuestPlayerLocked().observe(owner, locked -> {
+                boolean on = Boolean.TRUE.equals(locked);
+                guestSession[0] = on;
+                if (mediaPlayerView != null) {
+                    mediaPlayerView.setPartyGuestLocked(on);
+                    if (!on) {
+                        mediaPlayerView.setPartySyncQuality(null, false);
+                    }
+                }
+                if (mediaPlayerBarView != null) {
+                    mediaPlayerBarView.setPartyGuestLocked(on);
+                }
+            });
+
+            bridge.getSyncQuality().observe(owner, quality -> {
+                if (mediaPlayerView == null) return;
+                mediaPlayerView.setPartySyncQuality(quality, guestSession[0]);
+            });
         } catch (Exception e) {
             android.util.Log.w("RootMediaPlayer", "party guest chrome skipped", e);
         }

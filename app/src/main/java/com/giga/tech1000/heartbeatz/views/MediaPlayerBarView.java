@@ -108,8 +108,19 @@ public class MediaPlayerBarView {
             if (panel.getPanelState() == RootMediaPlayerPanel.STATE_COLLAPSED) panel.expandPlayer();
         });
 
-        playPauseButton.setOnClickListener(v -> playbackViewModel.togglePlayPause());
+        playPauseButton.setOnClickListener(v -> {
+            if (partyGuestLocked) {
+                android.widget.Toast.makeText(
+                        rootView.getContext(),
+                        R.string.party_guest_transport_blocked,
+                        android.widget.Toast.LENGTH_SHORT).show();
+                return;
+            }
+            playbackViewModel.togglePlayPause();
+        });
     }
+
+    private boolean partyGuestLocked;
 
 
     /**
@@ -239,8 +250,16 @@ public class MediaPlayerBarView {
     /** Party guest: dim mini player bar. */
     public void setPartyGuestLocked(boolean locked) {
         if (rootView == null) return;
-        rootView.setAlpha(locked ? 0.72f : 1f);
-        rootView.setEnabled(!locked);
+        partyGuestLocked = locked;
+        // Keep mini bar visible and tappable to expand; only lock play/pause
+        if (playPauseButton != null) {
+            playPauseButton.setEnabled(!locked);
+            playPauseButton.setAlpha(locked ? 0.45f : 1f);
+            playPauseButton.setClickable(!locked);
+        }
+        if (progressIndicator != null) {
+            progressIndicator.setAlpha(locked ? 0.85f : 1f);
+        }
     }
 
 }

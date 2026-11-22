@@ -181,6 +181,7 @@ public class PlaybackCacheViewModel extends AndroidViewModel {
      * Pause playback
      */
     public void pause() {
+        if (blockGuestUserTransport("pause")) return;
         playbackState.pause();
     }
     
@@ -188,6 +189,7 @@ public class PlaybackCacheViewModel extends AndroidViewModel {
      * Toggle play/pause
      */
     public void togglePlayPause() {
+        if (blockGuestUserTransport("togglePlayPause")) return;
         playbackState.togglePlayPause();
     }
     
@@ -195,6 +197,7 @@ public class PlaybackCacheViewModel extends AndroidViewModel {
      * Seek to position
      */
     public void seekTo(long positionMs) {
+        if (blockGuestUserTransport("seek")) return;
         playbackState.seekTo(positionMs);
     }
     
@@ -202,6 +205,7 @@ public class PlaybackCacheViewModel extends AndroidViewModel {
      * Skip to next song
      */
     public void next() {
+        if (blockGuestUserTransport("next")) return;
         playbackState.next();
     }
     
@@ -209,6 +213,7 @@ public class PlaybackCacheViewModel extends AndroidViewModel {
      * Skip to previous song
      */
     public void previous() {
+        if (blockGuestUserTransport("previous")) return;
         playbackState.previous();
     }
     
@@ -216,6 +221,7 @@ public class PlaybackCacheViewModel extends AndroidViewModel {
      * Set repeat mode
      */
     public void setRepeatMode(int mode) {
+        if (blockGuestUserTransport("repeat")) return;
         playbackState.setRepeatMode(mode);
     }
     
@@ -223,7 +229,27 @@ public class PlaybackCacheViewModel extends AndroidViewModel {
      * Toggle shuffle mode
      */
     public void toggleShuffle() {
+        if (blockGuestUserTransport("shuffle")) return;
         playbackState.toggleShuffle();
+    }
+
+    /**
+     * Party guest: UI-originated transport is blocked; TimeEngine still drives
+     * {@link PlaybackStateRepository} directly and is unaffected.
+     */
+    private boolean blockGuestUserTransport(@NonNull String action) {
+        try {
+            Boolean locked = HeartBeatzApp.container(getApplication())
+                    .partyLiveBridge()
+                    .isGuestPlayerLocked()
+                    .getValue();
+            if (Boolean.TRUE.equals(locked)) {
+                android.util.Log.d(TAG, "guest transport blocked: " + action);
+                return true;
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
     }
     
     /**

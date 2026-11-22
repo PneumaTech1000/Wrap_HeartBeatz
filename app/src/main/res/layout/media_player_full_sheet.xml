@@ -33,6 +33,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
+                android:gravity="center_vertical"
                 android:paddingTop="25dp">
 
                 <FrameLayout
@@ -52,6 +53,32 @@
                         android:src="@drawable/m3_split_button_chevron_avd" />
 
                 </FrameLayout>
+
+                <TextView
+                    android:id="@+id/chip_party_sync_quality"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:background="@drawable/bg_party_sync_chip"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="6dp"
+                    android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
+                    android:textColor="?attr/colorOnSecondaryContainer"
+                    android:visibility="gone"
+                    android:text="@string/party_sync_quality_unknown" />
+
+                <TextView
+                    android:id="@+id/chip_party_guest_lock"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_party_guest_chip"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="6dp"
+                    android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
+                    android:textColor="?attr/colorOnTertiaryContainer"
+                    android:visibility="gone"
+                    android:text="@string/party_guest_listening" />
 
             </LinearLayout>
 

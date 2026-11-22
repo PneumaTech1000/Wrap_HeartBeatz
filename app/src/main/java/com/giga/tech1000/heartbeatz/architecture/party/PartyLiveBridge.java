@@ -696,7 +696,18 @@ public final class PartyLiveBridge {
                 || phase == TimeEnginePhase.ARMED
                 || phase == TimeEnginePhase.IDLE;
         PartySyncQuality q = PartySyncQuality.fromDeltaMs(delta, sync.isPlaying, buffering);
-        syncQualityLive.postValue(q);
+        // Hysteresis: avoid chip flicker on borderline deltas
+        PartySyncQuality prevQ = syncQualityLive.getValue();
+        if (prevQ == PartySyncQuality.TIGHT && q == PartySyncQuality.SOFT
+                && Math.abs(delta) < 220L) {
+            q = PartySyncQuality.TIGHT;
+        } else if (prevQ == PartySyncQuality.SOFT && q == PartySyncQuality.DRIFTING
+                && Math.abs(delta) < 900L) {
+            q = PartySyncQuality.SOFT;
+        }
+        if (q != prevQ) {
+            syncQualityLive.postValue(q);
+        }
 
         // SET guest receive — same scheduleId as hostPub for cross-device compare
         PartyLog.i("SET", "guestRx"

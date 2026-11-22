@@ -182,15 +182,28 @@ public class MediaPlayerView {
         btnLyrics.setOnClickListener(v -> panel.getBottomSheetView().openLyricsFragment());
         playListButton.setOnClickListener(v -> panel.getBottomSheetView().openQueueFragment());
 
-        playPauseButtonView.setOnClickListener(v -> playbackViewModel.togglePlayPause());
-        previousButton.setOnClickListener(v -> playbackViewModel.previous());
-        nextButton.setOnClickListener(v -> playbackViewModel.next());
+        playPauseButtonView.setOnClickListener(v -> {
+            if (partyGuestLocked) { toastGuestLocked(); return; }
+            playbackViewModel.togglePlayPause();
+        });
+        previousButton.setOnClickListener(v -> {
+            if (partyGuestLocked) { toastGuestLocked(); return; }
+            playbackViewModel.previous();
+        });
+        nextButton.setOnClickListener(v -> {
+            if (partyGuestLocked) { toastGuestLocked(); return; }
+            playbackViewModel.next();
+        });
         btnRepeat.setOnClickListener(v -> {
+            if (partyGuestLocked) { toastGuestLocked(); return; }
             RepeatMode next = nextRepeat(s.getRepeatMode());
             playbackViewModel.setRepeatMode(next.toMedia3());
         });
 
-        shuffleButton.setOnClickListener(v -> playbackViewModel.toggleShuffle());
+        shuffleButton.setOnClickListener(v -> {
+            if (partyGuestLocked) { toastGuestLocked(); return; }
+            playbackViewModel.toggleShuffle();
+        });
 
         // Equalizer: collapse player then open EQ from Home (nav bridge)
         if (eqBtn != null) {
@@ -215,6 +228,7 @@ public class MediaPlayerView {
 
         // Ensure play/pause does not propagate to sheet drag / collapse
         playPauseButtonView.setOnClickListener(v -> {
+            if (partyGuestLocked) { toastGuestLocked(); return; }
             v.playSoundEffect(android.view.SoundEffectConstants.CLICK);
             playbackViewModel.togglePlayPause();
         });
@@ -225,6 +239,7 @@ public class MediaPlayerView {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 if (isMediaSeeking) {
+                    if (partyGuestLocked) return;
                     playbackViewModel.seekTo(progress);
                     currentTimeText.setText(TimeConverter.formatTime(progress));
                 }
@@ -232,6 +247,11 @@ public class MediaPlayerView {
 
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {
+                if (partyGuestLocked) {
+                    toastGuestLocked();
+                    isMediaSeeking = false;
+                    return;
+                }
                 isMediaSeeking = true;
                 rootView.removeCallbacks(progressUpdater);
             }
@@ -444,12 +464,80 @@ public class MediaPlayerView {
     }
 
 
-    /** Party guest: dim full player chrome (host remains fully interactive). */
+    private boolean partyGuestLocked;
+    private android.widget.TextView chipSyncQuality;
+    private android.widget.TextView chipGuestLock;
+
+    /** Party guest: lock transport controls; keep navigation / party / lyrics usable. */
     public void setPartyGuestLocked(boolean locked) {
         if (rootView == null) return;
-        float a = locked ? 0.55f : 1f;
-        rootView.setAlpha(a);
-        rootView.setEnabled(!locked);
+        partyGuestLocked = locked;
+
+        // Transport only — not the whole sheet (back / party / lyrics stay usable)
+        setTransportEnabled(!locked, locked ? 0.45f : 1f);
+
+        if (chipGuestLock == null) {
+            chipGuestLock = rootView.findViewById(R.id.chip_party_guest_lock);
+        }
+        if (chipGuestLock != null) {
+            chipGuestLock.setVisibility(locked ? View.VISIBLE : View.GONE);
+        }
+        // Hide sync chip when not in guest session
+        if (!locked && chipSyncQuality != null) {
+            // host: still may show quality only on guest devices
+        }
+    }
+
+    /** Guest SET quality chip (tight / soft / drifting). Host leaves GONE. */
+    public void setPartySyncQuality(@androidx.annotation.Nullable
+            com.giga.tech1000.heartbeatz.architecture.party.PartySyncQuality quality,
+            boolean show) {
+        if (rootView == null) return;
+        if (chipSyncQuality == null) {
+            chipSyncQuality = rootView.findViewById(R.id.chip_party_sync_quality);
+        }
+        if (chipSyncQuality == null) return;
+        if (!show || quality == null
+                || quality == com.giga.tech1000.heartbeatz.architecture.party.PartySyncQuality.UNKNOWN) {
+            chipSyncQuality.setVisibility(View.GONE);
+            return;
+        }
+        int labelRes;
+        switch (quality) {
+            case BUFFERING -> labelRes = R.string.party_sync_quality_buffering;
+            case PAUSED -> labelRes = R.string.party_sync_quality_paused;
+            case TIGHT -> labelRes = R.string.party_sync_quality_tight;
+            case SOFT -> labelRes = R.string.party_sync_quality_soft;
+            case DRIFTING -> labelRes = R.string.party_sync_quality_drifting;
+            default -> labelRes = R.string.party_sync_quality_unknown;
+        }
+        chipSyncQuality.setText(labelRes);
+        chipSyncQuality.setVisibility(View.VISIBLE);
+    }
+
+    private void setTransportEnabled(boolean enabled, float alpha) {
+        View[] transport = {
+                playPauseButtonView, previousButton, nextButton,
+                shuffleButton, btnRepeat, seekBar
+        };
+        for (View v : transport) {
+            if (v == null) continue;
+            v.setEnabled(enabled);
+            v.setAlpha(alpha);
+            v.setClickable(enabled);
+        }
+        // Favorite / EQ / more remain available; playlist may open read-only
+        if (playListButton != null) {
+            playListButton.setAlpha(enabled ? 1f : 0.85f);
+        }
+    }
+
+    private void toastGuestLocked() {
+        if (rootView == null || !partyGuestLocked) return;
+        android.widget.Toast.makeText(
+                rootView.getContext(),
+                R.string.party_guest_transport_blocked,
+                android.widget.Toast.LENGTH_SHORT).show();
     }
 
 }

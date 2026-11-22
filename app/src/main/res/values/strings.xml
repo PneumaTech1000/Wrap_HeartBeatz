@@ -188,4 +188,13 @@
 
     <!-- Firebase/Google Auth -->
     <string name="default_web_client_id">212899330502-fu1no4ui3k5a0hahs6j6qpplruhpuba3.apps.googleusercontent.com</string>
+
+    <string name="party_sync_quality_unknown">Party</string>
+    <string name="party_sync_quality_buffering">Buffering…</string>
+    <string name="party_sync_quality_paused">Host paused</string>
+    <string name="party_sync_quality_tight">Sync · tight</string>
+    <string name="party_sync_quality_soft">Sync · soft</string>
+    <string name="party_sync_quality_drifting">Sync · adjusting</string>
+    <string name="party_guest_listening">Listening · host controls</string>
+    <string name="party_guest_transport_blocked">Host controls playback during the party</string>
 </resources>

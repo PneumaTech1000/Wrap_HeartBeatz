@@ -290,7 +290,7 @@ Reuse `FragmentBottomSheetQueue` as party queue when live; keep chat separate.
 | Phase | Work | Depends on |
 |-------|------|------------|
 | **P0** | Standard Party harden: host same URL, periodic epoch, bias/seek policy, purge, MIME | Existing SET |
-| **P1** | Sync-quality chip + guest lock polish | P0 metrics |
+| **P1** | Sync-quality chip + guest lock polish **(done)** | P0 metrics |
 | **P2** | Host-as-DJ queue approve flow | Firebase queue rules |
 | **P3** | DSP presets + per-output memory | Sound_Engine stable |
 | **P4** | Venue LAN flag (cloud URL on same Wi‑Fi first; local HTTP later) | P0 |
