@@ -46,7 +46,12 @@ public class FolderViewAdapter extends BaseRecyclerViewAdapter {
         FolderViewItem folderItem = (FolderViewItem) item;
         String title = folderItem.getFolder().getName();
         String path = folderItem.getFolder().getPath();
+        long folderId = folderItem.getFolder().getId();
 
         holder.itemView.setOnClickListener(v -> mediaNavigation.openFolder(title, path));
+        holder.itemView.setOnLongClickListener(v -> {
+            mediaNavigation.playFolderNow(folderId);
+            return true;
+        });
     }
 }

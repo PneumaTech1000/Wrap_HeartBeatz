@@ -245,7 +245,7 @@ Reuse `FragmentBottomSheetQueue` as party queue when live; keep chat separate.
 
 ---
 
-### B4. Smarter local library
+### B4. Smarter local library **(done — rescan, disc/track, play album/folder)**
 
 **Goal:** Essential music-player baseline.
 

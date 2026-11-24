@@ -300,11 +300,7 @@ public class PlaybackStateManager implements PlaybackStateRepository {
             for (Song s : map.values()) {
                 if (s != null && s.getAlbumId() == albumId) songs.add(s);
             }
-            songs.sort((a, b) -> {
-                String ta = a.getTitle() != null ? a.getTitle() : "";
-                String tb = b.getTitle() != null ? b.getTitle() : "";
-                return ta.compareToIgnoreCase(tb);
-            });
+            com.giga.tech1000.media_player.utils.LibrarySort.sortAlbumTracks(songs);
             for (Song s : songs) ids.add((int) s.getId());
             if (ids.isEmpty()) return;
             play(0, ids, ItemSource.ALBUMS);
@@ -324,11 +320,7 @@ public class PlaybackStateManager implements PlaybackStateRepository {
             for (Song s : map.values()) {
                 if (s != null && s.getFolderId() == folderId) songs.add(s);
             }
-            songs.sort((a, b) -> {
-                String ta = a.getTitle() != null ? a.getTitle() : "";
-                String tb = b.getTitle() != null ? b.getTitle() : "";
-                return ta.compareToIgnoreCase(tb);
-            });
+            com.giga.tech1000.media_player.utils.LibrarySort.sortByTitle(songs);
             for (Song s : songs) ids.add((int) s.getId());
             if (ids.isEmpty()) return;
             play(0, ids, ItemSource.FOLDERS);

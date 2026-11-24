@@ -6,6 +6,8 @@ import android.os.Build;
 import android.provider.MediaStore;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
+
 import com.giga.tech1000.media_player.database.library.LibraryRepository;
 import com.giga.tech1000.media_player.database.setting.SettingRepository;
 import com.giga.tech1000.media_player.models.Album;
@@ -125,6 +127,108 @@ public class LocalMediaScannerManager {
             Genre genre = genreMap.get(genreId);
             if (genreId != null) song.setGenreId(genreId);
             if (genre != null) song.setGenreName(genre.getName());
+        }
+    }
+
+    /**
+     * User-initiated full library rebuild: ignores generation short-circuit,
+     * rescans all music, updates Room + {@link SongRepository}.
+     */
+    public void forceFullRescan(@androidx.annotation.Nullable ScanCallback callback) {
+        executor.execute(() -> {
+            long t0 = System.currentTimeMillis();
+            notifyScan(callback, ScanPhase.STARTED, 0, null);
+            try {
+                SettingRepository settings = SettingRepository.getInstance(context);
+                // Clear markers so incremental logic cannot skip
+                settings.update(s -> {
+                    s.lastMediaStoreGeneration = -1;
+                    s.lastScanTimestamp = 0;
+                });
+
+                // Full MediaStore pass (no DATE_MODIFIED / generation filter)
+                List<Song> allSongs = scanner.scanSongs(-1, 0);
+                Set<Long> allValidIds = scanner.scanSongIds();
+                notifyScan(callback, ScanPhase.SCANNING, allSongs.size(), null);
+
+                repository.diffUpdateSongs(allSongs, allValidIds, diff -> {
+                    long newGen = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                            ? MediaStore.getGeneration(context, MediaStore.VOLUME_EXTERNAL) : -1;
+                    long newTime = System.currentTimeMillis() / 1000;
+                    settings.update(s -> {
+                        s.lastMediaStoreGeneration = newGen;
+                        s.lastScanTimestamp = newTime;
+                    });
+
+                    executor.execute(() -> {
+                        try {
+                            repository.refreshSongGenres(diff.affectedSongIds(), scanner);
+                            repository.refreshAlbums(diff);
+                            repository.refreshArtists(diff);
+                            repository.refreshFolders(diff);
+                            repository.deleteEmptyFolders();
+                            repository.deleteEmptyAlbums();
+                            repository.deleteEmptyArtists();
+                            repository.deleteEmptyGenres();
+                            repository.cleanupPlaylists(diff.deletedSongIds);
+
+                            List<Playlist> currentPlaylists = scanner.scanPlaylists();
+                            List<Long> currentPlaylistIds = new ArrayList<>();
+                            for (Playlist p : currentPlaylists) currentPlaylistIds.add(p.getPlaylistId());
+                            repository.dao.insertPlaylists(currentPlaylists);
+                            repository.dao.deletePlaylistsExcept(currentPlaylistIds);
+
+                            Map<Long, List<Long>> playlistMembers = scanner.scanPlaylistMembers();
+                            for (Map.Entry<Long, List<Long>> entry : playlistMembers.entrySet()) {
+                                long playlistId = entry.getKey();
+                                List<PlaylistSongCrossRef> refs = new ArrayList<>();
+                                for (long songId : entry.getValue()) {
+                                    refs.add(new PlaylistSongCrossRef(playlistId, songId));
+                                }
+                                repository.dao.syncPlaylistMembers(playlistId, refs);
+                            }
+
+                            List<Song> latestSongs = repository.dao.getAllSongsSync();
+                            this.songs = latestSongs;
+                            SongRepository.getInstance().loadSongs(scanner.getTreeMapOfSongs(latestSongs));
+
+                            long ms = System.currentTimeMillis() - t0;
+                            Log.i(TAG, "forceFullRescan done songs=" + latestSongs.size()
+                                    + " updatedIds=" + (diff.updatedSongIds != null ? diff.updatedSongIds.size() : 0)
+                                    + " deleted=" + (diff.deletedSongIds != null ? diff.deletedSongIds.size() : 0)
+                                    + " ms=" + ms);
+                            notifyScan(callback, ScanPhase.SUCCESS, latestSongs.size(), null);
+                        } catch (Exception e) {
+                            Log.e(TAG, "forceFullRescan post-process failed", e);
+                            notifyScan(callback, ScanPhase.FAILED, 0, e.getMessage());
+                        }
+                    });
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "forceFullRescan failed", e);
+                notifyScan(callback, ScanPhase.FAILED, 0, e.getMessage());
+            }
+        });
+    }
+
+    public enum ScanPhase {
+        STARTED, SCANNING, SUCCESS, FAILED
+    }
+
+    public interface ScanCallback {
+        void onScanPhase(@NonNull ScanPhase phase, int songCount, @androidx.annotation.Nullable String error);
+    }
+
+    private static void notifyScan(
+            @androidx.annotation.Nullable ScanCallback callback,
+            @NonNull ScanPhase phase,
+            int count,
+            @androidx.annotation.Nullable String error) {
+        if (callback == null) return;
+        try {
+            callback.onScanPhase(phase, count, error);
+        } catch (Exception e) {
+            Log.w(TAG, "ScanCallback error", e);
         }
     }
 

@@ -63,7 +63,9 @@ public class MediaNavigationManager implements MediaNavigation {
                 .getAlbumWithSongs(albumId)
                 .observe(fragment.getViewLifecycleOwner(), albumWithSongs -> {
                     if (albumWithSongs != null) {
-                        callback.accept(new ArrayList<>(albumWithSongs.getSongs()));
+                        List<Song> songs = new ArrayList<>(albumWithSongs.getSongs());
+                        com.giga.tech1000.media_player.utils.LibrarySort.sortAlbumTracks(songs);
+                        callback.accept(songs);
                     } else {
                         callback.accept(Collections.emptyList());
                     }
@@ -75,7 +77,9 @@ public class MediaNavigationManager implements MediaNavigation {
                 .getArtistWithSongs(artistId)
                 .observe(fragment.getViewLifecycleOwner(), artistWithSongs -> {
                     if (artistWithSongs != null) {
-                        callback.accept(new ArrayList<>(artistWithSongs.getSongs()));
+                        List<Song> songs = new ArrayList<>(artistWithSongs.getSongs());
+                        com.giga.tech1000.media_player.utils.LibrarySort.sortByTitle(songs);
+                        callback.accept(songs);
                     } else {
                         callback.accept(Collections.emptyList());
                     }
@@ -111,7 +115,9 @@ public class MediaNavigationManager implements MediaNavigation {
                 .getSongsByFolder(folder)
                 .observe(fragment.getViewLifecycleOwner(), folderWithSongs -> {
                     if (folderWithSongs != null) {
-                        callback.accept(new ArrayList<>(folderWithSongs.songs));
+                        List<Song> songs = new ArrayList<>(folderWithSongs.songs);
+                        com.giga.tech1000.media_player.utils.LibrarySort.sortByTitle(songs);
+                        callback.accept(songs);
                     } else {
                         callback.accept(Collections.emptyList());
                     }
@@ -146,6 +152,30 @@ public class MediaNavigationManager implements MediaNavigation {
             fragment.getMediaDetailsWithImgPanel().addDetails(mediaDetail);
             displayMediaDetailsWithImgPanel();
         });
+    }
+
+    @Override
+    public void playAlbumNow(long albumId) {
+        try {
+            HeartBeatzApp.container(fragment.requireContext())
+                    .requireUiThread()
+                    .getPlaybackStateRepository()
+                    .playAlbum(albumId);
+        } catch (Exception e) {
+            Log.e("MediaNav", "playAlbumNow failed", e);
+        }
+    }
+
+    @Override
+    public void playFolderNow(long folderId) {
+        try {
+            HeartBeatzApp.container(fragment.requireContext())
+                    .requireUiThread()
+                    .getPlaybackStateRepository()
+                    .playFolder(folderId);
+        } catch (Exception e) {
+            Log.e("MediaNav", "playFolderNow failed", e);
+        }
     }
 
     @Override

@@ -178,16 +178,44 @@ public class FragmentSettings extends Fragment {
             stats.setText("Monitored local library");
         } catch (Exception ignored) {
         }
-        rescan.setOnClickListener(v -> {
-            rescan.setEnabled(false);
-            rescan.setText("Scanning…");
-            Toast.makeText(requireContext(), "Library rescan requested", Toast.LENGTH_SHORT).show();
-            rescan.postDelayed(() -> {
-                if (isAdded()) {
+        // B4: real full MediaStore rescan with progress
+        try {
+            var coord = HeartBeatzApp.container(requireContext()).libraryScanCoordinator();
+            coord.getState().observe(getViewLifecycleOwner(), st -> {
+                if (!isAdded()) return;
+                if (st == com.giga.tech1000.heartbeatz.architecture.library.LibraryScanCoordinator.State.RUNNING) {
+                    rescan.setEnabled(false);
+                    rescan.setText("Scanning…");
+                } else {
                     rescan.setEnabled(true);
                     rescan.setText("Rescan Library");
                 }
-            }, 1500);
+            });
+            coord.getMessage().observe(getViewLifecycleOwner(), msg -> {
+                if (msg != null && !msg.isEmpty() && isAdded()) {
+                    stats.setText(msg);
+                }
+            });
+            Integer cached = null;
+            try {
+                var map = com.giga.tech1000.media_player.repository.SongRepository.getInstance().getCachedSongs();
+                if (map != null) stats.setText(map.size() + " local tracks indexed");
+            } catch (Exception ignored) {}
+        } catch (Exception e) {
+            stats.setText("Local library");
+        }
+
+        rescan.setOnClickListener(v -> {
+            try {
+                var container = HeartBeatzApp.container(requireContext());
+                var scanner = container.requireUiThread().getScannerManager();
+                boolean started = container.libraryScanCoordinator().requestFullRescan(scanner);
+                if (!started) {
+                    Toast.makeText(requireContext(), "Scan already running or scanner busy", Toast.LENGTH_SHORT).show();
+                }
+            } catch (Exception e) {
+                Toast.makeText(requireContext(), "Could not start rescan: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            }
         });
 
         View openShelf = view.findViewById(R.id.btn_open_free_shelf);

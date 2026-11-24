@@ -355,7 +355,7 @@ public class PlaybackManager {
         for (Song s : map.values()) {
             if (s != null && s.getAlbumId() == albumId) songs.add(s);
         }
-        songs.sort(Comparator.comparing(Song::getTitle, String.CASE_INSENSITIVE_ORDER));
+        com.giga.tech1000.media_player.utils.LibrarySort.sortAlbumTracks(songs);
         playSongList(songs, 0, ItemSource.ALBUMS, playWhenReady);
     }
 
@@ -367,7 +367,7 @@ public class PlaybackManager {
         for (Song s : map.values()) {
             if (s != null && s.getFolderId() == folderId) songs.add(s);
         }
-        songs.sort(Comparator.comparing(Song::getTitle, String.CASE_INSENSITIVE_ORDER));
+        com.giga.tech1000.media_player.utils.LibrarySort.sortByTitle(songs);
         playSongList(songs, 0, ItemSource.FOLDERS, playWhenReady);
     }
 

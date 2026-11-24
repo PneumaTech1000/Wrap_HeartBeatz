@@ -42,6 +42,7 @@ public final class AppContainer {
     private final VenueMediaUrlResolver venueMediaUrlResolver;
     private final LiveLockManager liveLockManager;
     private final FreeShelfRepository freeShelfRepository;
+    private final LibraryScanCoordinator libraryScanCoordinator;
     private final PartyLiveBridge partyLiveBridge;
 
     @Nullable private UIThread uiThread;
@@ -65,6 +66,7 @@ public final class AppContainer {
         this.venueMediaUrlResolver = new VenueMediaUrlResolver();
         this.liveLockManager = new LiveLockManager(appContext);
         this.freeShelfRepository = new FreeShelfRepository(appContext);
+        this.libraryScanCoordinator = new LibraryScanCoordinator();
         this.partyLiveBridge = new PartyLiveBridge(
                 partyTrackUploader,
                 partyPlaybackSyncRepository,
@@ -144,6 +146,11 @@ public final class AppContainer {
     @NonNull
     public FreeShelfRepository freeShelfRepository() {
         return freeShelfRepository;
+    }
+
+    @NonNull
+    public LibraryScanCoordinator libraryScanCoordinator() {
+        return libraryScanCoordinator;
     }
 
     /**

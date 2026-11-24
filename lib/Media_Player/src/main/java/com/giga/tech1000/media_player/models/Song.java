@@ -66,6 +66,18 @@ public class Song implements Serializable, Parcelable {
     @ColumnInfo(name = "is_hidden")
     public boolean isHidden;
 
+    /** MediaStore track number (0 = unknown). Often disc*1000+track on some OEMs. */
+    @ColumnInfo(name = "trackNumber", defaultValue = "0")
+    public int trackNumber;
+
+    /** Disc number within album (0 = unknown / single disc). */
+    @ColumnInfo(name = "discNumber", defaultValue = "0")
+    public int discNumber;
+
+    /** Album artist when different from track artist (compilation-friendly). */
+    @ColumnInfo(name = "albumArtist")
+    public String albumArtist;
+
     public Song(long id, String title, String displayName, String artist, long artistId, String album, long albumId,
                 long duration, String mimeType, Uri uri, String data, Uri albumArt,
                 String folder, long folderId, long dateAdded, long size) { // Added folderId to constructor
@@ -86,6 +98,46 @@ public class Song implements Serializable, Parcelable {
         this.dateAdded = dateAdded;
         this.genreId = 0;
         this.size = size;
+        this.trackNumber = 0;
+        this.discNumber = 0;
+        this.albumArtist = null;
+    }
+
+    public int getTrackNumber() {
+        return trackNumber;
+    }
+
+    public void setTrackNumber(int trackNumber) {
+        this.trackNumber = Math.max(0, trackNumber);
+    }
+
+    public int getDiscNumber() {
+        return discNumber;
+    }
+
+    public void setDiscNumber(int discNumber) {
+        this.discNumber = Math.max(0, discNumber);
+    }
+
+    public String getAlbumArtist() {
+        return albumArtist;
+    }
+
+    public void setAlbumArtist(String albumArtist) {
+        this.albumArtist = albumArtist;
+    }
+
+    /** Effective track order within a disc (handles MediaStore disc*1000+track encoding). */
+    public int getEffectiveTrackOrder() {
+        if (trackNumber <= 0) return Integer.MAX_VALUE / 4;
+        if (trackNumber >= 1000) return trackNumber % 1000;
+        return trackNumber;
+    }
+
+    public int getEffectiveDiscOrder() {
+        if (discNumber > 0) return discNumber;
+        if (trackNumber >= 1000) return trackNumber / 1000;
+        return 1;
     }
 
     public Song() {
@@ -258,6 +310,9 @@ public class Song implements Serializable, Parcelable {
                 && safeEquals(displayName, other.displayName)
                 && safeEquals(artist, other.artist)
                 && safeEquals(album, other.album)
+                && safeEquals(albumArtist, other.albumArtist)
+                && trackNumber == other.trackNumber
+                && discNumber == other.discNumber
                 && safeEquals(mimeType, other.mimeType)
                 && safeEquals(data, other.data)
                 && safeEqualsUri(uri, other.uri);
@@ -287,6 +342,9 @@ public class Song implements Serializable, Parcelable {
         s.genreName = other.genreName;
         s.isRemovedFromApp = other.isRemovedFromApp;
         s.isHidden = other.isHidden;
+        s.trackNumber = other.trackNumber;
+        s.discNumber = other.discNumber;
+        s.albumArtist = other.albumArtist;
         return s;
     }
 
@@ -348,6 +406,9 @@ public class Song implements Serializable, Parcelable {
         genreName = in.readString();
         isRemovedFromApp = in.readByte() != 0;
         isHidden = in.readByte() != 0;
+        trackNumber = in.readInt();
+        discNumber = in.readInt();
+        albumArtist = in.readString();
     }
 
     @Override
@@ -372,6 +433,9 @@ public class Song implements Serializable, Parcelable {
         dest.writeString(genreName);
         dest.writeByte((byte) (isRemovedFromApp ? 1 : 0));
         dest.writeByte((byte) (isHidden ? 1 : 0));
+        dest.writeInt(trackNumber);
+        dest.writeInt(discNumber);
+        dest.writeString(albumArtist);
     }
 
     @Override

@@ -50,6 +50,12 @@ public class AlbumViewAdapter extends BaseRecyclerViewAdapter {
             Album album = albumItem.getAlbum();
             mediaNavigation.openAlbum(album.getArtUri(), album.getName(), album.getId());
         });
+        // Long-press: play album immediately in disc/track order
+        holder.itemView.setOnLongClickListener(v -> {
+            Album album = albumItem.getAlbum();
+            mediaNavigation.playAlbumNow(album.getId());
+            return true;
+        });
     }
 }
 

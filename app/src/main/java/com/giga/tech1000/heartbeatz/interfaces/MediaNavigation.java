@@ -11,6 +11,12 @@ public interface MediaNavigation {
     void openPlaylist(String title, long playlistId);
     void openFolder(String name, String path);
 
+    /** B4: start album in disc/track order without opening the detail panel. */
+    void playAlbumNow(long albumId);
+
+    /** B4: start folder queue (title order). */
+    void playFolderNow(long folderId);
+
     void openSearchDialog();
     void openMoreInSong(int songId);
 

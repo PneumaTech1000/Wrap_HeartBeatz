@@ -124,7 +124,10 @@ public class LibraryScanner {
                 MediaStore.Audio.Media.DATE_ADDED,
                 MediaStore.Audio.Media.DATE_MODIFIED,
                 MediaStore.Audio.Media.DISPLAY_NAME,
-                MediaStore.Audio.Media.SIZE
+                MediaStore.Audio.Media.SIZE,
+                MediaStore.Audio.Media.TRACK,
+                // album_artist is widely available; use string for older API safety
+                "album_artist"
         };
 
         StringBuilder selectionBuilder = new StringBuilder();
@@ -169,6 +172,8 @@ public class LibraryScanner {
             int dateCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED);
             int displayCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME);
             int sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE);
+            int trackCol = cursor.getColumnIndex(MediaStore.Audio.Media.TRACK);
+            int albumArtistCol = cursor.getColumnIndex("album_artist");
 
             while (cursor.moveToNext()) {
                 long id = cursor.getLong(idCol);
@@ -192,6 +197,22 @@ public class LibraryScanner {
 
                 Song s = new Song(id, title, displayName, artist, artistId, album, albumId, 
                         duration, mime, uri, data, albumArtUri, folder, folderId, dateAdded, size);
+
+                int rawTrack = trackCol >= 0 ? cursor.getInt(trackCol) : 0;
+                if (rawTrack < 0) rawTrack = 0;
+                s.setTrackNumber(rawTrack);
+                // MediaStore often encodes disc in high digits of TRACK; expose disc explicitly
+                if (rawTrack >= 1000) {
+                    s.setDiscNumber(rawTrack / 1000);
+                } else {
+                    s.setDiscNumber(0);
+                }
+                if (albumArtistCol >= 0) {
+                    String aa = cursor.getString(albumArtistCol);
+                    if (aa != null && !aa.trim().isEmpty()) {
+                        s.setAlbumArtist(aa.trim());
+                    }
+                }
                 list.add(s);
             }
         }
