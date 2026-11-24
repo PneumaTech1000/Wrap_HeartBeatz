@@ -104,6 +104,26 @@ public interface PlaybackStateRepository {
      * Play the current song or resume if paused
      */
     void play();
+
+    /**
+     * P6: play an entire album (library order by title).
+     */
+    void playAlbum(long albumId);
+
+    /**
+     * P6: play every track in a folder.
+     */
+    void playFolder(long folderId);
+
+    /**
+     * P6: inject song ids into the queue after the current index.
+     */
+    void injectAfterCurrent(@NonNull List<Integer> songIds);
+
+    /**
+     * P6: gapless preload + optional crossfade (0 = off).
+     */
+    void setPlaybackTransitions(boolean gaplessEnabled, int crossfadeMs);
     
     /**
      * Pause playback

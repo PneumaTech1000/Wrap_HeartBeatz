@@ -4,6 +4,7 @@ import android.content.Context;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.OptIn;
 import androidx.media3.common.AudioAttributes;
@@ -17,8 +18,10 @@ import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.session.MediaLibraryService;
 
+import com.giga.tech1000.media_player.engine.CrossfadeController;
 import com.giga.tech1000.media_player.engine.ExoPlayerEngine;
 import com.giga.tech1000.media_player.engine.DspAudioProcessor;
+import com.giga.tech1000.media_player.engine.PlaybackTransitionSettings;
 import com.giga.tech1000.media_player.interfaces.IPlaybackCallback;
 import com.giga.tech1000.media_player.models.Song;
 import com.giga.tech1000.media_player.repository.SongRepository;
@@ -27,6 +30,7 @@ import com.giga.tech1000.media_player.utils.enums.ItemSource;
 import com.giga.tech1000.party_mode.core.PartyState;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 import java.util.TreeMap;
@@ -59,12 +63,16 @@ public class PlaybackManager {
 
     // DSP Audio Processor for advanced effects
     private DspAudioProcessor dspAudioProcessor;
+    private final PlaybackTransitionSettings transitionSettings;
+    private final CrossfadeController crossfadeController;
 
     public PlaybackManager(Context context, IPlaybackCallback callback) {
         this.context = context.getApplicationContext();
         this.callback = callback;
         this.audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         this.thread = new PlaybackSubThread(this::onUpdatePlaybackState);
+        this.transitionSettings = new PlaybackTransitionSettings(this.context);
+        this.crossfadeController = new CrossfadeController(transitionSettings);
 
         // Create listener inline to avoid circular dependencies
         this.listener = new Player.Listener() {
@@ -104,18 +112,54 @@ public class PlaybackManager {
     }
 
     private void initializeExoPlayer() {
+        crossfadeController.detach();
         if (exoPlayer != null) {
             exoPlayer.stop();
             exoPlayer.release();
         }
 
-        exoPlayer = exoPlayerEngine.createPlayer(context, partyState, dspAudioProcessor);
+        boolean gapless = transitionSettings.isGaplessEnabled()
+                && partyState != PartyState.JOINED;
+        exoPlayer = exoPlayerEngine.createPlayer(context, partyState, dspAudioProcessor, gapless);
         exoPlayer.addListener(listener);
+        // Crossfade only for local/host playback — not party guests
+        if (partyState != PartyState.JOINED) {
+            crossfadeController.setEnabled(true);
+            crossfadeController.attach(exoPlayer);
+        } else {
+            crossfadeController.setEnabled(false);
+        }
 
         // 🔥 If we have an active session, we must update its player reference.
         // This is critical when switching between normal, host, and client modes.
         if (mediaLibrarySession != null) {
             mediaLibrarySession.setPlayer(exoPlayer);
+        }
+    }
+
+    @NonNull
+    public PlaybackTransitionSettings getTransitionSettings() {
+        return transitionSettings;
+    }
+
+    /** Apply gapless/crossfade prefs and rebuild player if gapless mode changed. */
+    public void applyTransitionSettings(boolean gaplessEnabled, int crossfadeMs) {
+        boolean gaplessChanged = gaplessEnabled != transitionSettings.isGaplessEnabled();
+        transitionSettings.setGaplessEnabled(gaplessEnabled);
+        transitionSettings.setCrossfadeMs(crossfadeMs);
+        crossfadeController.onSettingsChanged();
+        if (gaplessChanged && partyState != PartyState.JOINED) {
+            // Rebuild LoadControl for new gapless policy; restore queue position
+            int idx = currentQueueIndex;
+            boolean wasPlaying = exoPlayer != null && exoPlayer.getPlayWhenReady();
+            long pos = exoPlayer != null ? exoPlayer.getCurrentPosition() : 0L;
+            initializeExoPlayer();
+            if (idx >= 0 && !queue.isEmpty()) {
+                onPlayIndex(idx, wasPlaying);
+                if (exoPlayer != null && pos > 0) {
+                    exoPlayer.seekTo(pos);
+                }
+            }
         }
     }
 
@@ -300,6 +344,76 @@ public class PlaybackManager {
         if (exoPlayer.getPlayWhenReady()) this.onPlay();
     }
 
+
+    /**
+     * P6 library polish: play all tracks of an album (sorted by title as stable order).
+     */
+    public void playAlbum(long albumId, boolean playWhenReady) {
+        TreeMap<Integer, Song> map = SongRepository.getInstance().getCachedSongs();
+        if (map == null || map.isEmpty()) return;
+        List<Song> songs = new ArrayList<>();
+        for (Song s : map.values()) {
+            if (s != null && s.getAlbumId() == albumId) songs.add(s);
+        }
+        songs.sort(Comparator.comparing(Song::getTitle, String.CASE_INSENSITIVE_ORDER));
+        playSongList(songs, 0, ItemSource.ALBUMS, playWhenReady);
+    }
+
+    /** Play every song in a library folder. */
+    public void playFolder(long folderId, boolean playWhenReady) {
+        TreeMap<Integer, Song> map = SongRepository.getInstance().getCachedSongs();
+        if (map == null || map.isEmpty()) return;
+        List<Song> songs = new ArrayList<>();
+        for (Song s : map.values()) {
+            if (s != null && s.getFolderId() == folderId) songs.add(s);
+        }
+        songs.sort(Comparator.comparing(Song::getTitle, String.CASE_INSENSITIVE_ORDER));
+        playSongList(songs, 0, ItemSource.FOLDERS, playWhenReady);
+    }
+
+    /**
+     * Inject songs after the currently playing index (queue inject).
+     * Dedupes by song id while preserving order of {@code songIds}.
+     */
+    public void injectAfterCurrent(@NonNull List<Integer> songIds) {
+        if (songIds.isEmpty()) return;
+        if (queue == null) queue = new ArrayList<>();
+        int insertAt = currentQueueIndex + 1;
+        if (insertAt < 0) insertAt = 0;
+        if (insertAt > queue.size()) insertAt = queue.size();
+        java.util.LinkedHashSet<Integer> existing = new java.util.LinkedHashSet<>(queue);
+        List<Integer> toAdd = new ArrayList<>();
+        for (Integer id : songIds) {
+            if (id == null) continue;
+            if (existing.add(id)) toAdd.add(id);
+        }
+        if (toAdd.isEmpty()) return;
+        queue.addAll(insertAt, toAdd);
+        // Refresh Media3 playlist without restarting current item when possible
+        int idx = Math.max(0, currentQueueIndex);
+        long pos = exoPlayer != null ? exoPlayer.getCurrentPosition() : 0L;
+        boolean playing = exoPlayer != null && exoPlayer.getPlayWhenReady();
+        onPlayIndex(idx, playing);
+        if (exoPlayer != null && pos > 0) {
+            try { exoPlayer.seekTo(pos); } catch (Exception ignored) {}
+        }
+        Log.i("PlaybackManager", "injectAfterCurrent +" + toAdd.size() + " queue=" + queue.size());
+    }
+
+    private void playSongList(@NonNull List<Song> songs, int startIndex,
+                              @NonNull ItemSource source, boolean playWhenReady) {
+        if (songs.isEmpty()) return;
+        List<Integer> ids = new ArrayList<>();
+        for (Song s : songs) {
+            if (s != null) ids.add((int) s.getId());
+        }
+        if (ids.isEmpty()) return;
+        this.queue = ids;
+        this.queueSource = source;
+        if (startIndex < 0 || startIndex >= ids.size()) startIndex = 0;
+        onPlayIndex(startIndex, playWhenReady);
+    }
+
     private MediaItem convertToMediaItem(Song song) {
         MediaItem.Builder builder = new MediaItem.Builder().setMediaId(String.valueOf(song.getId())).setUri(song.getUri()).setMediaMetadata(new MediaMetadata.Builder().setTitle(song.getTitle()).setArtist(song.getArtist()).setAlbumTitle(song.getAlbum()).setArtworkUri(song.getAlbumArt()).build());
 
@@ -425,6 +539,8 @@ public class PlaybackManager {
     }
 
     public void release() {
+        crossfadeController.detach();
+
         if (exoPlayer != null) {
             exoPlayer.removeListener(listener);
             exoPlayer.stop();

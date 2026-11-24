@@ -20,6 +20,18 @@ public class ExoPlayerEngine {
 
     public ExoPlayer createPlayer(
             Context context, PartyState partyState, DspAudioProcessor dspAudioProcessor) {
+        return createPlayer(context, partyState, dspAudioProcessor, true);
+    }
+
+    /**
+     * @param gaplessLocal when true and not a party guest, use larger preload so the next
+     *                     playlist item is ready (encoder delay/padding still handled by Media3).
+     */
+    public ExoPlayer createPlayer(
+            Context context,
+            PartyState partyState,
+            DspAudioProcessor dspAudioProcessor,
+            boolean gaplessLocal) {
         // 1. Configure Audio Attributes for Music
         AudioAttributes audioAttributes = new AudioAttributes.Builder()
                 .setUsage(C.USAGE_MEDIA)
@@ -40,8 +52,6 @@ public class ExoPlayerEngine {
 
         if (partyState == PartyState.JOINED) {
             // Low-latency buffering for Party Client
-            // In the new architecture, the client plays a normal HTTP stream.
-            // Tuning LoadControl helps with sync stability.
             LoadControl loadControl = new DefaultLoadControl.Builder()
                     .setBufferDurationsMs(
                             2500,  // minBufferMs
@@ -51,9 +61,24 @@ public class ExoPlayerEngine {
                     )
                     .build();
             playerBuilder.setLoadControl(loadControl);
+        } else if (gaplessLocal) {
+            // P6: keep more of the next item buffered for seamless playlist advances
+            LoadControl loadControl = new DefaultLoadControl.Builder()
+                    .setBufferDurationsMs(
+                            15_000,  // minBufferMs
+                            50_000,  // maxBufferMs
+                            1_500,   // bufferForPlaybackMs
+                            3_000    // bufferForPlaybackAfterRebufferMs
+                    )
+                    .setPrioritizeTimeOverSizeThresholds(true)
+                    .build();
+            playerBuilder.setLoadControl(loadControl);
         }
 
-        return playerBuilder.build();
+        ExoPlayer player = playerBuilder.build();
+        // Continuity across MediaItems (gapless where container metadata allows)
+        player.setPauseAtEndOfMediaItems(false);
+        return player;
     }
 
         private static final class DspRenderersFactory extends DefaultRenderersFactory {

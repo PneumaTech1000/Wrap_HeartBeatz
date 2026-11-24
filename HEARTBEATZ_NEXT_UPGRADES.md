@@ -295,7 +295,7 @@ Reuse `FragmentBottomSheetQueue` as party queue when live; keep chat separate.
 | **P3** | DSP presets + per-output memory | Sound_Engine stable |
 | **P4** | Venue LAN flag (cloud URL on same Wi‑Fi first; local HTTP later) **(done)** | P0 |
 | **P5** | Live Lock spike **(done)** (1 host + 2 guests, free tier or LAN SFU, cap 8) | Token backend |
-| **P6** | Gapless/crossfade + library polish | Media3 playlist |
+| **P6** | Gapless/crossfade + library polish **(done)** | Media3 playlist |
 | **P7** | Legal free shelf (optional) | Policy + index |
 
 ---

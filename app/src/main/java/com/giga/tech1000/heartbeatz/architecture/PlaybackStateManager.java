@@ -19,12 +19,14 @@ import com.giga.tech1000.heartbeatz.architecture.repositories.PlaybackStateRepos
 import com.giga.tech1000.heartbeatz.ui.MediaPlayerThread;
 import com.giga.tech1000.media_player.interfaces.IPlaybackCallback;
 import com.giga.tech1000.media_player.models.Song;
+import com.giga.tech1000.media_player.repository.SongRepository;
 import com.giga.tech1000.media_player.utils.enums.ItemSource;
 import com.giga.tech1000.party_mode.model.PartyHost;
 import com.giga.tech1000.party_mode.model.SyncPacket;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeMap;
 
 import com.giga.tech1000.heartbeatz.architecture.party.PartyLog;
 /**
@@ -285,6 +287,100 @@ public class PlaybackStateManager implements PlaybackStateRepository {
             }
         } catch (Exception e) {
             Log.e(TAG, "Failed to play", e);
+        }
+    }
+
+    @Override
+    public void playAlbum(long albumId) {
+        try {
+            TreeMap<Integer, Song> map = SongRepository.getInstance().getCachedSongs();
+            if (map == null || map.isEmpty()) return;
+            List<Integer> ids = new ArrayList<>();
+            List<Song> songs = new ArrayList<>();
+            for (Song s : map.values()) {
+                if (s != null && s.getAlbumId() == albumId) songs.add(s);
+            }
+            songs.sort((a, b) -> {
+                String ta = a.getTitle() != null ? a.getTitle() : "";
+                String tb = b.getTitle() != null ? b.getTitle() : "";
+                return ta.compareToIgnoreCase(tb);
+            });
+            for (Song s : songs) ids.add((int) s.getId());
+            if (ids.isEmpty()) return;
+            play(0, ids, ItemSource.ALBUMS);
+            Log.i(TAG, "playAlbum id=" + albumId + " tracks=" + ids.size());
+        } catch (Exception e) {
+            Log.e(TAG, "playAlbum failed", e);
+        }
+    }
+
+    @Override
+    public void playFolder(long folderId) {
+        try {
+            TreeMap<Integer, Song> map = SongRepository.getInstance().getCachedSongs();
+            if (map == null || map.isEmpty()) return;
+            List<Integer> ids = new ArrayList<>();
+            List<Song> songs = new ArrayList<>();
+            for (Song s : map.values()) {
+                if (s != null && s.getFolderId() == folderId) songs.add(s);
+            }
+            songs.sort((a, b) -> {
+                String ta = a.getTitle() != null ? a.getTitle() : "";
+                String tb = b.getTitle() != null ? b.getTitle() : "";
+                return ta.compareToIgnoreCase(tb);
+            });
+            for (Song s : songs) ids.add((int) s.getId());
+            if (ids.isEmpty()) return;
+            play(0, ids, ItemSource.FOLDERS);
+            Log.i(TAG, "playFolder id=" + folderId + " tracks=" + ids.size());
+        } catch (Exception e) {
+            Log.e(TAG, "playFolder failed", e);
+        }
+    }
+
+    @Override
+    public void injectAfterCurrent(@NonNull List<Integer> songIds) {
+        if (songIds == null || songIds.isEmpty()) return;
+        try {
+            List<Integer> current = getQueueSync();
+            if (current == null) current = new ArrayList<>();
+            Integer idxObj = currentQueueIndex.getValue();
+            int idx = idxObj != null ? idxObj : -1;
+            if (idx < 0) idx = -1;
+            java.util.LinkedHashSet<Integer> seen = new java.util.LinkedHashSet<>(current);
+            List<Integer> merged = new ArrayList<>(current);
+            int insertAt = Math.min(idx + 1, merged.size());
+            for (Integer id : songIds) {
+                if (id == null) continue;
+                if (seen.add(id)) {
+                    merged.add(insertAt++, id);
+                }
+            }
+            int playIdx = Math.max(0, idx);
+            ItemSource src = ItemSource.BOTTOM_SHEET_QUEUE;
+            play(playIdx, merged, src);
+            Log.i(TAG, "injectAfterCurrent queue=" + merged.size());
+        } catch (Exception e) {
+            Log.e(TAG, "injectAfterCurrent failed", e);
+        }
+    }
+
+    @Override
+    public void setPlaybackTransitions(boolean gaplessEnabled, int crossfadeMs) {
+        try {
+            android.content.Context ctx = null;
+            if (playerThread != null && playerThread.getActivity() != null) {
+                ctx = playerThread.getActivity().getApplicationContext();
+            }
+            if (ctx == null) return;
+            com.giga.tech1000.media_player.engine.PlaybackTransitionSettings s =
+                    new com.giga.tech1000.media_player.engine.PlaybackTransitionSettings(ctx);
+            s.setGaplessEnabled(gaplessEnabled);
+            s.setCrossfadeMs(crossfadeMs);
+            Log.i(TAG, "playback transitions gapless=" + gaplessEnabled + " crossfadeMs=" + crossfadeMs
+                    + " (gapless LoadControl applies on next player rebuild)");
+        } catch (Exception e) {
+            Log.e(TAG, "setPlaybackTransitions failed", e);
         }
     }
     
