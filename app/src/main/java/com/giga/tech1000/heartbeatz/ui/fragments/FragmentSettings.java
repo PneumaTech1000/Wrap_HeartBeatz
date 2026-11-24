@@ -199,7 +199,7 @@ public class FragmentSettings extends Fragment {
                         .setCustomAnimations(
                                 android.R.anim.fade_in, android.R.anim.fade_out,
                                 android.R.anim.fade_in, android.R.anim.fade_out)
-                        .replace(android.R.id.content, new FragmentFreeShelf())
+                        .add(R.id.root_container_view, new FragmentFreeShelf(), "free_shelf")
                         .addToBackStack("free_shelf")
                         .commitAllowingStateLoss();
             });
