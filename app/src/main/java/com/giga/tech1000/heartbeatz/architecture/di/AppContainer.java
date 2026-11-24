@@ -41,6 +41,7 @@ public final class AppContainer {
     private final VenueCoordinator venueCoordinator;
     private final VenueMediaUrlResolver venueMediaUrlResolver;
     private final LiveLockManager liveLockManager;
+    private final FreeShelfRepository freeShelfRepository;
     private final PartyLiveBridge partyLiveBridge;
 
     @Nullable private UIThread uiThread;
@@ -63,6 +64,7 @@ public final class AppContainer {
         this.venueCoordinator = new VenueCoordinator(appContext);
         this.venueMediaUrlResolver = new VenueMediaUrlResolver();
         this.liveLockManager = new LiveLockManager(appContext);
+        this.freeShelfRepository = new FreeShelfRepository(appContext);
         this.partyLiveBridge = new PartyLiveBridge(
                 partyTrackUploader,
                 partyPlaybackSyncRepository,
@@ -136,6 +138,12 @@ public final class AppContainer {
     @NonNull
     public LiveLockManager liveLockManager() {
         return liveLockManager;
+    }
+
+    /** P7 curated legal free music index. */
+    @NonNull
+    public FreeShelfRepository freeShelfRepository() {
+        return freeShelfRepository;
     }
 
     /**

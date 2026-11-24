@@ -369,6 +369,15 @@
                         android:text="Rescan Library"
                          />
 
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_open_free_shelf"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="Legal free shelf (CC0 / PD)"
+                        android:textAllCaps="false" />
+
                     <com.google.android.material.materialswitch.MaterialSwitch
                         android:id="@+id/switch_ignore_short"
                         android:layout_width="match_parent"

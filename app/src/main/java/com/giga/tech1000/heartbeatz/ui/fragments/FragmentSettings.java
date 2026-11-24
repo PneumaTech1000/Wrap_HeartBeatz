@@ -106,16 +106,41 @@ public class FragmentSettings extends Fragment {
         Slider crossfade = view.findViewById(R.id.slider_crossfade);
         TextView crossfadeVal = view.findViewById(R.id.txt_crossfade_val);
 
-        gapless.setOnCheckedChangeListener((b, checked) ->
-                persistHint("gapless", checked));
+        // P6 transitions — wire to PlaybackTransitionSettings
+        try {
+            com.giga.tech1000.media_player.engine.PlaybackTransitionSettings ts =
+                    new com.giga.tech1000.media_player.engine.PlaybackTransitionSettings(requireContext());
+            gapless.setChecked(ts.isGaplessEnabled());
+            float sec = ts.getCrossfadeMs() / 1000f;
+            crossfade.setValue(Math.min(crossfade.getValueTo(), Math.max(crossfade.getValueFrom(), sec)));
+            crossfadeVal.setText(String.format(java.util.Locale.US, "%.1fs", sec));
+        } catch (Exception ignored) { }
+
+        gapless.setOnCheckedChangeListener((b, checked) -> {
+            persistHint("gapless", checked);
+            applyTransitions(gapless.isChecked(), crossfade.getValue());
+        });
         replay.setOnCheckedChangeListener((b, checked) ->
                 persistHint("replay_gain", checked));
 
         crossfade.addOnChangeListener((slider, value, fromUser) -> {
             if (fromUser) {
                 crossfadeVal.setText(String.format(java.util.Locale.US, "%.1fs", value));
+                applyTransitions(gapless.isChecked(), value);
             }
         });
+    }
+
+    private void applyTransitions(boolean gaplessOn, float crossfadeSeconds) {
+        try {
+            int ms = Math.round(crossfadeSeconds * 1000f);
+            HeartBeatzApp.container(requireContext())
+                    .requireUiThread()
+                    .getPlaybackStateRepository()
+                    .setPlaybackTransitions(gaplessOn, ms);
+        } catch (Exception e) {
+            Toast.makeText(requireContext(), "Could not save transitions", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void bindPlayback(View view) {
@@ -164,6 +189,21 @@ public class FragmentSettings extends Fragment {
                 }
             }, 1500);
         });
+
+        View openShelf = view.findViewById(R.id.btn_open_free_shelf);
+        if (openShelf != null) {
+            openShelf.setOnClickListener(v -> {
+                close();
+                requireActivity().getSupportFragmentManager()
+                        .beginTransaction()
+                        .setCustomAnimations(
+                                android.R.anim.fade_in, android.R.anim.fade_out,
+                                android.R.anim.fade_in, android.R.anim.fade_out)
+                        .replace(android.R.id.content, new FragmentFreeShelf())
+                        .addToBackStack("free_shelf")
+                        .commitAllowingStateLoss();
+            });
+        }
     }
 
     private void bindTheme(View view) {
