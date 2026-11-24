@@ -837,6 +837,8 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
                         tvPartySongTitle.setText(R.string.streaming_active);
                     if (tvPartyArtist != null) tvPartyArtist.setText(R.string.you_are_the_host);
                     if (progressSync != null) progressSync.setVisibility(View.GONE);
+                    // P5 Live Lock — host star WebRTC (mic publish); guests auto-attach
+                    tryEnableLiveLockAsHost();
 
                     new Handler(Looper.getMainLooper()).postDelayed(() -> {
                         if (currentState == PartyState.HOSTING || currentState == PartyState.JOINED) {
@@ -1263,4 +1265,31 @@ public class FragmentParty extends Fragment implements PartyModeUICallback, OnBa
         int paddingHeight = (isDisplaying) ? getResources().getDimensionPixelSize(R.dimen.bar_and_navigation_height) : getResources().getDimensionPixelSize(R.dimen.navigation_bar_height);
         partyRoot.setPadding(0, 0, 0, paddingHeight);
     }
+
+    /** P5 — request mic if needed, then start Live Lock host session. */
+    private void tryEnableLiveLockAsHost() {
+        if (viewModel == null) return;
+        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 3980);
+            return;
+        }
+        viewModel.enableLiveLock();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 3980
+                && grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            if (viewModel != null) viewModel.enableLiveLock();
+        } else if (requestCode == 3980) {
+            Toast.makeText(requireContext(),
+                    "Microphone permission needed for Live Lock audio",
+                    Toast.LENGTH_LONG).show();
+        }
+    }
+
 }

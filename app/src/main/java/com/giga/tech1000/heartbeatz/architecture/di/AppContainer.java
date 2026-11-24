@@ -40,6 +40,7 @@ public final class AppContainer {
     private final PartyQueueRepository partyQueueRepository;
     private final VenueCoordinator venueCoordinator;
     private final VenueMediaUrlResolver venueMediaUrlResolver;
+    private final LiveLockManager liveLockManager;
     private final PartyLiveBridge partyLiveBridge;
 
     @Nullable private UIThread uiThread;
@@ -61,13 +62,15 @@ public final class AppContainer {
         this.partyQueueRepository = new PartyQueueRepository();
         this.venueCoordinator = new VenueCoordinator(appContext);
         this.venueMediaUrlResolver = new VenueMediaUrlResolver();
+        this.liveLockManager = new LiveLockManager(appContext);
         this.partyLiveBridge = new PartyLiveBridge(
                 partyTrackUploader,
                 partyPlaybackSyncRepository,
                 partyMediaLifecycle,
                 partyQueueRepository,
                 venueCoordinator,
-                venueMediaUrlResolver);
+                venueMediaUrlResolver,
+                liveLockManager);
     }
 
     @NonNull
@@ -127,6 +130,12 @@ public final class AppContainer {
     @NonNull
     public VenueMediaUrlResolver venueMediaUrlResolver() {
         return venueMediaUrlResolver;
+    }
+
+    /** P5 Live Lock — star WebRTC audio overlay (cap 8). */
+    @NonNull
+    public LiveLockManager liveLockManager() {
+        return liveLockManager;
     }
 
     /**

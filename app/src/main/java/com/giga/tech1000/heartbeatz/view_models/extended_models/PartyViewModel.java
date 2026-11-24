@@ -199,6 +199,7 @@ public class PartyViewModel extends AndroidViewModel {
                 PartyHost ch = partyHost.getConnectedHost().getValue();
                 if (ch != null && ch.getPartyId() != null) {
                     startGuestBridge(ch.getPartyId());
+                    attachLiveLockAsGuest();
                 }
             } else if (!Boolean.TRUE.equals(authenticated) && !partyHost.isHosting()) {
                 stopPartyBridge();
@@ -468,6 +469,7 @@ public class PartyViewModel extends AndroidViewModel {
      * Leave current party (host or guest)
      */
     public void leaveParty() {
+        disableLiveLock();
         PartyLog.d("PartyViewModel", "Leaving party (hosting=" + partyHost.isHosting()
                 + " guest=" + partyHost.isGuest() + ")");
         partyError.postValue(null);
@@ -890,4 +892,57 @@ public class PartyViewModel extends AndroidViewModel {
             ((EnhancedFirebasePartyHostRepository) partyHost).release();
         }
     }
+
+    /** P5 — host enables Live Lock WebRTC star session (cap 8). Needs RECORD_AUDIO. */
+    public void enableLiveLock() {
+        String partyId = getPartyId();
+        if (partyId == null || !isHosting()) {
+            PartyLog.w("PartyViewModel", "enableLiveLock: not hosting");
+            return;
+        }
+        try {
+            com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp.container(getApplication())
+                    .liveLockManager()
+                    .startAsHost(partyId);
+            PartyLog.i("PartyViewModel", "Live Lock host enabled");
+        } catch (Exception e) {
+            PartyLog.e("PartyViewModel", "enableLiveLock failed", e);
+        }
+    }
+
+    /** Guest attaches Live Lock observer (auto when host enables). */
+    public void attachLiveLockAsGuest() {
+        String partyId = getPartyId();
+        if (partyId == null || isHosting()) return;
+        try {
+            com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp.container(getApplication())
+                    .liveLockManager()
+                    .startAsGuest(partyId);
+        } catch (Exception e) {
+            PartyLog.e("PartyViewModel", "attachLiveLockAsGuest failed", e);
+        }
+    }
+
+    public void disableLiveLock() {
+        try {
+            com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp.container(getApplication())
+                    .liveLockManager()
+                    .stop();
+        } catch (Exception e) {
+            PartyLog.w("PartyViewModel", "disableLiveLock: " + e.getMessage());
+        }
+    }
+
+    public androidx.lifecycle.LiveData<com.giga.tech1000.heartbeatz.architecture.party.live.LiveLockState>
+    getLiveLockState() {
+        try {
+            return com.giga.tech1000.heartbeatz.app_worker.HeartBeatzApp.container(getApplication())
+                    .liveLockManager()
+                    .getState();
+        } catch (Exception e) {
+            return new androidx.lifecycle.MutableLiveData<>(
+                    com.giga.tech1000.heartbeatz.architecture.party.live.LiveLockState.IDLE);
+        }
+    }
+
 }

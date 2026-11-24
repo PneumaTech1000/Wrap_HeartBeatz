@@ -26,6 +26,7 @@ import java.io.File;
 import com.giga.tech1000.heartbeatz.architecture.party.PartyLog;
 import com.giga.tech1000.heartbeatz.architecture.party.venue.VenueCoordinator;
 import com.giga.tech1000.heartbeatz.architecture.party.venue.VenueMediaUrlResolver;
+import com.giga.tech1000.heartbeatz.architecture.party.live.LiveLockManager;
 /**
  * Host: upload track → hand off to same cloud URL → publish SET anchors.
  * Guest: {@link TimeEngine} + {@link TimeEnginePlayerBridge}
@@ -55,6 +56,7 @@ public final class PartyLiveBridge {
     @Nullable private final PartyQueueRepository queueRepo;
     @Nullable private final VenueCoordinator venueCoordinator;
     @Nullable private final VenueMediaUrlResolver venueResolver;
+    @Nullable private final LiveLockManager liveLockManager;
     @Nullable private String lastLanMediaUrl;
     @Nullable private java.io.File lastLocalFile;
     private final TimeEngine timeEngine = new TimeEngine();
@@ -122,13 +124,15 @@ public final class PartyLiveBridge {
             @NonNull PartyMediaLifecycle mediaLifecycle,
             @Nullable PartyQueueRepository queueRepo,
             @Nullable VenueCoordinator venueCoordinator,
-            @Nullable VenueMediaUrlResolver venueResolver) {
+            @Nullable VenueMediaUrlResolver venueResolver,
+            @Nullable LiveLockManager liveLockManager) {
         this.uploader = uploader;
         this.syncRepo = syncRepo;
         this.mediaLifecycle = mediaLifecycle;
         this.queueRepo = queueRepo;
         this.venueCoordinator = venueCoordinator;
         this.venueResolver = venueResolver;
+        this.liveLockManager = liveLockManager;
     }
 
     @NonNull
@@ -274,6 +278,9 @@ public final class PartyLiveBridge {
         }
         if (venueCoordinator != null) {
             venueCoordinator.shutdown();
+        }
+        if (liveLockManager != null) {
+            liveLockManager.stop();
         }
         lastLanMediaUrl = null;
         lastLocalFile = null;
@@ -743,6 +750,14 @@ public final class PartyLiveBridge {
 
         if (playback == null) {
             PartyLog.e("PartyLiveBridge", "guest sync: playback still null");
+            latestSync.postValue(sync);
+            return;
+        }
+
+        // P5 Live Lock: when WebRTC audio is authoritative, do not SET-seek Media3
+        if (liveLockManager != null && liveLockManager.isLiveNow()) {
+            PartyLog.d("LiveLock", "SET chase suppressed (WebRTC live) scheduleId="
+                    + sync.scheduleId + " title=" + sync.title);
             latestSync.postValue(sync);
             return;
         }

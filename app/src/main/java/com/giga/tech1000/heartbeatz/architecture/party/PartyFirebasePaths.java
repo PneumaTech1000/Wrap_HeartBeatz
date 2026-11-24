@@ -13,6 +13,7 @@ public final class PartyFirebasePaths {
     public static final String SYNC = "sync";
     public static final String QUEUE = "queue";
     public static final String VENUE = "venue";
+    public static final String LIVE_LOCK = "live_lock";
 
     private PartyFirebasePaths() {}
 }

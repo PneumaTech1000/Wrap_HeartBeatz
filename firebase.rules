@@ -86,6 +86,19 @@
           ".write": "auth != null && root.child('parties').child($partyId).child('ownerId').val() == auth.uid"
         },
 
+        "live_lock": {
+          ".read": "auth != null",
+          "session": {
+            ".write": "auth != null && root.child('parties').child($partyId).child('ownerId').val() == auth.uid"
+          },
+          "signal": {
+            ".write": "auth != null",
+            "$msgId": {
+              ".validate": "newData.hasChildren(['from','type']) && newData.child('from').val() == auth.uid"
+            }
+          }
+        },
+
         "webrtc_signaling": {
           ".read": "auth != null",
           ".write": "auth != null",

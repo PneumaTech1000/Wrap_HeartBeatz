@@ -75,6 +75,7 @@ dependencies {
 
     implementation libs.okhttp
     implementation libs.nanohttpd
+    implementation libs.webRTCAndroid
     implementation libs.gson
     implementation libs.firebase.database
     implementation libs.firebase.auth
